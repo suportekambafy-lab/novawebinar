@@ -14,7 +14,7 @@ export const Route = createFileRoute("/automations/")({
   }),
   head: () => ({
     meta: [
-      { title: "Automações | Convertewebinar" },
+      { title: "Automações | Novawebinar" },
       { name: "description", content: "Um fluxo por webinar: primeiro configura-se, depois desenha-se." },
     ],
   }),

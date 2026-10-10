@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 import { CHANNELS, channelStatus } from "@/lib/workflow";
 
 export const Route = createFileRoute("/automations/new")({
-  head: () => ({ meta: [{ title: "Novo fluxo | Convertewebinar" }] }),
+  head: () => ({ meta: [{ title: "Novo fluxo | Novawebinar" }] }),
   component: NewFlowPage,
 });
 

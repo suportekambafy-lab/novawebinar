@@ -71,7 +71,7 @@ export function emptyEditorForm() {
     room_theme_system: false,
     // Guardado em chat_settings.room_format (ver roomFormat).
     room_format: "webinar" as RoomFormat,
-    // Onde as pessoas se inscrevem: a página do Convertewebinar ou uma página externa. Guardado em chat_settings.entry_mode.
+    // Onde as pessoas se inscrevem: a página do Novawebinar ou uma página externa. Guardado em chat_settings.entry_mode.
     entry_mode: "page" as "page" | "own",
     // Guardado em chat_settings.live (ver liveSettings).
     live: { ...LIVE_DEFAULTS, links: {}, moments: [] } as LiveSettings,

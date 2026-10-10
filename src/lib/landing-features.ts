@@ -31,7 +31,7 @@ export const landingFeatures: FeatureDefinition[] = [
     eyebrow: "01 · SESSÕES",
     title: "Grave uma vez e defina quando volta a acontecer.",
     intro:
-      "O Convertewebinar apresenta um vídeo pré-gravado numa experiência de sessão organizada. Define a data, a repetição e a duração, e cada sessão abre sozinha na hora marcada.",
+      "O Novawebinar apresenta um vídeo pré-gravado numa experiência de sessão organizada. Define a data, a repetição e a duração, e cada sessão abre sozinha na hora marcada.",
     heroVisual: "schedule",
     heroCaption: "Configuração da sessão no editor de webinares.",
     highlights: [
@@ -64,7 +64,7 @@ export const landingFeatures: FeatureDefinition[] = [
           "Define a hora de início, a hora de fim e o fuso horário da sessão. A agenda mostra as próximas datas e o calendário reúne todas as sessões previstas.",
       },
     ],
-    metaTitle: "Sessões e agenda — Convertewebinar",
+    metaTitle: "Sessões e agenda — Novawebinar",
     metaDescription:
       "Sessão única, repetição diária ou semanal e modo just in time: agende o seu webinar automatizado e deixe a sala abrir sozinha.",
   },
@@ -103,7 +103,7 @@ export const landingFeatures: FeatureDefinition[] = [
           "Existe um modo de demonstração com participantes simulados, usado para ensaiar a sessão. É identificado como demonstração no painel e mantido separado dos dados reais.",
       },
     ],
-    metaTitle: "Chat programado — Convertewebinar",
+    metaTitle: "Chat programado — Novawebinar",
     metaDescription:
       "Prepare mensagens ligadas ao minuto do vídeo e junte-as às mensagens reais dos participantes durante a sessão.",
   },
@@ -142,7 +142,7 @@ export const landingFeatures: FeatureDefinition[] = [
           "A análise mostra quantas pessoas chegaram ao momento da oferta, quantas a viram e quantas clicaram, para comparar sessões entre si.",
       },
     ],
-    metaTitle: "Oferta na sala — Convertewebinar",
+    metaTitle: "Oferta na sala — Novawebinar",
     metaDescription:
       "Configure produto, preço, botão e contagem: a oferta abre no momento definido do vídeo e fica registada na análise.",
   },
@@ -181,7 +181,7 @@ export const landingFeatures: FeatureDefinition[] = [
           "Nada é publicado sem aprovação. Pode editar o texto, alterar o momento ou descartar qualquer notificação antes da sessão.",
       },
     ],
-    metaTitle: "Notificações de venda — Convertewebinar",
+    metaTitle: "Notificações de venda — Novawebinar",
     metaDescription:
       "Avisos de compra no vídeo e no chat, com intervalo configurável e aprovação individual antes de entrarem na sessão.",
   },
@@ -220,7 +220,7 @@ export const landingFeatures: FeatureDefinition[] = [
           "A análise distingue quem assistiu ao vivo de quem assistiu em replay, para perceber quantas pessoas a sessão recupera depois do horário.",
       },
     ],
-    metaTitle: "Replay — Convertewebinar",
+    metaTitle: "Replay — Novawebinar",
     metaDescription:
       "Disponibilize a gravação depois da sessão: replay com controlo de reprodução e visualizações contadas separadamente na análise.",
   },
@@ -259,7 +259,7 @@ export const landingFeatures: FeatureDefinition[] = [
           "Cada conversa tem um interruptor para pausar o assistente. As conversas com assistência ficam identificadas na análise, separadas das respostas humanas.",
       },
     ],
-    metaTitle: "Assistente IA — Convertewebinar",
+    metaTitle: "Assistente IA — Novawebinar",
     metaDescription:
       "Assistência no suporte privado com base no conteúdo da sessão, identificada como assistente e com escalação para a equipa.",
   },
@@ -298,7 +298,7 @@ export const landingFeatures: FeatureDefinition[] = [
           "A lista de participantes mostra origem, dispositivo, presença e se chegou ao momento da oferta, e pode ser exportada.",
       },
     ],
-    metaTitle: "Análise e retenção — Convertewebinar",
+    metaTitle: "Análise e retenção — Novawebinar",
     metaDescription:
       "Presença, tempo médio assistido, pontos de saída e filtros por período, no conjunto dos webinares ou em cada sessão.",
   },

@@ -27,7 +27,7 @@ export function BrandMark({
         <path d="M46 40.5v19l15-9.5z" fill="#fff" />
       </svg>
       {/* No telemóvel o cabeçalho mostra só o símbolo (o link tem o nome no aria-label). */}
-      <span className={compact ? "max-sm:sr-only" : ""}>Convertewebinar</span>
+      <span className={compact ? "max-sm:sr-only" : ""}>Novawebinar</span>
     </span>
   );
 }
@@ -65,7 +65,7 @@ export function SiteHeader() {
   return (
     <header data-site data-surface="base" className="site-header sticky top-0 z-50">
       <div className="site-wrap flex h-16 items-center gap-4 lg:gap-8">
-        <Link to="/" aria-label="Convertewebinar, início" className="rounded-md">
+        <Link to="/" aria-label="Novawebinar, início" className="rounded-md">
           <BrandMark compact />
         </Link>
 

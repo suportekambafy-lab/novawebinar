@@ -1,4 +1,4 @@
-# Convertewebinar
+# Novawebinar
 
 Plataforma de webinars gravados que correm como se fossem ao vivo («evergreen») e de sessões marcadas. Tudo acontece no mesmo produto:
 
@@ -8,7 +8,7 @@ Plataforma de webinars gravados que correm como se fossem ao vivo («evergreen»
 - atendimento com agente de IA;
 - painel de métricas.
 
-Produção: <https://convertewebinar.vercel.app>. O público principal está em Angola e em Moçambique, muitas vezes com dados móveis, por isso o peso das páginas conta.
+Produção: <https://novawebinar.vercel.app>. O público principal está em Angola e em Moçambique, muitas vezes com dados móveis, por isso o peso das páginas conta.
 
 ## Arranque rápido
 
@@ -50,7 +50,7 @@ A lista completa, com a explicação de cada uma, está em `.env.example`.
   - rotas por ficheiro em `src/routes/`;
   - funções de servidor em `*.functions.ts`, `*.server.ts` e `src/routes/api/`.
 - **Tailwind CSS v4:**
-  - o sistema de desenho está em `convertewebinar-design/` (tokens, componentes, guias) e segue o Geist;
+  - o sistema de desenho está em `novawebinar-design/` (tokens, componentes, guias) e segue o Geist;
   - a sala tem tokens próprios (`--room-*`).
 - **Supabase:**
   - Postgres com RLS, autenticação, armazenamento (upload TUS) e realtime;
@@ -85,7 +85,7 @@ src/
     workflow.ts           modelos de fluxo e variáveis das mensagens
     ai/, ai-agent/        IA e agente
 docs/automacao/           referência obrigatória do motor de automação
-convertewebinar-design/   design system (tokens, guias, componentes)
+novawebinar-design/   design system (tokens, guias, componentes)
 drizzle/migrations/       histórico do esquema da base
 ```
 

@@ -3,10 +3,10 @@ import { AuthScreen } from "@/components/auth-screen";
 export const Route = createFileRoute("/auth/login")({
   head: () => ({
     meta: [
-      { title: "Entrar | Convertewebinar" },
-      { name: "description", content: "Entre na sua conta Convertewebinar." },
-      { property: "og:title", content: "Entrar | Convertewebinar" },
-      { property: "og:description", content: "Aceda à sua conta Convertewebinar." },
+      { title: "Entrar | Novawebinar" },
+      { name: "description", content: "Entre na sua conta Novawebinar." },
+      { property: "og:title", content: "Entrar | Novawebinar" },
+      { property: "og:description", content: "Aceda à sua conta Novawebinar." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],

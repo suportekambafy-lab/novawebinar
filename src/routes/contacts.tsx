@@ -69,7 +69,7 @@ export const Route = createFileRoute("/contacts")({
   }),
   head: () => ({
     meta: [
-      { title: "Contactos | Convertewebinar" },
+      { title: "Contactos | Novawebinar" },
       { name: "description", content: "Todas as pessoas, por lançamento, e a jornada de cada uma." },
     ],
   }),

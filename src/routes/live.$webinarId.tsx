@@ -5,10 +5,10 @@ import { ROOM_VIEWPORT } from "@/lib/room-viewport";
 export const Route = createFileRoute("/live/$webinarId")({
   head: () => ({
     meta: [
-      { title: "Sala ao vivo | Convertewebinar" },
+      { title: "Sala ao vivo | Novawebinar" },
       ROOM_VIEWPORT,
-      { name: "description", content: "Sala de webinar ao vivo Convertewebinar." },
-      { property: "og:title", content: "Sala ao vivo | Convertewebinar" },
+      { name: "description", content: "Sala de webinar ao vivo Novawebinar." },
+      { property: "og:title", content: "Sala ao vivo | Novawebinar" },
       { property: "og:description", content: "Participe no webinar ao vivo." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

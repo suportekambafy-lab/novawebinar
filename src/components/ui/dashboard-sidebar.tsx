@@ -23,7 +23,7 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import iconAsset from "@/assets/brand/convertewebinar-icon.svg";
+import iconAsset from "@/assets/brand/novawebinar-icon.png";
 import { NotificationsBell } from "@/components/notifications-bell";
 import {
   CommandDialog,
@@ -60,8 +60,8 @@ type NavItem = {
  * mesmas do menu de baixo do telemóvel) e a Biblioteca; depois as pessoas, os
  * dados e, no fundo, a conta.
  */
-// Ícones da referência do projecto (convertewebinar-design: layout-grid, calendar,
-// square-activity…) e próprios da Convertewebinar, diferentes dos da NovaWebinar.
+// Ícones da referência do projecto (novawebinar-design: layout-grid, calendar,
+// square-activity…) e próprios da Novawebinar.
 export const NAV_ICON = {
   dashboard: LayoutGrid,
   webinars: Video,
@@ -271,13 +271,13 @@ export function SidebarNav({
       <div className={cn("flex shrink-0 items-center pt-5", collapsed ? "flex-col gap-3 px-3 pb-4" : "gap-0.5 px-3 pb-3")}>
         <Link
           to={home}
-          aria-label="Convertewebinar"
+          aria-label="Novawebinar"
           className={cn("flex min-w-0 items-center gap-2.5", !collapsed && "flex-1 pl-1")}
         >
           <img src={iconAsset} alt="" className="size-7 shrink-0 select-none" draggable={false} />
           {!collapsed && (
             <span className="truncate text-[15px] font-semibold tracking-[-0.04em] text-foreground">
-              Convertewebinar
+              Novawebinar
             </span>
           )}
         </Link>

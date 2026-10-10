@@ -62,7 +62,7 @@ export const Route = createFileRoute("/support")({
   }),
   head: () => ({
     meta: [
-      { title: "Atendimento | Convertewebinar" },
+      { title: "Atendimento | Novawebinar" },
       {
         name: "description",
         content:

@@ -114,7 +114,7 @@ const req = (origin: string | null = "https://meusite.com") => ({
   origin,
   ip: `ip-${Math.random()}`,
   headers: new Headers({ "user-agent": "Mozilla/5.0 (iPhone)" }),
-  appOrigin: "https://app.convertewebinar.com",
+  appOrigin: "https://app.novawebinar.com",
   source: "embed" as const,
 });
 const body = (extra: Record<string, unknown> = {}) => ({
@@ -156,7 +156,7 @@ describe("inscrição pela captura externa", () => {
       registration_id: "p-1",
       participation_id: "p-1",
       contact_id: "c-1",
-      room_url: "https://app.convertewebinar.com/w/aula",
+      room_url: "https://app.novawebinar.com/w/aula",
     });
     const row = inserts.find((i) => i.table === "participants")!.row;
     expect(row).toMatchObject({
@@ -190,7 +190,7 @@ describe("inscrição pela captura externa", () => {
     ];
     const res = await registerFromCapture(body({ submission_id: "outra-submissao" }), req());
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ ok: true, status: "already_registered", room_url: "https://app.convertewebinar.com/w/aula" });
+    expect(res.body).toMatchObject({ ok: true, status: "already_registered", room_url: "https://app.novawebinar.com/w/aula" });
     // Só o email coincide e qualquer pessoa o pode escrever: nada que identifique a inscrição dela.
     expect(res.body).not.toHaveProperty("registration_id");
     expect(res.body).not.toHaveProperty("participation_id");

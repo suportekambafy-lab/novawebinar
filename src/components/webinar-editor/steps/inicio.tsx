@@ -110,7 +110,7 @@ export function StepInicio({
           <Input
             value={form.host_name}
             onChange={(e) => set({ host_name: e.target.value })}
-            placeholder="Ex.: Amado Ruben ou Convertewebinar"
+            placeholder="Ex.: Amado Ruben ou Novawebinar"
             {...focus("host")}
           />
         </Field>

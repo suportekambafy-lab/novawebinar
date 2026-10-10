@@ -8,7 +8,7 @@ import { createFileRoute } from "@tanstack/react-router";
  *
  *   <script src="https://<app>/api/public/forms/<id>/embed" async></script>
  *
- * Para o colocar num sítio certo: <div data-convertewebinar-form="<id>"></div> antes do script.
+ * Para o colocar num sítio certo: <div data-novawebinar-form="<id>"></div> antes do script.
  */
 const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -27,7 +27,7 @@ export const Route = createFileRoute("/api/public/forms/$formId/embed")({
   server: {
     handlers: {
       GET: async ({ request, params }) => {
-        if (!/^[0-9a-f-]{36}$/i.test(params.formId)) return js("console.warn('Convertewebinar: formulário inválido');", 404);
+        if (!/^[0-9a-f-]{36}$/i.test(params.formId)) return js("console.warn('Novawebinar: formulário inválido');", 404);
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: form } = await supabaseAdmin
           .from("registration_forms")
@@ -38,7 +38,7 @@ export const Route = createFileRoute("/api/public/forms/$formId/embed")({
           .maybeSingle();
         const webinar = form?.webinars;
         if (!form || !form.active || !webinar || webinar.status === "draft")
-          return js("console.warn('Convertewebinar: formulário indisponível');", 404);
+          return js("console.warn('Novawebinar: formulário indisponível');", 404);
 
         const { embedFields, parseEntryFields } = await import("@/lib/entry-fields");
         const { entryPalette } = await import("@/lib/room-logic");
@@ -68,7 +68,7 @@ export const Route = createFileRoute("/api/public/forms/$formId/embed")({
         return js(`(function () {
   var cfg = ${cfg};
   var script = document.currentScript;
-  var host = document.querySelector('[data-convertewebinar-form="' + cfg.formId + '"]');
+  var host = document.querySelector('[data-novawebinar-form="' + cfg.formId + '"]');
   if (!host) { host = document.createElement("div"); if (script && script.parentNode) script.parentNode.insertBefore(host, script); else document.body.appendChild(host); }
   if (host.getAttribute("data-cw-ready")) return;
   host.setAttribute("data-cw-ready", "1");
@@ -141,7 +141,7 @@ export const Route = createFileRoute("/api/public/forms/$formId/embed")({
     });
     payload.answers = answers;
     err.textContent = ""; button.disabled = true;
-    fetch(cfg.endpoint, { method: "POST", headers: { "content-type": "application/json", "x-convertewebinar-embed": "1" }, body: JSON.stringify(payload) })
+    fetch(cfg.endpoint, { method: "POST", headers: { "content-type": "application/json", "x-novawebinar-embed": "1" }, body: JSON.stringify(payload) })
       .then(function (r) { return r.json().then(function (b) { return { ok: r.ok, body: b }; }); })
       .then(function (res) {
         if (!res.ok) {

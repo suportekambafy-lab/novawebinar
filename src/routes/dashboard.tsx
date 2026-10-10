@@ -43,13 +43,13 @@ import { sumByCurrency } from "@/lib/webinar-metrics";
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
-      { title: "Painel | Convertewebinar" },
+      { title: "Painel | Novawebinar" },
       {
         name: "description",
         content: "O próximo webinar, os resultados, a agenda e quem esteve na sala hoje.",
       },
-      { property: "og:title", content: "Painel | Convertewebinar" },
-      { property: "og:description", content: "Acompanhe os seus webinars na Convertewebinar." },
+      { property: "og:title", content: "Painel | Novawebinar" },
+      { property: "og:description", content: "Acompanhe os seus webinars na Novawebinar." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

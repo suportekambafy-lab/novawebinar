@@ -9,7 +9,7 @@ import { friendlyError } from "@/lib/friendly-error";
 export const Route = createFileRoute("/auth/welcome")({
   head: () => ({
     meta: [
-      { title: "Definir palavra-passe | Convertewebinar" },
+      { title: "Definir palavra-passe | Novawebinar" },
       { name: "robots", content: "noindex" },
     ],
   }),

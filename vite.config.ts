@@ -1,4 +1,4 @@
-// Configuração Vite própria do Convertewebinar:
+// Configuração Vite própria do Novawebinar:
 // Tailwind, tsconfig paths, TanStack Start (entrada SSR em src/server.ts),
 // Nitro só no build, React, alias "@", VITE_* como constantes e dev server na porta 8080.
 import tailwindcss from "@tailwindcss/vite";

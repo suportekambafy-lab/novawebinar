@@ -862,7 +862,7 @@ function Plan({
 }) {
   const name = planLabel(state.plan);
   const message = [
-    `Olá! Quero mudar de plano na Convertewebinar (tenho o plano ${name}).`,
+    `Olá! Quero mudar de plano na Novawebinar (tenho o plano ${name}).`,
     workspace && `Conta: ${workspace.email}`,
     workspace && `Organização: ${workspace.organizationName}`,
   ]
@@ -1046,7 +1046,7 @@ function AskTopUp({
 }) {
   const [amount, setAmount] = useState(25);
   const message = [
-    `Olá! Quero carregar ${amount} US$ em créditos na Convertewebinar.`,
+    `Olá! Quero carregar ${amount} US$ em créditos na Novawebinar.`,
     workspace && `Conta: ${workspace.email}`,
     workspace && `Organização: ${workspace.organizationName}`,
   ]

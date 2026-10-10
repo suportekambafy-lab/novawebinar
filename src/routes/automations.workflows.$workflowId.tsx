@@ -84,7 +84,7 @@ export const Route = createFileRoute("/automations/workflows/$workflowId")({
     ...(typeof s["tab"] === "string" && TABS.some((t) => t.key === s["tab"]) ? { tab: s["tab"] as Tab } : {}),
     ...(typeof s["run"] === "string" ? { run: s["run"] } : {}),
   }),
-  head: () => ({ meta: [{ title: "Fluxo | Convertewebinar" }] }),
+  head: () => ({ meta: [{ title: "Fluxo | Novawebinar" }] }),
   component: WorkflowPage,
 });
 

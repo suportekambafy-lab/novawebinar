@@ -169,9 +169,9 @@ export const Route = createFileRoute("/webinars/$webinarId/edit")({
     typeof search["step"] === "string" ? { step: search["step"] } : {},
   head: () => ({
     meta: [
-      { title: "Editar webinar | Convertewebinar" },
+      { title: "Editar webinar | Novawebinar" },
       { name: "description", content: "Edite a página, o vídeo, o chat, a oferta e a agenda do webinar." },
-      { property: "og:title", content: "Editar webinar | Convertewebinar" },
+      { property: "og:title", content: "Editar webinar | Novawebinar" },
       { property: "og:description", content: "Configuração completa do webinar." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -1878,7 +1878,7 @@ function EditWebinar() {
                     roomLink={roomLink}
                     embed={{
                       code: forms[0]
-                        ? `<div data-convertewebinar-form="${forms[0].id}"></div>\n<script src="${baseUrl}/api/public/forms/${forms[0].id}/embed" async></script>`
+                        ? `<div data-novawebinar-form="${forms[0].id}"></div>\n<script src="${baseUrl}/api/public/forms/${forms[0].id}/embed" async></script>`
                         : null,
                       formId: forms[0]?.id ?? null,
                       creating: creatingForm,

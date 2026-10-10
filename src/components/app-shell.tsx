@@ -2,7 +2,7 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Check, ChevronRight, Ellipsis, LogOut, LucideProvider, Plus, Search, X } from "lucide-react";
 import { createContext, lazy, Suspense, useContext, useEffect, useState, type CSSProperties, type ElementType, type ReactNode } from "react";
 import { toast } from "sonner";
-import iconAsset from "@/assets/brand/convertewebinar-icon.svg";
+import iconAsset from "@/assets/brand/novawebinar-icon.png";
 import {
   BottomNav,
   PageHeader,
@@ -308,10 +308,10 @@ export function MobileHeader({
 }) {
   return (
     <header className="glass sticky top-0 z-20 flex h-14 items-center justify-between gap-3 px-4 md:hidden">
-      <Link to={home} className="flex min-w-0 items-center gap-2" aria-label="Convertewebinar">
+      <Link to={home} className="flex min-w-0 items-center gap-2" aria-label="Novawebinar">
         <img src={iconAsset} alt="" className="size-7" draggable={false} />
         <span className="truncate text-[15px] font-semibold tracking-[-0.04em]">
-          Convertewebinar
+          Novawebinar
         </span>
       </Link>
       <div className="-mr-1.5 flex shrink-0 items-center">

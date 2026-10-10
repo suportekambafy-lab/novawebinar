@@ -704,7 +704,7 @@ describe("horas de silêncio, links e sessão que mudou", () => {
     const log = advances()[0]!["_log"] as { preview?: { message: string }[] }[];
     // Sem anúncio conhecido, a origem é a plataforma; o canal fica em utm_content.
     expect(log[0]!.preview![0]!.message).toBe(
-      "https://pay.exemplo.com/1?utm_source=convertewebinar&utm_medium=webinar&utm_content=email-00m00s · 97 € · https://chat.whatsapp.com/abc",
+      "https://pay.exemplo.com/1?utm_source=novawebinar&utm_medium=webinar&utm_content=email-00m00s · 97 € · https://chat.whatsapp.com/abc",
     );
   });
 
@@ -731,7 +731,7 @@ describe("horas de silêncio, links e sessão que mudou", () => {
       "https://pay.exemplo.com/1?x=1&utm_source=facebook&utm_medium=webinar&utm_campaign=lancamento&utm_content=email-00m00s",
       "https://pay.exemplo.com/1?x=1&utm_source=facebook&utm_medium=webinar&utm_campaign=lancamento&utm_content=whatsapp-00m00s",
       expect.stringMatching(
-        /^\S*\/w\/aula \S*\/w\/aula\?replay=1 https:\/\/pay\.exemplo\.com\/1\?x=1&utm_source=convertewebinar&utm_medium=webinar&utm_content=whatsapp-00m00s$/,
+        /^\S*\/w\/aula \S*\/w\/aula\?replay=1 https:\/\/pay\.exemplo\.com\/1\?x=1&utm_source=novawebinar&utm_medium=webinar&utm_content=whatsapp-00m00s$/,
       ),
     ]);
     const sent = JSON.parse(String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body));

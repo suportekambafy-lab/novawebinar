@@ -31,12 +31,12 @@ export const Route = createFileRoute("/live-view")({
     typeof search["webinar"] === "string" ? { webinar: search["webinar"] } : {},
   head: () => ({
     meta: [
-      { title: "Vista ao vivo | Convertewebinar" },
+      { title: "Vista ao vivo | Novawebinar" },
       {
         name: "description",
         content: "Veja em tempo real quem está nas suas salas, de onde assiste e quem clica na oferta.",
       },
-      { property: "og:title", content: "Vista ao vivo | Convertewebinar" },
+      { property: "og:title", content: "Vista ao vivo | Novawebinar" },
       { property: "og:description", content: "Quem está na sala agora, de onde vê, a actividade ao minuto e as sessões a decorrer." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

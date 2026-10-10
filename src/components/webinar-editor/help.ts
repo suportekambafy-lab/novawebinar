@@ -67,7 +67,7 @@ export const HELP = {
   entrada: {
     title: "Página de entrada",
     what: "A página antes da sala: recolhe o contacto de quem entra.",
-    steps: ["Escolha a página do Convertewebinar ou uma página externa.", "Deixe só os campos que vai usar.", "Escreva o texto do botão e escolha as cores."],
+    steps: ["Escolha a página do Novawebinar ou uma página externa.", "Deixe só os campos que vai usar.", "Escreva o texto do botão e escolha as cores."],
     example: "Nome e WhatsApp, botão «Quero assistir à aula» e o aviso «87% das vagas preenchidas».",
     tip: "Cada campo a mais faz perder inscrições.",
   },
@@ -357,7 +357,7 @@ export const HELP = {
     what: "Leva ao checkout de onde veio cada pessoa, para saber que anúncio vendeu.",
     steps: ["Ligue «Levar a origem ao checkout».", "Use nos anúncios o link da sala com utm_source e utm_campaign."],
     example: "…/w/aula?utm_source=instagram: o checkout recebe utm_source=instagram e o minuto do clique.",
-    tip: "Sem anúncio, a origem fica «convertewebinar».",
+    tip: "Sem anúncio, a origem fica «novawebinar».",
   },
 
   /* ---------- Vendas ---------- */

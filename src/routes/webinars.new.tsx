@@ -10,9 +10,9 @@ import { friendlyError } from "@/lib/friendly-error";
 export const Route = createFileRoute("/webinars/new")({
   head: () => ({
     meta: [
-      { title: "Criar webinar | Convertewebinar" },
-      { name: "description", content: "Configure um novo webinar no estúdio Convertewebinar." },
-      { property: "og:title", content: "Criar webinar | Convertewebinar" },
+      { title: "Criar webinar | Novawebinar" },
+      { name: "description", content: "Configure um novo webinar no estúdio Novawebinar." },
+      { property: "og:title", content: "Criar webinar | Novawebinar" },
       { property: "og:description", content: "Crie uma nova experiência de webinar." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

@@ -136,7 +136,7 @@ export function StepEntrada({
       >
         <RadioCard
           icon={FileText}
-          title="Página do Convertewebinar"
+          title="Página do Novawebinar"
           description="Feita aqui: título, campos e botão."
           selected={mode === "page"}
           onSelect={() => onMode("page")}
@@ -295,7 +295,7 @@ export function StepEntrada({
             {...focus("button")}
           />
         </Field>
-        {/* O aviso só existe na página do Convertewebinar: o formulário externo não o leva. */}
+        {/* O aviso só existe na página do Novawebinar: o formulário externo não o leva. */}
         {own ? null : (
           <>
             <SwitchRow

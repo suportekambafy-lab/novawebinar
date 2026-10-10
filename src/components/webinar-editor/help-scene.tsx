@@ -511,7 +511,7 @@ function WhatsApp({ share }: { share?: boolean }) {
                 <i className="size-0 border-y-[7px] border-l-[12px] border-y-transparent border-l-white/85" />
               </span>
               <b className="mt-1 block text-[11px] font-semibold leading-tight">Aula grátis: vender no Instagram</b>
-              <small className="block text-[10px] text-[#667781]">Ao vivo hoje às 20:00 · convertewebinar.com</small>
+              <small className="block text-[10px] text-[#667781]">Ao vivo hoje às 20:00 · novawebinar.com</small>
             </span>
           </Hi>
         ) : (

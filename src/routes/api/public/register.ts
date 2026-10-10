@@ -25,7 +25,7 @@ function withCors(response: Response, origin: string | null) {
   const headers = new Headers(response.headers);
   headers.set("access-control-allow-origin", origin);
   headers.set("access-control-allow-methods", "POST, OPTIONS");
-  headers.set("access-control-allow-headers", "content-type, x-convertewebinar-embed, idempotency-key");
+  headers.set("access-control-allow-headers", "content-type, x-novawebinar-embed, idempotency-key");
   headers.set("access-control-max-age", "86400");
   headers.set("vary", "origin");
   return new Response(response.body, { status: response.status, headers });
@@ -54,7 +54,7 @@ export const Route = createFileRoute("/api/public/register")({
           ip,
           headers: request.headers,
           appOrigin: new URL(request.url).origin,
-          source: request.headers.get("x-convertewebinar-embed") === "1" ? "embed" : "api",
+          source: request.headers.get("x-novawebinar-embed") === "1" ? "embed" : "api",
           idempotencyKey: request.headers.get("idempotency-key")?.trim().slice(0, 100) || null,
         });
         return withCors(Response.json(result.body, { status: result.status }), result.allowOrigin);

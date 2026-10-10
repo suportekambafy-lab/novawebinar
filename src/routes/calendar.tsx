@@ -19,12 +19,12 @@ import { lifecycleLabel } from "@/lib/schedule";
 export const Route = createFileRoute("/calendar")({
   head: () => ({
     meta: [
-      { title: "Agenda | Convertewebinar" },
+      { title: "Agenda | Novawebinar" },
       {
         name: "description",
         content: "Os dias de cada webinar e os melhores dias e horas para os marcar.",
       },
-      { property: "og:title", content: "Agenda | Convertewebinar" },
+      { property: "og:title", content: "Agenda | Novawebinar" },
       { property: "og:description", content: "Organize a agenda de webinars." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

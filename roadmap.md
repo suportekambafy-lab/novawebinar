@@ -8,7 +8,7 @@
 - [x] Fase 1: gateway de IA com vários fornecedores (`src/lib/ai/gateway.server.ts`): OpenAI, Gemini e Anthropic atrás da mesma interface, router por tarefa, saída estruturada, repetições, reserva, disjuntor e registo por chamada em `ai_calls`. A OpenAI foi validada com a API real (esquemas, prompts reais e reserva); Gemini e Anthropic só com pedidos simulados e chave inválida
 
 ## Por fazer
-- [x] Nome do produto definido: Convertewebinar (logótipos em `src/assets/brand/` ainda provisórios)
+- [x] Nome do produto definido: Novawebinar (logótipos em `src/assets/brand/` ainda provisórios)
 - [ ] Ligar um domínio próprio e, se for usado, definir `VITE_PUBLIC_APP_URL` / `VITE_ADMIN_HOST` / `VITE_PUBLIC_HOSTS`
 - [ ] Primeiro conteúdo: criar organização, carregar vídeo e criar o primeiro webinar
 - [ ] Reações com gatilho demasiado distante (casos acima de 45 s): rever escolha da âncora/frase e a janela máxima de reação

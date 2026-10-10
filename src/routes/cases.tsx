@@ -42,7 +42,7 @@ export const Route = createFileRoute("/cases")({
   }),
   head: () => ({
     meta: [
-      { title: "Casos | Convertewebinar" },
+      { title: "Casos | Novawebinar" },
       { name: "description", content: "O que a IA passou à equipa: de quem é, em que estado está e até quando." },
     ],
   }),

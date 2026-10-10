@@ -3,7 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /*
- * Componentes de dados da referência (convertewebinar-design/components/data):
+ * Componentes de dados da referência (novawebinar-design/components/data):
  * ProgressRow, Avatar e EmptyState. Só apresentação: recebem números já
  * calculados, nunca vão buscar dados.
  */

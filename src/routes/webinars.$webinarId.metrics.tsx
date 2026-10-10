@@ -73,12 +73,12 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/webinars/$webinarId/metrics")({
   head: () => ({
     meta: [
-      { title: "Métricas do webinar | Convertewebinar" },
+      { title: "Métricas do webinar | Novawebinar" },
       {
         name: "description",
         content: "Funil, retenção por momento e exportações de participantes e conversas.",
       },
-      { property: "og:title", content: "Métricas do webinar | Convertewebinar" },
+      { property: "og:title", content: "Métricas do webinar | Novawebinar" },
       {
         property: "og:description",
         content: "Veja quem entrou, até onde assistiu e quem clicou na oferta.",

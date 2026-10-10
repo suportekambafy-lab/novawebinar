@@ -56,7 +56,7 @@ import { deleteSkill, inviteStaff, removeStaffAccess } from "@/lib/support/suppo
 export const Route = createFileRoute("/team")({
   head: () => ({
     meta: [
-      { title: "Equipas | Convertewebinar" },
+      { title: "Equipas | Novawebinar" },
       { name: "description", content: "Quem atende: o agente, as pessoas e as equipas que recebem cada tema." },
     ],
   }),

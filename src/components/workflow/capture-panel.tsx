@@ -96,7 +96,7 @@ function FormCard({ form, webinarTitle }: { form: RegistrationForm; webinarTitle
     }
   };
 
-  const embed = `<div data-convertewebinar-form="${form.id}"></div>\n<script src="${origin}/api/public/forms/${form.id}/embed" async></script>`;
+  const embed = `<div data-novawebinar-form="${form.id}"></div>\n<script src="${origin}/api/public/forms/${form.id}/embed" async></script>`;
   const api = `curl -X POST ${origin}/api/public/register \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "form_id": "${form.id}",\n    "name": "Nome da pessoa",\n    "email": "pessoa@exemplo.com",\n    "phone": "+244 900 000 000",\n    "consent": true,\n    "submission_id": "id-único-da-submissão",\n    "utm_source": "facebook", "utm_medium": "cpc", "utm_campaign": "webinar-ia",\n    "utm_content": "video-1", "utm_term": "ia",\n    "referrer": "https://facebook.com/"\n  }'`;
 
   return (

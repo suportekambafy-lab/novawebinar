@@ -24,13 +24,13 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Convertewebinar — grave uma vez, apresente todos os dias" },
+      { title: "Novawebinar — grave uma vez, apresente todos os dias" },
       {
         name: "description",
         content:
           "Crie webinars automatizados com sessões recorrentes, chat programado, oferta e análise de retenção.",
       },
-      { property: "og:title", content: "Convertewebinar — grave uma vez, apresente todos os dias" },
+      { property: "og:title", content: "Novawebinar — grave uma vez, apresente todos os dias" },
       {
         property: "og:description",
         content:

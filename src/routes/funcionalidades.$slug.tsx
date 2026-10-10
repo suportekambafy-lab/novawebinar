@@ -10,7 +10,7 @@ export const Route = createFileRoute("/funcionalidades/$slug")({
   },
   head: ({ loaderData }) => {
     if (!loaderData) {
-      return { meta: [{ title: "Funcionalidade não encontrada — Convertewebinar" }, { name: "robots", content: "noindex" }] };
+      return { meta: [{ title: "Funcionalidade não encontrada — Novawebinar" }, { name: "robots", content: "noindex" }] };
     }
     const { feature } = loaderData;
     return {

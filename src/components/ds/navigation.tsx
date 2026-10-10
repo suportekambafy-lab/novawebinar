@@ -4,7 +4,7 @@ import { ArrowLeft, ChevronRight, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /*
- * Navegação da referência (convertewebinar-design/components/navigation):
+ * Navegação da referência (novawebinar-design/components/navigation):
  * NavTabs (pílulas), Breadcrumb, BottomNav e o cabeçalho de página.
  */
 

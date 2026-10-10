@@ -13,9 +13,9 @@ export const Route = createFileRoute("/webinars/")({
   }),
   head: () => ({
     meta: [
-      { title: "Webinars | Convertewebinar" },
+      { title: "Webinars | Novawebinar" },
       { name: "description", content: "Crie, organize e acompanhe todos os seus webinars." },
-      { property: "og:title", content: "Webinars | Convertewebinar" },
+      { property: "og:title", content: "Webinars | Novawebinar" },
       { property: "og:description", content: "Gestão completa de webinars." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

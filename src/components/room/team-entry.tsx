@@ -134,7 +134,7 @@ export function TeamNotice({ theme, state, loginHref }: { theme: "dark" | "light
         <div className="grid max-w-sm justify-items-center gap-3 text-center">
           <h1 className="text-xl font-bold">Este link de equipa não serve</h1>
           <p className={cn("text-[14.5px] leading-snug", theme === "light" ? "text-[#5C5C5C]" : "text-white/70")}>
-            {loginHref ? "Entre na sua conta do Convertewebinar e volte a abrir este link." : "Peça um link novo a quem organiza o webinar."}
+            {loginHref ? "Entre na sua conta do Novawebinar e volte a abrir este link." : "Peça um link novo a quem organiza o webinar."}
           </p>
           {loginHref ? (
             <a href={loginHref} className="mt-1 inline-flex h-12 items-center rounded-xl bg-[#E8440C] px-6 text-[15px] font-bold text-white">

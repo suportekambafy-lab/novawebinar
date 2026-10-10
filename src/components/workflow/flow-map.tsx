@@ -34,7 +34,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import platformIcon from "@/assets/brand/convertewebinar-icon.svg";
+import platformIcon from "@/assets/brand/novawebinar-icon.png";
 import { BrandLogo } from "@/components/ds/brand-icons";
 import { FLOW_CHANNEL, RunState } from "@/components/ds/flow";
 import { conditionLabel, conditionsSentence, type Condition } from "@/lib/automations";

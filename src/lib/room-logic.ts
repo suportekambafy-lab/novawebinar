@@ -680,7 +680,7 @@ export function purchaseOnScreen<T extends { purchase: { id: string }; from: num
 export type OfferPlace = "sala" | "chat" | "email" | "whatsapp";
 
 /**
- * O link do botão da oferta com a origem da pessoa: o anúncio de onde veio (ou convertewebinar),
+ * O link do botão da oferta com a origem da pessoa: o anúncio de onde veio (ou novawebinar),
  * onde clicou e em que minuto, e quem é. Um link que não é http(s) volta como estava.
  */
 export function checkoutLink(
@@ -706,7 +706,7 @@ export function checkoutLink(
   const set = (key: string, value: string | null | undefined) => {
     if (value && !link.searchParams.has(key)) link.searchParams.set(key, value);
   };
-  set("utm_source", origin.source || "convertewebinar");
+  set("utm_source", origin.source || "novawebinar");
   set("utm_medium", origin.medium || "webinar");
   set("utm_campaign", origin.campaign);
   set("utm_content", `${origin.place}-${String(m).padStart(2, "0")}m${String(s).padStart(2, "0")}s`);

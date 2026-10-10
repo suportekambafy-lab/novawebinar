@@ -1,6 +1,6 @@
 /*
- * Design system Convertewebinar — ponto de entrada.
- * Referência visual oficial: ./convertewebinar-design (tokens, guidelines,
+ * Design system Novawebinar — ponto de entrada.
+ * Referência visual oficial: ./novawebinar-design (tokens, guidelines,
  * components, ui_kits). Tokens em src/styles.css (importados de lá).
  *
  * Core      Button, Input, Tag (= Badge) em components/ui

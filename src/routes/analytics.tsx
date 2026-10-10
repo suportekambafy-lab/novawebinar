@@ -19,9 +19,9 @@ export const Route = createFileRoute("/analytics")({
   }),
   head: () => ({
     meta: [
-      { title: "Análises | Convertewebinar" },
+      { title: "Análises | Novawebinar" },
       { name: "description", content: "Inscritos, presença, funil, origem e vendas da audiência real." },
-      { property: "og:title", content: "Análises | Convertewebinar" },
+      { property: "og:title", content: "Análises | Novawebinar" },
       { property: "og:description", content: "Analise presença, origem e conversão da audiência real." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

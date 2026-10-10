@@ -15,7 +15,7 @@ export function AuthUI({ children, topLink }: { children: ReactNode; topLink?: R
     <div data-site data-surface="base" className="grid min-h-dvh lg:grid-cols-2">
       <div className="flex flex-col">
         <header className="flex h-16 flex-none items-center justify-between gap-4 px-5 sm:px-8">
-          <Link to="/" aria-label="Convertewebinar, início" className="rounded-md">
+          <Link to="/" aria-label="Novawebinar, início" className="rounded-md">
             <BrandMark compact />
           </Link>
           {topLink && <p className="text-right text-site-small text-s-text-2">{topLink}</p>}
@@ -37,7 +37,7 @@ export function AuthUI({ children, topLink }: { children: ReactNode; topLink?: R
       </div>
       <aside
         data-surface="warm"
-        aria-label="Sobre o Convertewebinar"
+        aria-label="Sobre o Novawebinar"
         className="hidden flex-col justify-center gap-10 p-12 lg:flex xl:p-16"
       >
         <div className="rounded-[var(--radius-panel)] bg-s-card p-6">

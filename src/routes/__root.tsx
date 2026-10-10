@@ -90,10 +90,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Convertewebinar" },
+      { title: "Novawebinar" },
       { name: "description", content: "Plataforma profissional de webinars evergreen e ao vivo." },
-      { name: "author", content: "Convertewebinar" },
-      { property: "og:title", content: "Convertewebinar" },
+      { name: "author", content: "Novawebinar" },
+      { property: "og:title", content: "Novawebinar" },
       {
         property: "og:description",
         content: "Transforme audiência em vendas com webinars profissionais.",
@@ -107,7 +107,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: appCss,
       },
       // Sem Google Fonts: as letras vêm do @fontsource (styles.css), só o subconjunto usado.
-      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+      { rel: "icon", href: "/favicon.png", type: "image/png" },
     ],
   }),
   shellComponent: RootShell,

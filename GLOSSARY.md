@@ -1,4 +1,4 @@
-# Convertewebinar
+# Novawebinar
 
 Plataforma de webinars para quem vende produtos digitais: o webinar, quem se inscreve, o que cada pessoa fez e as mensagens que recebe antes, durante e depois.
 

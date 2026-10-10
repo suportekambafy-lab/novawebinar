@@ -6,10 +6,10 @@ export const Route = createFileRoute("/replay/$webinarId")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Replay | Convertewebinar" },
+      { title: "Replay | Novawebinar" },
       ROOM_VIEWPORT,
       { name: "description", content: "Reveja o webinar com o mesmo vídeo da transmissão." },
-      { property: "og:title", content: "Replay | Convertewebinar" },
+      { property: "og:title", content: "Replay | Novawebinar" },
       { property: "og:description", content: "Reveja o webinar quando quiser." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

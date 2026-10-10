@@ -913,7 +913,7 @@ function ExampleConversation({
         {
           label: "Link da sala",
           icon: Link2,
-          insert: "https://convertewebinar.app/w/formula-digital",
+          insert: "https://novawebinar.app/w/formula-digital",
         },
         {
           label: "Marcar ligação",

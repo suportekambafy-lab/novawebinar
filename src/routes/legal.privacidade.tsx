@@ -4,10 +4,10 @@ import { LegalPage } from "@/components/legal-page";
 export const Route = createFileRoute("/legal/privacidade")({
   head: () => ({
     meta: [
-      { title: "Política de privacidade — Convertewebinar" },
-      { name: "description", content: "Como o Convertewebinar recolhe, utiliza e protege os dados pessoais de clientes e participantes de webinars." },
-      { property: "og:title", content: "Política de privacidade — Convertewebinar" },
-      { property: "og:description", content: "Como tratamos e protegemos os dados pessoais na plataforma Convertewebinar." },
+      { title: "Política de privacidade — Novawebinar" },
+      { name: "description", content: "Como o Novawebinar recolhe, utiliza e protege os dados pessoais de clientes e participantes de webinars." },
+      { property: "og:title", content: "Política de privacidade — Novawebinar" },
+      { property: "og:description", content: "Como tratamos e protegemos os dados pessoais na plataforma Novawebinar." },
       { property: "og:type", content: "article" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -19,7 +19,7 @@ function PrivacyPage() {
   return (
     <LegalPage title="Política de privacidade" updated="17 de setembro de 2026">
       <h2>1. Responsável pelo tratamento</h2>
-      <p>O Convertewebinar trata os dados das contas de clientes. Relativamente aos participantes inscritos numa sessão, o cliente que organiza o webinar é o responsável pelo tratamento e o Convertewebinar atua como subcontratante.</p>
+      <p>O Novawebinar trata os dados das contas de clientes. Relativamente aos participantes inscritos numa sessão, o cliente que organiza o webinar é o responsável pelo tratamento e o Novawebinar atua como subcontratante.</p>
       <h2>2. Dados recolhidos</h2>
       <p>Dados de conta (nome, email, organização), dados de inscrição e participação em webinars (nome, email, presença, tempo assistido, interações no chat e cliques na oferta) e dados técnicos necessários ao funcionamento do serviço, incluindo o endereço IP, utilizado para estimar a localização aproximada.</p>
       <h2>3. Finalidades</h2>

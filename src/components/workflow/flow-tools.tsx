@@ -49,7 +49,7 @@ import type { FlowComponent } from "./flow-map";
 import { Glyph, LOOK, type Look } from "./flow-look";
 import { PALETTE } from "./step-panel";
 
-export const DND = "application/x-convertewebinar-flow";
+export const DND = "application/x-novawebinar-flow";
 
 const SURFACE = "bg-white shadow-[0_8px_24px_rgba(16,24,40,0.12)] ring-1 ring-gray-200";
 

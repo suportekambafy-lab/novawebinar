@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Cenário de teste: a conta "CONVERTEWEBINAR — TESTE" com 15 contactos fictícios, um webinar
+ * Cenário de teste: a conta "NOVAWEBINAR — TESTE" com 15 contactos fictícios, um webinar
  * com sessão e oferta, pagamentos e automações, a passar pelos caminhos reais da plataforma.
  *
  *   node scripts/cenario-teste.mjs criar --dono <email da sua conta> [--app http://localhost:8080]
@@ -22,7 +22,7 @@
  */
 import { readFileSync } from "node:fs";
 
-const SLUG = "convertewebinar-teste";
+const SLUG = "novawebinar-teste";
 const env = Object.fromEntries(
   readFileSync(new URL("../.env", import.meta.url), "utf8")
     .split("\n")
@@ -118,7 +118,7 @@ async function create() {
   if (!ownerId) throw new Error("Não há nenhuma conta com esse email.");
 
   // 1. Conta de teste, com a sua conta como dona (aparece no seletor de espaço de trabalho).
-  const org = await insert("organizations", { name: "CONVERTEWEBINAR — TESTE", slug: SLUG, created_by: ownerId, is_test: true });
+  const org = await insert("organizations", { name: "NOVAWEBINAR — TESTE", slug: SLUG, created_by: ownerId, is_test: true });
   await insert("organization_members", { organization_id: org.id, user_id: ownerId, role: "owner" });
   say(`Conta de teste criada (${org.id.slice(0, 8)}).`);
 
@@ -152,7 +152,7 @@ async function create() {
 
   // 3. Integrações de teste: receptor de vendas (genérico) e webhook de saída simulado.
   const sales = await insert("integrations", { organization_id: org.id, provider: "webhook", enabled: true });
-  const TEST_URL = "https://destino-de-teste.convertewebinar.invalid/webhook";
+  const TEST_URL = "https://destino-de-teste.novawebinar.invalid/webhook";
   const simulate = (mode) =>
     db(`integrations?organization_id=eq.${org.id}&provider=eq.outgoing_webhook`, {
       method: "PATCH",
@@ -657,7 +657,7 @@ async function commerce() {
   if (!webinar || !sales) throw new Error("A conta de teste não tem webinar ou receptor de vendas.");
   const product = webinar.cta_url.split("/").pop();
   const run = Date.now().toString(36);
-  const email = (who) => `ag3-${who}-${run}@teste.convertewebinar.test`;
+  const email = (who) => `ag3-${who}-${run}@teste.novawebinar.test`;
 
   // A reacção ao reembolso precisa de uma automação activa com esse gatilho (a do workflow está desligada).
   const [refundAutomation] = await db(

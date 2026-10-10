@@ -57,7 +57,7 @@ export function ScheduleVisual() {
 
 export function RoomVisual({ sales = false }: { sales?: boolean }) {
   return (
-    <div className="lp-room-ui" aria-label={sales ? "Sala ao vivo com notificações de venda" : "Sala ao vivo do Convertewebinar"}>
+    <div className="lp-room-ui" aria-label={sales ? "Sala ao vivo com notificações de venda" : "Sala ao vivo do Novawebinar"}>
       <div className="lp-room-player">
         <Presenter />
         <div className="lp-room-top">
@@ -92,7 +92,7 @@ export function RoomVisual({ sales = false }: { sales?: boolean }) {
 
 export function ReplayVisual() {
   return (
-    <div className="lp-room-ui" aria-label="Sala em modo replay do Convertewebinar">
+    <div className="lp-room-ui" aria-label="Sala em modo replay do Novawebinar">
       <div className="lp-room-player">
         <Presenter />
         <div className="lp-room-top">

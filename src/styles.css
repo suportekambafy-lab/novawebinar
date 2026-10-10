@@ -9,22 +9,22 @@
 @import "@fontsource/barlow-condensed/700.css";
 
 /*
- * Design system Convertewebinar, com a estrutura do Geist (Vercel) desde 5/10:
+ * Design system Novawebinar, com a estrutura do Geist (Vercel) desde 5/10:
  * escalas de cor 100–1000 por papel, letra Geist, materiais (aresta + sombra),
  * controlos de 32/36/40px com 6px de raio e cartões de 12px. A sala do
  * participante mantém o seu desenho, o laranja e a Plus Jakarta Sans.
  *
- * A fonte de verdade é ./convertewebinar-design/tokens: cores, tipografia,
+ * A fonte de verdade é ./novawebinar-design/tokens: cores, tipografia,
  * espaçamento, raios, efeitos e sala. Nada de valores soltos nos componentes:
  * usar var(--…) ou as classes Tailwind abaixo, que apontam para esses tokens.
  * (base.css e fonts.css da referência não entram: a base está em @layer base
  * e a fonte vem do pacote @fontsource, sem pedidos a terceiros.)
  */
-@import "../convertewebinar-design/tokens/colors.css";
-@import "../convertewebinar-design/tokens/typography.css";
-@import "../convertewebinar-design/tokens/spacing.css";
-@import "../convertewebinar-design/tokens/effects.css";
-@import "../convertewebinar-design/tokens/room.css";
+@import "../novawebinar-design/tokens/colors.css";
+@import "../novawebinar-design/tokens/typography.css";
+@import "../novawebinar-design/tokens/spacing.css";
+@import "../novawebinar-design/tokens/effects.css";
+@import "../novawebinar-design/tokens/room.css";
 
 @custom-variant dark (&:is(.dark *));
 /* Telemóvel deitado: ecrã deitado e baixo. Uma janela pequena ou um tablet deitado ficam de fora. */
@@ -192,9 +192,9 @@
 }
 
 /* === Site e auth: lógica de design do Nubank com as nossas cores (9/10) ======
- * Referência: convertewebinar-design/readme.md → «Referências». O painel fica
+ * Referência: novawebinar-design/readme.md → «Referências». O painel fica
  * no Geist; isto serve o site (/, funcionalidades, legal) e a auth. Os valores
- * vivem em convertewebinar-design/tokens (accent-50, warm-*, ink-warm, t-*,
+ * vivem em novawebinar-design/tokens (accent-50, warm-*, ink-warm, t-*,
  * radius-field/card-site/panel, section-y, container, gutter).
  * Leveza (público em Angola com dados móveis): sem bibliotecas, só CSS e
  * HTML nativo; imagens WebP com tamanho e loading="lazy".
@@ -701,7 +701,7 @@ html:has(.live-room-shell.live-room-shell--stage) body {
   }
 }
 
-/* === Landing pública Convertewebinar: isolada do produto autenticado === */
+/* === Landing pública Novawebinar: isolada do produto autenticado === */
 .nova-landing { min-height: 100vh; overflow-x: clip; background: var(--lp-bg); color: var(--lp-ink); font-size: 1rem; line-height: 1.5; }
 .nova-landing h1, .nova-landing h2, .nova-landing h3 { font-weight: 600; letter-spacing: -0.035em; }
 .lp-eyebrow { color: var(--lp-muted); font-family: var(--font-sans); font-size: .8125rem; font-weight: 500; line-height: 1.3; letter-spacing: 0; }

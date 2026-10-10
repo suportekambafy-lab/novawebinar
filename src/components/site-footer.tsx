@@ -58,7 +58,7 @@ export function SiteFooter() {
         </div>
         <div className="mt-12 flex flex-wrap items-center justify-between gap-4 border-t border-s-line pt-6 text-site-meta text-s-text-2">
           <BrandMark className="text-s-text" />
-          <p>© {new Date().getFullYear()} Convertewebinar</p>
+          <p>© {new Date().getFullYear()} Novawebinar</p>
         </div>
       </div>
     </footer>

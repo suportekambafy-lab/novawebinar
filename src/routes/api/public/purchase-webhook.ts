@@ -26,7 +26,7 @@ export const Route = createFileRoute("/api/public/purchase-webhook")({
 
         // O cabeçalho antigo continua aceite para não partir quem já o configurou.
         const secret =
-          request.headers.get("x-convertewebinar-secret") ??
+          request.headers.get("x-novawebinar-secret") ??
           request.headers.get("x-novawebinar-secret") ??
           payload.secret ??
           "";

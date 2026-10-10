@@ -17,7 +17,7 @@ const webinar: PlatformColumns = {
   timezone: "Africa/Luanda",
 };
 const now = new Date("2026-10-08T12:00:00Z").getTime();
-const opts = { productName: "Mentoria IA", appUrl: "https://convertewebinar.vercel.app/", nowMs: now };
+const opts = { productName: "Mentoria IA", appUrl: "https://novawebinar.vercel.app/", nowMs: now };
 const byLabel = (lines: { label: string; text: string }[]) => Object.fromEntries(lines.map((l) => [l.label, l.text]));
 
 describe("o que a plataforma diz ao Agente", () => {
@@ -31,7 +31,7 @@ describe("o que a plataforma diz ao Agente", () => {
     expect(k["Agenda"]).toContain("Fuso horário: Africa/Luanda.");
     expect(k["Agenda"]).toContain("Há gravação");
     expect(k["Página de inscrição"]).toBe(
-      "Página de inscrição. Link para se inscrever: https://convertewebinar.vercel.app/w/aula-ia. Subtítulo: Aula gratuita.",
+      "Página de inscrição. Link para se inscrever: https://novawebinar.vercel.app/w/aula-ia. Subtítulo: Aula gratuita.",
     );
   });
 

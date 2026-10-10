@@ -187,7 +187,7 @@ describe("oferta", () => {
     expect(link.searchParams.get("cw")).toBe("p1");
   });
 
-  it("sem anúncio a origem é convertewebinar, e não mexe no que o link já traz", () => {
+  it("sem anúncio a origem é novawebinar, e não mexe no que o link já traz", () => {
     const link = new URL(
       checkoutLink("https://loja.pt/p?utm_source=newsletter", { place: "chat", seconds: 5 }),
     );

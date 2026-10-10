@@ -16,7 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 
 /*
- * Linguagem visual do Workflow (convertewebinar-design/components/diagram).
+ * Linguagem visual do Workflow (novawebinar-design/components/diagram).
  * Só três famílias de cor: azul-noite (eventos, estrutura), cinzas (páginas,
  * condições, esperas com relevo diagonal) e laranja (acções, seleccionado,
  * em curso). Cada tipo distingue-se por ícone + forma + tom, nunca por arco-íris.

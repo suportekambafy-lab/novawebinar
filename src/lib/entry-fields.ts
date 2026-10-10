@@ -139,7 +139,7 @@ export function fieldApiKey(field: Pick<EntryField, "id" | "kind">): string {
   return field.kind === "name" || field.kind === "email" ? field.kind : field.kind === "whatsapp" ? "phone" : field.id;
 }
 
-/** Os campos como o formulário embed os desenha na página externa: os mesmos da página do Convertewebinar. */
+/** Os campos como o formulário embed os desenha na página externa: os mesmos da página do Novawebinar. */
 export function embedFields(fields: readonly EntryField[]) {
   return fields.map((field) => ({
     key: fieldApiKey(field),

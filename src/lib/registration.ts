@@ -1,5 +1,5 @@
 /**
- * Captura externa: a página de inscrição fica fora do Convertewebinar (WordPress, Framer,
+ * Captura externa: a página de inscrição fica fora do Novawebinar (WordPress, Framer,
  * HTML...). Chega aqui por um formulário embed (script) ou pela API pública, sempre com o
  * identificador do formulário: é ele que diz o webinar e, por ele, a organização.
  * Aqui ficam as regras puras: validação, normalização, UTM, origem e limite de ritmo.

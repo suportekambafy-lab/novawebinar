@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /*
- * Gráficos da referência (convertewebinar-design/components/charts).
+ * Gráficos da referência (novawebinar-design/components/charts).
  * Regras: sem grelha nem eixos, só rótulos em cinza secundário; as barras no
  * laranja claro da marca e a barra em destaque no laranja, com a etiqueta do
  * valor no laranja escuro (tokens --chart-*). Recebem séries já calculadas —

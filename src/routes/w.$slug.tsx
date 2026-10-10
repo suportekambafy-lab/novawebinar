@@ -73,7 +73,7 @@ export const Route = createFileRoute("/w/$slug")({
     const image = webinar?.share_image_url || webinar?.registration_cover_url || null;
     return {
       meta: [
-        { title: `${title} | Convertewebinar` },
+        { title: `${title} | Novawebinar` },
         ROOM_VIEWPORT,
         { name: "description", content: description },
         { property: "og:title", content: title },
