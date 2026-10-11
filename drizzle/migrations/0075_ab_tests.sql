@@ -135,9 +135,12 @@ BEGIN
   RETURN NEW;
 END $$;
 REVOKE EXECUTE ON FUNCTION public.ab_tests_touch() FROM PUBLIC, anon, authenticated;
-DROP TRIGGER IF EXISTS ab_tests_touch ON public.ab_tests;
-CREATE TRIGGER ab_tests_touch BEFORE UPDATE ON public.ab_tests
-  FOR EACH ROW EXECUTE FUNCTION public.ab_tests_touch();
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'ab_tests_touch' AND tgrelid = 'public.ab_tests'::regclass) THEN
+    CREATE TRIGGER ab_tests_touch BEFORE UPDATE ON public.ab_tests
+      FOR EACH ROW EXECUTE FUNCTION public.ab_tests_touch();
+  END IF;
+END $$;
 
 -- ---------- Acesso ----------
 -- Quem é da organização lê tudo; escreve-se só pelo servidor (chave de serviço), que valida e regista
@@ -148,21 +151,18 @@ ALTER TABLE public.ab_test_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ab_test_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ab_test_history ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS ab_tests_members_read ON public.ab_tests;
-CREATE POLICY ab_tests_members_read ON public.ab_tests FOR SELECT TO authenticated
-  USING (public.is_organization_member(organization_id));
-DROP POLICY IF EXISTS ab_test_variants_members_read ON public.ab_test_variants;
-CREATE POLICY ab_test_variants_members_read ON public.ab_test_variants FOR SELECT TO authenticated
-  USING (public.is_organization_member(organization_id));
-DROP POLICY IF EXISTS ab_test_assignments_members_read ON public.ab_test_assignments;
-CREATE POLICY ab_test_assignments_members_read ON public.ab_test_assignments FOR SELECT TO authenticated
-  USING (public.is_organization_member(organization_id));
-DROP POLICY IF EXISTS ab_test_events_members_read ON public.ab_test_events;
-CREATE POLICY ab_test_events_members_read ON public.ab_test_events FOR SELECT TO authenticated
-  USING (public.is_organization_member(organization_id));
-DROP POLICY IF EXISTS ab_test_history_members_read ON public.ab_test_history;
-CREATE POLICY ab_test_history_members_read ON public.ab_test_history FOR SELECT TO authenticated
-  USING (public.is_organization_member(organization_id));
+DO $$
+DECLARE t text;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['ab_tests', 'ab_test_variants', 'ab_test_assignments', 'ab_test_events', 'ab_test_history'] LOOP
+    IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname = 'public' AND tablename = t AND policyname = t || '_members_read') THEN
+      EXECUTE format(
+        'CREATE POLICY %I ON public.%I FOR SELECT TO authenticated USING (public.is_organization_member(organization_id))',
+        t || '_members_read', t
+      );
+    END IF;
+  END LOOP;
+END $$;
 
 REVOKE ALL ON public.ab_tests, public.ab_test_variants, public.ab_test_assignments, public.ab_test_events, public.ab_test_history
   FROM PUBLIC, anon, authenticated;
