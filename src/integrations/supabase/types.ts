@@ -14,6 +14,385 @@ export type Database = {
   }
   public: {
     Tables: {
+      ab_test_assignments: {
+        Row: {
+          ab_test_id: string
+          assigned_at: string
+          country_code: string | null
+          device: string | null
+          email: string | null
+          id: string
+          organization_id: string
+          participant_id: string | null
+          referrer: string | null
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+          variant_id: string
+          visitor_id: string
+        }
+        Insert: {
+          ab_test_id: string
+          assigned_at?: string
+          country_code?: string | null
+          device?: string | null
+          email?: string | null
+          id?: string
+          organization_id: string
+          participant_id?: string | null
+          referrer?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          variant_id: string
+          visitor_id: string
+        }
+        Update: {
+          ab_test_id?: string
+          assigned_at?: string
+          country_code?: string | null
+          device?: string | null
+          email?: string | null
+          id?: string
+          organization_id?: string
+          participant_id?: string | null
+          referrer?: string | null
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+          variant_id?: string
+          visitor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ab_test_assignments_ab_test_id_fkey"
+            columns: ["ab_test_id"]
+            isOneToOne: false
+            referencedRelation: "ab_tests"
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: "ab_test_assignments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: "ab_test_assignments_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "participants"
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: "ab_test_assignments_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "ab_test_variants"
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ab_test_events: {
+        Row: {
+          ab_test_id: string
+          assignment_id: string | null
+          created_at: string
+          currency: string | null
+          event_data: Json | null
+          event_type: string
+          id: number
+          idempotency_key: string | null
+          organization_id: string
+          participant_id: string | null
+          revenue: number | null
+          variant_id: string
+          visitor_id: string | null
+          webinar_id: string | null
+        }
+        Insert: {
+          ab_test_id: string
+          assignment_id?: string | null
+          created_at?: string
+          currency?: string | null
+          event_data?: Json | null
+          event_type: string
+          id?: number
+          idempotency_key?: string | null
+          organization_id: string
+          participant_id?: string | null
+          revenue?: number | null
+          variant_id: string
+          visitor_id?: string | null
+          webinar_id?: string | null
+        }
+        Update: {
+          ab_test_id?: string
+          assignment_id?: string | null
+          created_at?: string
+          currency?: string | null
+          event_data?: Json | null
+          event_type?: string
+          id?: number
+          idempotency_key?: string | null
+          organization_id?: string
+          participant_id?: string | null
+          revenue?: number | null
+          variant_id?: string
+          visitor_id?: string | null
+          webinar_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ab_test_events_ab_test_id_fkey"
+            columns: ["ab_test_id"]
+            isOneToOne: false
+            referencedRelation: "ab_tests"
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: "ab_test_events_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "ab_test_assignments"
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: "ab_test_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: "ab_test_events_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "participants"
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: "ab_test_events_variant_id_fkey"
+            columns: ["variant_id"]
+            isOneToOne: false
+            referencedRelation: "ab_test_variants"
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: "ab_test_events_webinar_id_fkey"
+            columns: ["webinar_id"]
+            isOneToOne: false
+            referencedRelation: "webinars"
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ab_test_history: {
+        Row: {
+          ab_test_id: string
+          action: string
+          actor_id: string | null
+          created_at: string
+          details: Json | null
+          id: string
+          organization_id: string
+        }
+        Insert: {
+          ab_test_id: string
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          organization_id: string
+        }
+        Update: {
+          ab_test_id?: string
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          details?: Json | null
+          id?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ab_test_history_ab_test_id_fkey"
+            columns: ["ab_test_id"]
+            isOneToOne: false
+            referencedRelation: "ab_tests"
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: "ab_test_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ab_test_variants: {
+        Row: {
+          ab_test_id: string
+          config: Json | null
+          created_at: string
+          id: string
+          label: string
+          name: string | null
+          organization_id: string
+          position: number
+          traffic_percentage: number
+          webinar_id: string | null
+        }
+        Insert: {
+          ab_test_id: string
+          config?: Json | null
+          created_at?: string
+          id?: string
+          label: string
+          name?: string | null
+          organization_id: string
+          position?: number
+          traffic_percentage?: number
+          webinar_id?: string | null
+        }
+        Update: {
+          ab_test_id?: string
+          config?: Json | null
+          created_at?: string
+          id?: string
+          label?: string
+          name?: string | null
+          organization_id?: string
+          position?: number
+          traffic_percentage?: number
+          webinar_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ab_test_variants_ab_test_id_fkey"
+            columns: ["ab_test_id"]
+            isOneToOne: false
+            referencedRelation: "ab_tests"
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: "ab_test_variants_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: "ab_test_variants_webinar_id_fkey"
+            columns: ["webinar_id"]
+            isOneToOne: false
+            referencedRelation: "webinars"
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      ab_tests: {
+        Row: {
+          applied_variant_id: string | null
+          assignment_mode: string | null
+          auto_optimize: boolean | null
+          auto_winner: boolean | null
+          confidence_threshold: number | null
+          created_at: string
+          created_by: string | null
+          ended_at: string | null
+          id: string
+          minimum_conversions: number | null
+          minimum_duration_days: number | null
+          minimum_visitors: number | null
+          name: string
+          objective: string
+          organization_id: string
+          parent_test_id: string | null
+          product_name: string | null
+          slug: string
+          started_at: string | null
+          status: string
+          type: string
+          updated_at: string
+          version: number | null
+        }
+        Insert: {
+          applied_variant_id?: string | null
+          assignment_mode?: string | null
+          auto_optimize?: boolean | null
+          auto_winner?: boolean | null
+          confidence_threshold?: number | null
+          created_at?: string
+          created_by?: string | null
+          ended_at?: string | null
+          id?: string
+          minimum_conversions?: number | null
+          minimum_duration_days?: number | null
+          minimum_visitors?: number | null
+          name: string
+          objective?: string
+          organization_id: string
+          parent_test_id?: string | null
+          product_name?: string | null
+          slug: string
+          started_at?: string | null
+          status?: string
+          type?: string
+          updated_at?: string
+          version?: number | null
+        }
+        Update: {
+          applied_variant_id?: string | null
+          assignment_mode?: string | null
+          auto_optimize?: boolean | null
+          auto_winner?: boolean | null
+          confidence_threshold?: number | null
+          created_at?: string
+          created_by?: string | null
+          ended_at?: string | null
+          id?: string
+          minimum_conversions?: number | null
+          minimum_duration_days?: number | null
+          minimum_visitors?: number | null
+          name?: string
+          objective?: string
+          organization_id?: string
+          parent_test_id?: string | null
+          product_name?: string | null
+          slug?: string
+          started_at?: string | null
+          status?: string
+          type?: string
+          updated_at?: string
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ab_tests_applied_variant_id_fkey"
+            columns: ["applied_variant_id"]
+            isOneToOne: false
+            referencedRelation: "ab_test_variants"
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: "ab_tests_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ['id']
+          },
+        ]
+      }
       activity_events: {
         Row: {
           actor_kind: string
@@ -3307,6 +3686,32 @@ export type Database = {
       }
     }
     Functions: {
+      ab_assign: {
+        Args: {
+          p_country: string
+          p_device: string
+          p_org: string
+          p_referrer: string
+          p_test: string
+          p_utm_campaign: string
+          p_utm_content: string
+          p_utm_medium: string
+          p_utm_source: string
+          p_utm_term: string
+          p_variant: string
+          p_visitor: string
+          p_webinar: string
+        }
+        Returns: Json
+      }
+      ab_parse_amount: {
+        Args: { p: string }
+        Returns: number
+      }
+      ab_test_metrics: {
+        Args: { p_test: string }
+        Returns: Json
+      }
       auth_user_id_for_email: {
         Args: { _email: string }
         Returns: string

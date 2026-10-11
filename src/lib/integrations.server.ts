@@ -211,6 +211,17 @@ export async function receiveIntegrationWebhook(key: string, request: Request): 
         "venda por actualizar",
       );
       if (!updated?.length) throw new Conflict();
+      if (sale.status === "approved") {
+        const { attributePurchase } = await import("@/lib/ab-tests/assign.server");
+        await attributePurchase({
+          organizationId: integration.organization_id,
+          buyerEmail: email,
+          webinarId: existing.webinar_id,
+          purchaseId: existing.id,
+          amount: existing.amount_value ?? sale.amountValue,
+          currency: existing.currency ?? sale.currency,
+        });
+      }
       await Promise.all([log("accepted", "", { ...summary, purchase_id: existing.id }), touched()]);
       await notifyOutgoing(integration.organization_id, OUTGOING_EVENT[sale.status], {
         email,
@@ -276,6 +287,18 @@ export async function receiveIntegrationWebhook(key: string, request: Request): 
       "venda por guardar",
     );
 
+    // Num teste A/B, a venda aprovada conta para a variante de quem comprou (pelo e-mail).
+    if (sale.status === "approved" && saved?.id) {
+      const { attributePurchase } = await import("@/lib/ab-tests/assign.server");
+      await attributePurchase({
+        organizationId: integration.organization_id,
+        buyerEmail: email,
+        webinarId: match?.webinar_id ?? null,
+        purchaseId: saved.id,
+        amount: sale.amountValue,
+        currency: sale.currency,
+      });
+    }
     await Promise.all([log("accepted", attribution, { ...summary, purchase_id: saved?.id ?? null }), touched()]);
     await notifyOutgoing(integration.organization_id, OUTGOING_EVENT[sale.status], {
       email,

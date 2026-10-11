@@ -37,6 +37,13 @@ import {
   VIEWER_EXPIRED,
 } from "@/lib/public-room.functions";
 
+/** A origem (UTM) do endereço, para a atribuição de um teste A/B. */
+function roomUtm(search: Record<string, unknown>) {
+  const pick = (key: "utm_source" | "utm_medium" | "utm_campaign" | "utm_content") =>
+    typeof search[key] === "string" && search[key] ? { [key]: String(search[key]).slice(0, 120) } : {};
+  return { ...pick("utm_source"), ...pick("utm_medium"), ...pick("utm_campaign"), ...pick("utm_content") };
+}
+
 export const Route = createFileRoute("/w/$slug")({
   validateSearch: (search: Record<string, unknown>) => ({
     replay: ["1", "true"].includes(String(search["replay"])) ? true : undefined,
@@ -57,11 +64,11 @@ export const Route = createFileRoute("/w/$slug")({
       Record<"utm_source" | "utm_medium" | "utm_campaign" | "utm_content" | "fbclid" | "gclid", string>
     >,
   }),
-  loader: ({ context, params }) =>
+  loader: ({ context, params, location }) =>
     context.queryClient
       .ensureQueryData({
         queryKey: ["public-room", params.slug],
-        queryFn: () => getPublicRoom({ data: { slug: params.slug } }),
+        queryFn: () => getPublicRoom({ data: { slug: params.slug, ...roomUtm(location.search as Record<string, unknown>) } }),
       })
       // Falha passageira: a página abre na mesma e a sala volta a tentar sozinha.
       .catch(() => undefined),
@@ -215,7 +222,7 @@ export function PublicRoom({
 
   const { data: loaded, isLoading, isError } = useQuery({
     queryKey: ["public-room", slug],
-    queryFn: () => fetchRoom({ data: { slug } }),
+    queryFn: () => fetchRoom({ data: { slug, ...roomUtm(source) } }),
     // Enquanto ninguém entrou na sala, revemos a sessão de minuto a minuto:
     // assim que a sessão do dia termina, a sala de espera volta a abrir
     // com a contagem para a próxima sessão. Uma leitura falhada nunca tira a

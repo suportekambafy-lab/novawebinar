@@ -24,6 +24,9 @@ import { Route as ParticipantsRouteImport } from './routes/participants'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as TeamRouteImport } from './routes/team'
+import { Route as AbTestsIndexRouteImport } from './routes/ab-tests.index'
+import { Route as AbTestsTestIdRouteImport } from './routes/ab-tests.$testId'
+import { Route as AbTestsNewRouteImport } from './routes/ab-tests.new'
 import { Route as ApiGenerateImageRouteImport } from './routes/api/generate-image'
 import { Route as AuthLoginRouteImport } from './routes/auth.login'
 import { Route as AuthRegisterRouteImport } from './routes/auth.register'
@@ -123,6 +126,21 @@ const SupportRoute = SupportRouteImport.update({
 const TeamRoute = TeamRouteImport.update({
   id: '/team',
   path: '/team',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AbTestsIndexRoute = AbTestsIndexRouteImport.update({
+  id: '/ab-tests/',
+  path: '/ab-tests/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AbTestsTestIdRoute = AbTestsTestIdRouteImport.update({
+  id: '/ab-tests/$testId',
+  path: '/ab-tests/$testId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AbTestsNewRoute = AbTestsNewRouteImport.update({
+  id: '/ab-tests/new',
+  path: '/ab-tests/new',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGenerateImageRoute = ApiGenerateImageRouteImport.update({
@@ -271,6 +289,8 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
   '/team': typeof TeamRoute
+  '/ab-tests/$testId': typeof AbTestsTestIdRoute
+  '/ab-tests/new': typeof AbTestsNewRoute
   '/api/generate-image': typeof ApiGenerateImageRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
@@ -285,6 +305,7 @@ export interface FileRoutesByFullPath {
   '/replay/$webinarId': typeof ReplayWebinarIdRoute
   '/w/$slug': typeof WSlugRoute
   '/webinars/new': typeof WebinarsNewRoute
+  '/ab-tests/': typeof AbTestsIndexRoute
   '/automations/': typeof AutomationsIndexRoute
   '/funcionalidades/': typeof FuncionalidadesIndexRoute
   '/webinars/': typeof WebinarsIndexRoute
@@ -313,6 +334,8 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
   '/team': typeof TeamRoute
+  '/ab-tests/$testId': typeof AbTestsTestIdRoute
+  '/ab-tests/new': typeof AbTestsNewRoute
   '/api/generate-image': typeof ApiGenerateImageRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
@@ -327,6 +350,7 @@ export interface FileRoutesByTo {
   '/replay/$webinarId': typeof ReplayWebinarIdRoute
   '/w/$slug': typeof WSlugRoute
   '/webinars/new': typeof WebinarsNewRoute
+  '/ab-tests': typeof AbTestsIndexRoute
   '/automations': typeof AutomationsIndexRoute
   '/funcionalidades': typeof FuncionalidadesIndexRoute
   '/webinars': typeof WebinarsIndexRoute
@@ -356,6 +380,8 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
   '/team': typeof TeamRoute
+  '/ab-tests/$testId': typeof AbTestsTestIdRoute
+  '/ab-tests/new': typeof AbTestsNewRoute
   '/api/generate-image': typeof ApiGenerateImageRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
@@ -370,6 +396,7 @@ export interface FileRoutesById {
   '/replay/$webinarId': typeof ReplayWebinarIdRoute
   '/w/$slug': typeof WSlugRoute
   '/webinars/new': typeof WebinarsNewRoute
+  '/ab-tests/': typeof AbTestsIndexRoute
   '/automations/': typeof AutomationsIndexRoute
   '/funcionalidades/': typeof FuncionalidadesIndexRoute
   '/webinars/': typeof WebinarsIndexRoute
@@ -400,6 +427,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/support'
     | '/team'
+    | '/ab-tests/$testId'
+    | '/ab-tests/new'
     | '/api/generate-image'
     | '/auth/login'
     | '/auth/register'
@@ -414,6 +443,7 @@ export interface FileRouteTypes {
     | '/replay/$webinarId'
     | '/w/$slug'
     | '/webinars/new'
+    | '/ab-tests/'
     | '/automations/'
     | '/funcionalidades/'
     | '/webinars/'
@@ -442,6 +472,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/support'
     | '/team'
+    | '/ab-tests/$testId'
+    | '/ab-tests/new'
     | '/api/generate-image'
     | '/auth/login'
     | '/auth/register'
@@ -456,6 +488,7 @@ export interface FileRouteTypes {
     | '/replay/$webinarId'
     | '/w/$slug'
     | '/webinars/new'
+    | '/ab-tests'
     | '/automations'
     | '/funcionalidades'
     | '/webinars'
@@ -484,6 +517,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/support'
     | '/team'
+    | '/ab-tests/$testId'
+    | '/ab-tests/new'
     | '/api/generate-image'
     | '/auth/login'
     | '/auth/register'
@@ -498,6 +533,7 @@ export interface FileRouteTypes {
     | '/replay/$webinarId'
     | '/w/$slug'
     | '/webinars/new'
+    | '/ab-tests/'
     | '/automations/'
     | '/funcionalidades/'
     | '/webinars/'
@@ -527,6 +563,8 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SupportRoute: typeof SupportRoute
   TeamRoute: typeof TeamRoute
+  AbTestsTestIdRoute: typeof AbTestsTestIdRoute
+  AbTestsNewRoute: typeof AbTestsNewRoute
   ApiGenerateImageRoute: typeof ApiGenerateImageRoute
   AuthLoginRoute: typeof AuthLoginRoute
   AuthRegisterRoute: typeof AuthRegisterRoute
@@ -541,6 +579,7 @@ export interface RootRouteChildren {
   ReplayWebinarIdRoute: typeof ReplayWebinarIdRoute
   WSlugRoute: typeof WSlugRoute
   WebinarsNewRoute: typeof WebinarsNewRoute
+  AbTestsIndexRoute: typeof AbTestsIndexRoute
   AutomationsIndexRoute: typeof AutomationsIndexRoute
   FuncionalidadesIndexRoute: typeof FuncionalidadesIndexRoute
   WebinarsIndexRoute: typeof WebinarsIndexRoute
@@ -659,6 +698,27 @@ declare module '@tanstack/react-router' {
       path: '/team'
       fullPath: '/team'
       preLoaderRoute: typeof TeamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ab-tests/': {
+      id: '/ab-tests/'
+      path: '/ab-tests'
+      fullPath: '/ab-tests/'
+      preLoaderRoute: typeof AbTestsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ab-tests/$testId': {
+      id: '/ab-tests/$testId'
+      path: '/ab-tests/$testId'
+      fullPath: '/ab-tests/$testId'
+      preLoaderRoute: typeof AbTestsTestIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ab-tests/new': {
+      id: '/ab-tests/new'
+      path: '/ab-tests/new'
+      fullPath: '/ab-tests/new'
+      preLoaderRoute: typeof AbTestsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/generate-image': {
@@ -855,6 +915,8 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SupportRoute: SupportRoute,
   TeamRoute: TeamRoute,
+  AbTestsTestIdRoute: AbTestsTestIdRoute,
+  AbTestsNewRoute: AbTestsNewRoute,
   ApiGenerateImageRoute: ApiGenerateImageRoute,
   AuthLoginRoute: AuthLoginRoute,
   AuthRegisterRoute: AuthRegisterRoute,
@@ -869,6 +931,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReplayWebinarIdRoute: ReplayWebinarIdRoute,
   WSlugRoute: WSlugRoute,
   WebinarsNewRoute: WebinarsNewRoute,
+  AbTestsIndexRoute: AbTestsIndexRoute,
   AutomationsIndexRoute: AutomationsIndexRoute,
   FuncionalidadesIndexRoute: FuncionalidadesIndexRoute,
   WebinarsIndexRoute: WebinarsIndexRoute,

@@ -81,18 +81,29 @@ async function waitingVideo(organizationId: string, id: string | null) {
   return url ? { url, provider: data.provider } : null;
 }
 
-export async function loadPublicRoom(slug: string) {
-  const { data: webinar, error: webinarError } = await supabaseAdmin
-    .from("webinars")
-    .select(
-      "id, organization_id, public_title, description, status, room_theme, host_name, host_role, host_avatar_url, chat_pin_title, chat_pin_message, offer_pin_title, offer_pin_message, scheduled_at, session_end_time, schedule_mode, recurrence_enabled, recurrence_pattern, recurrence_weekday, recurrence_start_time, recurrence_end_time, jit_interval_minutes, timezone, duration_seconds, replay_enabled, waiting_room_enabled, prelive_enabled, prelive_seconds, prelive_sound, prelive_message, prelive_template, prelive_appearance, easy_access, sync_video_with_start, cta_text, cta_url, cta_color, cta_price_original, cta_price_now, cta_image_url, cta_countdown_seconds, cta_start_seconds, cta_end_seconds, registration_headline, registration_subtitle, registration_button_text, registration_collect_phone, registration_require_phone, registration_cover_url, registration_badge_text, registration_progress_enabled, registration_progress_value, registration_scarcity_note, share_title, share_description, share_image_url, video_source_id, entry_fields, entry_card_color, entry_button_color, extra_offers, offer_deadline, offer_countdown_end, offer_utm, sales_show_real, sales_where, recurrence_days, recurrence_times, jit_skip_night, host_verified, room_theme_system, chat_settings, video_sources(source_url, provider, duration_seconds, storage_path)",
-    )
-    .eq("slug", slug)
-    .maybeSingle();
+const ROOM_SELECT =
+  "id, organization_id, public_title, description, status, room_theme, host_name, host_role, host_avatar_url, chat_pin_title, chat_pin_message, offer_pin_title, offer_pin_message, scheduled_at, session_end_time, schedule_mode, recurrence_enabled, recurrence_pattern, recurrence_weekday, recurrence_start_time, recurrence_end_time, jit_interval_minutes, timezone, duration_seconds, replay_enabled, waiting_room_enabled, prelive_enabled, prelive_seconds, prelive_sound, prelive_message, prelive_template, prelive_appearance, easy_access, sync_video_with_start, cta_text, cta_url, cta_color, cta_price_original, cta_price_now, cta_image_url, cta_countdown_seconds, cta_start_seconds, cta_end_seconds, registration_headline, registration_subtitle, registration_button_text, registration_collect_phone, registration_require_phone, registration_cover_url, registration_badge_text, registration_progress_enabled, registration_progress_value, registration_scarcity_note, share_title, share_description, share_image_url, video_source_id, entry_fields, entry_card_color, entry_button_color, extra_offers, offer_deadline, offer_countdown_end, offer_utm, sales_show_real, sales_where, recurrence_days, recurrence_times, jit_skip_night, host_verified, room_theme_system, chat_settings, video_sources(source_url, provider, duration_seconds, storage_path)";
 
+/**
+ * A sala de um endereço. Primeiro um webinar com esse slug; senão um teste A/B com esse endereço, que
+ * entrega a variante desta pessoa (ver ab-tests/assign.server) sem o endereço mudar.
+ */
+export async function loadPublicRoom(slug: string, meta: import("@/lib/ab-tests/assign.server").AssignmentMeta = {}) {
+  const bySlug = await supabaseAdmin.from("webinars").select(ROOM_SELECT).eq("slug", slug).maybeSingle();
   // Falha de leitura não é "não existe": quem chama mantém a sala que já tem.
-  if (webinarError) throw new Error(UNAVAILABLE);
-  if (!webinar) return null;
+  if (bySlug.error) throw new Error(UNAVAILABLE);
+  let webinar = bySlug.data;
+  let abTest: { id: string; variantId: string } | null = null;
+  if (!webinar) {
+    const { resolveTestSlug } = await import("@/lib/ab-tests/assign.server");
+    const resolved = await resolveTestSlug(slug, meta);
+    if (!resolved) return null;
+    const byId = await supabaseAdmin.from("webinars").select(ROOM_SELECT).eq("id", resolved.webinarId).maybeSingle();
+    if (byId.error) throw new Error(UNAVAILABLE);
+    if (!byId.data) return null;
+    webinar = byId.data;
+    abTest = { id: resolved.testId, variantId: resolved.variantId };
+  }
 
   const source = webinar.video_sources;
   const live = liveSettings(webinar.chat_settings);
@@ -187,6 +198,8 @@ export async function loadPublicRoom(slug: string) {
   return {
     pixels,
     captions,
+    /** O endereço era de um teste A/B: a variante que esta pessoa recebeu. */
+    abTest,
     webinar: {
       id: webinar.id,
       organization_id: webinar.organization_id,

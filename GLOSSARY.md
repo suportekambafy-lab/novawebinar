@@ -37,3 +37,21 @@ _Avoid_: Fonte, canal de tráfego
 **Segmento**:
 O grupo em que fica quem não comprou quando a sessão termina, conforme o que viu: não acessou, saiu antes do pitch ou assistiu o pitch. Cada pessoa está num só.
 _Avoid_: Público, lista
+
+### Testes A/B
+
+**Teste A/B**:
+Um endereço público próprio que divide quem o abre entre duas ou mais variantes, cada uma com o seu webinar, para medir qual converte melhor. A pessoa vê sempre a mesma variante.
+_Avoid_: Experimento, split test
+
+**Variante**:
+Cada um dos webinars em comparação num teste, com a sua fatia do tráfego: A, B, C…
+_Avoid_: Braço, grupo, versão
+
+**Vencedora**:
+A variante que o organizador aplica ao fim do teste: a partir daí o endereço do teste entrega sempre essa.
+_Avoid_: Winner, campeã
+
+**Objectivo**:
+O que o teste mede para decidir: conversões, receita por visitante ou por participante, inscrições, presença, retenção, chegada ao pitch ou cliques na oferta.
+_Avoid_: Métrica alvo, KPI

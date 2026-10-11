@@ -15,6 +15,7 @@ export const Route = createFileRoute("/api/public/purchase-webhook")({
           webinar_id?: string;
           secret?: string;
           buyer_name?: string;
+          buyer_email?: string;
           product_name?: string;
           amount?: string;
         };
@@ -52,15 +53,33 @@ export const Route = createFileRoute("/api/public/purchase-webhook")({
           return new Response("Não autorizado.", { status: 401 });
         }
 
-        const { error } = await supabaseAdmin.from("real_purchase_events").insert({
-          organization_id: settings.organization_id,
-          webinar_id: settings.webinar_id,
-          buyer_name: buyer.slice(0, 80),
-          product_name: (payload.product_name ?? settings.product_name ?? "").slice(0, 120),
-          amount: (payload.amount ?? "").slice(0, 40),
-        });
+        const buyerEmail = (payload.buyer_email ?? "").trim().toLowerCase().slice(0, 160) || null;
+        const { data: saved, error } = await supabaseAdmin
+          .from("real_purchase_events")
+          .insert({
+            organization_id: settings.organization_id,
+            webinar_id: settings.webinar_id,
+            buyer_name: buyer.slice(0, 80),
+            buyer_email: buyerEmail,
+            product_name: (payload.product_name ?? settings.product_name ?? "").slice(0, 120),
+            amount: (payload.amount ?? "").slice(0, 40),
+          })
+          .select("id, amount_value, currency")
+          .single();
 
-        if (error) return new Response("Não foi possível registar a compra.", { status: 500 });
+        if (error || !saved) return new Response("Não foi possível registar a compra.", { status: 500 });
+        // Num teste A/B, a venda conta para a variante de quem comprou, quando o pedido traz o e-mail.
+        if (buyerEmail) {
+          const { attributePurchase } = await import("@/lib/ab-tests/assign.server");
+          await attributePurchase({
+            organizationId: settings.organization_id,
+            buyerEmail,
+            webinarId: settings.webinar_id,
+            purchaseId: saved.id,
+            amount: saved.amount_value,
+            currency: saved.currency,
+          });
+        }
         return Response.json({ ok: true });
       },
     },

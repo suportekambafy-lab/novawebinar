@@ -18,8 +18,7 @@ import {
   UserRoundCog,
   Video,
   Zap,
-  type LucideIcon,
-} from "lucide-react";
+  type LucideIcon, FlaskConical } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -72,6 +71,7 @@ export const NAV_ICON = {
   live: MonitorDot,
   cases: Inbox,
   analytics: SquareActivity,
+  abTests: FlaskConical,
   library: Library,
   team: UserRoundCog,
   integrations: Blocks,
@@ -101,6 +101,7 @@ const SECTIONS: { heading: string; items: NavItem[] }[] = [
     items: [
       { to: "/live-view", title: "Ao vivo", icon: NAV_ICON.live },
       { to: "/analytics", title: "Análises", icon: NAV_ICON.analytics },
+      { to: "/ab-tests", title: "Testes A/B", icon: NAV_ICON.abTests },
     ],
   },
 ];

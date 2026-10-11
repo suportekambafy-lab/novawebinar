@@ -8,6 +8,11 @@ import { z } from "zod";
 
 const slugSchema = z.object({
   slug: z.string().trim().min(1).max(120),
+  // A origem (UTM) do endereço: fica na atribuição de um teste A/B.
+  utm_source: z.string().trim().max(120).optional(),
+  utm_medium: z.string().trim().max(120).optional(),
+  utm_campaign: z.string().trim().max(120).optional(),
+  utm_content: z.string().trim().max(120).optional(),
 });
 
 const joinSchema = z.object({
@@ -104,7 +109,24 @@ export const getPublicRoom = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) => slugSchema.parse(data))
   .handler(async ({ data }) => {
     const { loadPublicRoom } = await import("@/lib/public-room.server");
-    return loadPublicRoom(data.slug);
+    // Só conta para um endereço de teste A/B: aparelho e país pelo pedido, a origem pelo endereço.
+    const fallback = await requestAudienceMeta();
+    let referrer: string | null = null;
+    try {
+      const { getRequest } = await import("@tanstack/react-start/server");
+      referrer = getRequest().headers.get("referer");
+    } catch {
+      referrer = null;
+    }
+    return loadPublicRoom(data.slug, {
+      device: fallback.device,
+      countryCode: fallback.countryCode,
+      referrer,
+      utmSource: data.utm_source,
+      utmMedium: data.utm_medium,
+      utmCampaign: data.utm_campaign,
+      utmContent: data.utm_content,
+    });
   });
 
 /** Deduz dispositivo e localização a partir do pedido quando o navegador não os envia. */
@@ -176,6 +198,9 @@ export const joinPublicRoom = createServerFn({ method: "POST" })
       sessionId,
     );
     if (error || !participant) throw new Error("Não foi possível entrar na sala.");
+    // Num teste A/B, a participação e o e-mail ficam ligados à variante desta pessoa (nunca trava a entrada).
+    const { linkAssignment } = await import("@/lib/ab-tests/assign.server");
+    await linkAssignment({ webinarId: webinar.id, participantId: participant.id, email: entry.email });
     const { roomToken } = await import("@/lib/public-room.server");
     return { token: roomToken(participant.id), name: participant.name };
   });

@@ -1,4 +1,5 @@
 import { friendlyError } from "@/lib/friendly-error";
+import { useActiveAbTestsOfWebinar } from "@/lib/ab-tests/hooks";
 import { IMAGE_PRESETS, imageExtension, shrinkImage } from "@/lib/shrink-image";
 import { deleteWebinar } from "@/lib/webinar-delete.functions";
 import { createFileRoute, Link, useBlocker, useNavigate } from "@tanstack/react-router";
@@ -26,6 +27,7 @@ import {
   Video,
   Zap,
   type LucideIcon,
+  FlaskConical,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -233,6 +235,8 @@ function EditWebinar() {
   const { data: workspace, isPending: workspacePending } = useWorkspace();
   const organizationId = workspace?.organizationId ?? null;
   const { data: webinar, isPending: webinarPending } = useWebinar(webinarId);
+  // Num teste A/B ativo, mudar este webinar muda o que metade das pessoas vê: o editor avisa antes.
+  const { data: activeAbTests = [] } = useActiveAbTestsOfWebinar(webinarId);
   const { data: videoSources = [], isPending: videosPending } = useVideoSources(workspace?.organizationId);
   const { data: comments = [], isPending: commentsPending } = useScheduledComments(webinarId);
   const { data: audience } = useAudienceConfiguration(webinarId);
@@ -1784,6 +1788,17 @@ function EditWebinar() {
             })}
           </nav>
         </header>
+        {activeAbTests.length > 0 ? (
+          <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-[13px] text-amber-900">
+            <FlaskConical className="size-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">
+              Este webinar é a variante {activeAbTests.map((t) => t.label).join(", ")} de um teste A/B ativo ({activeAbTests.map((t) => t.name).join(", ")}). O que mudar aqui muda o que essa parte das pessoas vê e pode baralhar o resultado.
+            </span>
+            <Link to="/ab-tests/$testId" params={{ testId: activeAbTests[0]!.id }} className="shrink-0 font-medium underline underline-offset-2">
+              Ver o teste
+            </Link>
+          </div>
+        ) : null}
 
         {published ? (
           <PublishPage issues={reviewList} roomLink={roomLink} onResolve={setStep} onBack={() => setPublished(false)} />
