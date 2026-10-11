@@ -395,7 +395,7 @@ function feedItemsAt(props: Parameters<typeof chatItemsAt>[0] & { saleColor?: st
     item.kind === "sale"
       ? { key: item.key, kind: "sale", text: `${item.s.buyer} comprou ${item.s.product}`, color: props.saleColor }
       : item.kind === "mine"
-        ? { key: item.key, kind: "mine", text: item.m.text, reaction: item.reaction }
+        ? { key: item.key, kind: "mine", name: "Ana Costa", text: item.m.text, reaction: item.reaction }
         : { key: item.key, kind: "msg", author: item.c.author, text: item.c.message },
   );
 }
@@ -1282,7 +1282,7 @@ function Panel({
                   item.kind === "sale" ? (
                     <SaleLine key={item.key} text={`${item.s.buyer} comprou ${item.s.product}`} color={props.saleColor} />
                   ) : item.kind === "mine" ? (
-                    <ChatLine key={item.key} author="Você" text={item.m.text} tone="mine" reaction={item.reaction} big tight={tight} />
+                    <ChatLine key={item.key} author="Ana Costa" text={item.m.text} tone="mine" reaction={item.reaction} big tight={tight} />
                   ) : (
                     <div key={item.key} className={cn(props.highlight === `comment:${item.c.id}` && "-mx-2 rounded-lg bg-primary/15 px-2 py-1")}>
                       <ChatLine author={item.c.author} text={item.c.message} tone={item.c.agent ? "agent" : "people"} big tight={tight} />

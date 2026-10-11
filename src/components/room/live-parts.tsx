@@ -3,7 +3,7 @@ import { Check, ChevronDown, ChevronUp, Clock, Eye, Headset, Plus, SendHorizonta
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { entryPalette, offerColor, offerColorVars, type FollowNetwork, type OfferColors, type OfferLook } from "@/lib/room-logic";
-import { EMOJIS, HeartButton, OfferThumb, ReactionPill, saleColor, type Reaction } from "./room-parts";
+import { EMOJIS, HeartButton, OfferThumb, ReactionPill, YouTag, saleColor, type Reaction } from "./room-parts";
 
 /**
  * Peças da sala em formato Live (vídeo com o chat por cima, como no Instagram). A sala pública e a
@@ -298,6 +298,7 @@ export type LiveFeedItem =
   | {
       key: string;
       kind: "mine";
+      name: string;
       text: string;
       note?: ReactNode;
       reaction?: string | undefined;
@@ -364,8 +365,8 @@ export function LiveFeed({
           ) : item.kind === "mine" ? (
             <div key={item.key} className="lv-in">
               <p className="min-w-0 break-words">
-                <b className="mr-1.5 font-bold">{item.team?.name ?? "Você"}</b>
-                {item.team ? <TeamBadge text={item.team.badge} /> : null}
+                <b className="mr-1.5 font-bold">{item.team?.name ?? item.name}</b>
+                {item.team ? <TeamBadge text={item.team.badge} /> : <YouTag />}
                 <span className={cn("font-medium", ink)}>{item.text}</span>
                 {item.reaction ? <ReactionPill text={item.reaction} onVideo={!panel} /> : null}
               </p>
