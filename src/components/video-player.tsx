@@ -205,7 +205,7 @@ export function VideoPlayer({
       if (document.visibilityState !== "visible") return;
       resync();
       if (video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) hlsRef.current?.startLoad();
-      if (autoPlay && video.paused) void video.play().catch(() => undefined);
+      if (autoPlay && video.paused && !video.ended && video.isConnected) void video.play().catch(() => undefined);
     };
 
 
@@ -259,7 +259,8 @@ export function VideoPlayer({
 
     let active = true;
     const ensurePlaying = async () => {
-      if (!active || !video.paused) return;
+      // Um elemento já retirado da página não volta a tocar: ficava a soar invisível.
+      if (!active || !video.isConnected || video.ended || !video.paused) return;
       video.muted = muted;
       try {
         await video.play();
@@ -349,7 +350,10 @@ export function VideoPlayer({
       return;
     }
     let destroy: (() => void) | undefined;
+    let cancelled = false;
     void import("hls.js").then(({ default: Hls }) => {
+      // O leitor já saiu antes de o hls.js chegar: não se liga a um elemento morto.
+      if (cancelled) return;
       if (!Hls.isSupported()) {
         setFailed(true);
         return;
@@ -369,7 +373,11 @@ export function VideoPlayer({
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (saveDataRef.current) hls.autoLevelCapping = levelCap(hls.levels);
-        if (autoPlayRef.current) void video.play().catch(() => undefined);
+        if (autoPlayRef.current && video.isConnected) void video.play().catch(() => undefined);
+      });
+      // Uma recuperação que voltou a tocar limpa o contador: só falhas seguidas contam para desistir.
+      hls.on(Hls.Events.FRAG_BUFFERED, () => {
+        recoveryRef.current = 0;
       });
       // Antes de desistir, tentamos recuperar: falhas de rede recarregam o
       // fluxo, falhas de imagem são reparadas pelo próprio motor. Só depois de
@@ -396,9 +404,24 @@ export function VideoPlayer({
         hls.destroy();
       };
     });
-    return () => destroy?.();
+    return () => {
+      cancelled = true;
+      destroy?.();
+    };
     // Sem `autoPlay`: o toque que liga o som não pode voltar a carregar o vídeo (o iPhone perdia o som).
   }, [isHls, playbackUrl, valid]);
+
+  // Ao sair, o vídeo pára de vez. O navegador pausa um elemento retirado da página, mas o «nunca parar» de
+  // cima voltava a dar play antes da limpeza: o som seguia atrás do «Terminou» e duplicava ao rodar o aparelho.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    return () => {
+      video.pause();
+      video.removeAttribute("src");
+      video.load();
+    };
+  }, [videoRef]);
 
 
 
@@ -491,7 +514,7 @@ export function VideoPlayer({
       }}
       onPause={(e) => {
         onPause?.();
-        if (controls || !autoPlay) return;
+        if (controls || !autoPlay || e.currentTarget.ended || !e.currentTarget.isConnected) return;
         void e.currentTarget.play().catch(() => undefined);
       }}
       onError={(e) => {
@@ -502,8 +525,12 @@ export function VideoPlayer({
           return;
         }
         recoveryRef.current += 1;
+        // Com o hls.js ligado, é ele que recupera: um `load()` por cima partia a ligação e o erro tornava-se fatal
+        // (rodar o telemóvel muda a qualidade e dispara isto nos aparelhos mais fracos).
+        if (hlsRef.current) return;
         const video = e.currentTarget;
         window.setTimeout(() => {
+          if (!video.isConnected) return;
           video.load();
           if (autoPlay) void video.play().catch(() => undefined);
         }, 800);
