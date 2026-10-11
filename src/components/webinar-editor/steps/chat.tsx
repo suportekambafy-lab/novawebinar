@@ -548,7 +548,7 @@ export function StepChat({
       >
         <SwitchRow
           title="Avisar no chat quando o Suporte responde"
-          description="Se a pessoa não abrir a resposta em 20 segundos, o chat mostra-lhe «@Você, já respondemos à sua dúvida». Só ela vê."
+          description="Se a pessoa não abrir a resposta em 20 segundos, o chat mostra-lhe «@Nome, já respondemos à sua dúvida», com o primeiro nome dela. Só ela vê."
           checked={notify}
           onChange={onNotify}
         />

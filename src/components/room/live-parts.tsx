@@ -3,7 +3,7 @@ import { Check, ChevronDown, ChevronUp, Clock, Eye, Headset, Plus, SendHorizonta
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { entryPalette, offerColor, offerColorVars, type FollowNetwork, type OfferColors, type OfferLook } from "@/lib/room-logic";
-import { EMOJIS, HeartButton, OfferThumb, ReactionPill, YouTag, saleColor, type Reaction } from "./room-parts";
+import { EMOJIS, HeartButton, OfferThumb, ReactionPill, YouTag, mentionName, saleColor, type Reaction } from "./room-parts";
 
 /**
  * Peças da sala em formato Live (vídeo com o chat por cima, como no Instagram). A sala pública e a
@@ -306,7 +306,7 @@ export type LiveFeedItem =
       team?: { name: string; badge: string } | undefined;
     }
   | { key: string; kind: "sale"; text: string; color?: string | null | undefined }
-  | { key: string; kind: "notice" };
+  | { key: string; kind: "notice"; name: string };
 
 /**
  * O chat por cima do vídeo: nome e mensagem em branco, como no Instagram. As linhas desvanecem
@@ -357,9 +357,8 @@ export function LiveFeed({
               </span>
               <span className="min-w-0">
                 <b className="mr-1.5 font-bold">Suporte</b>
-                <span className="font-medium">@Você, já respondemos à sua dúvida. </span>
+                <span className="font-medium">@{mentionName(item.name)}, já respondemos à sua dúvida. </span>
                 <u className="font-extrabold underline-offset-[3px]">Ver resposta</u>
-                <OnlyYou panel={panel} />
               </span>
             </button>
           ) : item.kind === "mine" ? (
@@ -391,19 +390,6 @@ function TeamBadge({ text }: { text: string }) {
   return (
     <em className="mr-1.5 rounded bg-[var(--of,#E8440C)] px-1.5 py-px align-[1px] text-[11px] font-bold not-italic text-[var(--of-on,#fff)] [text-shadow:none]">
       {text}
-    </em>
-  );
-}
-
-function OnlyYou({ panel }: { panel?: boolean | undefined }) {
-  return (
-    <em
-      className={cn(
-        "ml-1.5 rounded px-1.5 py-px align-[1px] text-[11px] font-semibold not-italic [text-shadow:none]",
-        panel ? "bg-room-raised text-room-subtle" : "bg-white/20",
-      )}
-    >
-      só você vê
     </em>
   );
 }

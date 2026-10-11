@@ -846,11 +846,16 @@ export function ChatPin({
   );
 }
 
+/** O primeiro nome de quem se inscreveu, para o «@» do aviso do Suporte. */
+export function mentionName(name: string | null | undefined) {
+  return (name ?? "").trim().split(/\s+/)[0] || "Você";
+}
+
 /**
  * No chat do formato Webinar: o Suporte já respondeu e a pessoa ainda não viu. Só ela vê; tocar
  * abre o Suporte. É o mesmo aviso do Live, com o desenho das linhas do chat.
  */
-export function SupportNotice({ onOpen, big }: { onOpen: () => void; big?: boolean | undefined }) {
+export function SupportNotice({ name, onOpen, big }: { name: string; onOpen: () => void; big?: boolean | undefined }) {
   return (
     <button type="button" onClick={onOpen} className="flex items-start gap-2.5 text-left">
       <span className={cn("grid shrink-0 place-items-center rounded-full bg-[#E8440C] text-white", big ? "size-8" : "size-7")}>
@@ -858,8 +863,7 @@ export function SupportNotice({ onOpen, big }: { onOpen: () => void; big?: boole
       </span>
       <p className={cn("min-w-0 pt-0.5 leading-[1.45] text-room-text", big ? "text-[16px]" : "text-[14.5px]")}>
         <span className="mr-2 font-semibold text-room-subtle">Suporte</span>
-        <span className="mr-2 rounded bg-room-raised px-1.5 py-px align-[1px] text-[12px] font-medium leading-none text-room-subtle">Só você vê</span>
-        @Você, já respondemos à sua dúvida. <u className="font-semibold underline-offset-[3px]">Ver resposta</u>
+        @{mentionName(name)}, já respondemos à sua dúvida. <u className="font-semibold underline-offset-[3px]">Ver resposta</u>
       </p>
     </button>
   );

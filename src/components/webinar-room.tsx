@@ -1657,7 +1657,7 @@ export function WebinarRoom({
               .sort((a, b) => a.at.getTime() - b.at.getTime())
               .map((item) =>
               "notice" in item ? (
-                <SupportNotice key={item.key} onOpen={() => setTab("support")} />
+                <SupportNotice key={item.key} name={viewerName} onOpen={() => setTab("support")} />
               ) : item.purchase ? (
                 <SaleLine key={item.key} text={`${item.author} ${item.message}`} color={socialProof?.notification_color} />
               ) : item.mine ? (
@@ -2018,7 +2018,7 @@ export function WebinarRoom({
             } as const)
           : ({ key: item.key, kind: "msg", author: item.author, text: item.message, badge: item.badge, reaction: item.reaction } as const),
     })),
-    ...notices.map((at, i) => ({ at: at.getTime(), item: { key: `notice-${i}`, kind: "notice" } as const })),
+    ...notices.map((at, i) => ({ at: at.getTime(), item: { key: `notice-${i}`, kind: "notice", name: viewerName } as const })),
   ]
     .sort((a, b) => a.at - b.at)
     .map((x) => x.item);

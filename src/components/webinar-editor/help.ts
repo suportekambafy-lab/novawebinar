@@ -282,7 +282,7 @@ export const HELP = {
     title: "Aviso do Suporte",
     what: "Se a pessoa não abrir a resposta do Suporte em 20 segundos, o chat avisa-a; só ela vê.",
     steps: ["Ligue «Avisar no chat quando o Suporte responde».", "Garanta quem responda: o Agente IA ou a equipa no Atendimento."],
-    example: "A Celma pergunta por Multicaixa; 20 s depois da resposta, vê «@Você, já respondemos à sua dúvida».",
+    example: "A Celma pergunta por Multicaixa; 20 s depois da resposta, vê «@Celma, já respondemos à sua dúvida».",
   },
 
   /* ---------- Audiência ---------- */

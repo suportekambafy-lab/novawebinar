@@ -800,7 +800,7 @@ function LivePreview(props: RoomPreviewProps) {
   // Empilhado, o chat enche o espaço por baixo do vídeo: mais mensagens.
   const feed = feedItemsAt(props, stack ? 20 : 12);
   // O aviso «já respondemos», como exemplo, quando está ligado e o Agente responde.
-  if (live.notify && props.agent.on && !supportOpen) feed.push({ key: "notice", kind: "notice" });
+  if (live.notify && props.agent.on && !supportOpen) feed.push({ key: "notice", kind: "notice", name: "Ana Costa" });
   const thread = supportExample(props, shown);
 
   // Como na sala: no canto de baixo do vídeo, dentro da moldura (`SALE_TOAST_SPOT`); com o vídeo ao alto a encher o
@@ -1289,7 +1289,7 @@ function Panel({
                     </div>
                   ),
                   ),
-                  notice ? <SupportNotice key="notice" onOpen={() => props.onTab("support")} /> : null,
+                  notice ? <SupportNotice key="notice" name="Ana Costa" onOpen={() => props.onTab("support")} /> : null,
                 ]
               )
             ) : (
