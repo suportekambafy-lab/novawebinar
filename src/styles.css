@@ -407,17 +407,24 @@ html:has(.live-room-shell.live-room-shell--stage) body {
   background: #000000;
 }
 
+/* A página não rola por trás da sala (o teclado não a empurra para cima). */
 @media (max-width: 1023px) {
-  /* A página não rola por trás da sala (o teclado não a empurra para cima). */
   html:has(.live-room-shell),
   html:has(.live-room-shell) body {
     overflow: hidden;
     overscroll-behavior: none;
   }
 }
+/* A árvore presa (Live no telemóvel e no tablet) fica presa em qualquer largura: um tablet deitado passa os 1024 px. */
+html:has(.live-room-shell--fixed),
+html:has(.live-room-shell--fixed) body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
 
+/* No computador a sala fica solta na página. Nunca a árvore presa: com altura automática ficava a zero, toda preta. */
 @media (min-width: 1024px) {
-  .live-room-shell {
+  .live-room-shell:not(.live-room-shell--fixed) {
     position: relative;
     top: auto;
     height: auto;

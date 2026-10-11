@@ -391,14 +391,15 @@ export function WebinarRoom({
   const bigChat = !phoneSize && (!wide || coarse);
   // A moldura do Live: só a forma do vídeo e o aparelho (a posição antiga gravada já não conta).
   const liveBox = liveFrame(videoShape, wide ? "desk" : "phone");
-  // A moldura do vídeo no palco do Live (fora do empilhado), com as regras do telemóvel deitado.
+  // A moldura do vídeo no palco do Live (fora do empilhado), com as regras do telemóvel e do tablet deitados.
+  // Sem prender à largura: `!wide` já diz que é toque, e um tablet deitado passa os 1024 px.
   const liveBoxClass = cn(
     liveStack ? "absolute inset-0" : liveBox.box,
     !wide &&
       !liveStack &&
       (liveBox.place === "fill"
-        ? "max-lg:landscape:h-full max-lg:landscape:w-[56.25cqh]"
-        : "max-lg:landscape:left-1/2 max-lg:landscape:top-1/2 max-lg:landscape:w-[min(100cqw,177.78cqh)] max-lg:landscape:-translate-x-1/2 max-lg:landscape:-translate-y-1/2"),
+        ? "landscape:h-full landscape:w-[56.25cqh]"
+        : "landscape:left-1/2 landscape:top-1/2 landscape:w-[min(100cqw,177.78cqh)] landscape:-translate-x-1/2 landscape:-translate-y-1/2"),
   );
   // No Live o Suporte, a oferta inteira e as redes abrem numa folha por cima da sala.
   const [sheet, setSheet] = useState<null | "support" | "offer" | "follow">(null);
@@ -455,7 +456,8 @@ export function WebinarRoom({
     if (!viewport || !room) return;
 
     const paintVisibleRoom = () => {
-      if (window.matchMedia("(min-width: 1024px)").matches) {
+      // A árvore presa (telemóvel e tablet) segue sempre a área visível; só o computador fica solto.
+      if (!room.classList.contains("live-room-shell--fixed") && window.matchMedia("(min-width: 1024px)").matches) {
         room.style.removeProperty("--room-visible-height");
         room.style.removeProperty("--room-visible-top");
         return;
@@ -1831,7 +1833,7 @@ export function WebinarRoom({
     onFocus: () => {
       const viewport = window.visualViewport;
       const room = roomRef.current;
-      if (viewport && room && !window.matchMedia("(min-width: 1024px)").matches) {
+      if (viewport && room && (room.classList.contains("live-room-shell--fixed") || !window.matchMedia("(min-width: 1024px)").matches)) {
         setTyping(true);
         room.classList.add("live-room-shell--keyboard");
         room.style.setProperty("--room-visible-height", `${Math.round(viewport.height)}px`);
@@ -2261,7 +2263,8 @@ export function WebinarRoom({
       <main
         ref={roomRef}
         className={cn(
-          "live-room-shell room-ambient relative flex h-dvh flex-col overflow-hidden",
+          // `--fixed`: esta árvore vive sempre presa à área visível, também num tablet com mais de 1024 px.
+          "live-room-shell live-room-shell--fixed room-ambient relative flex h-dvh flex-col overflow-hidden",
           liveStack ? "text-room-text" : "live-room-shell--stage bg-black text-white",
           theme === "light" && "room-light",
         )}
