@@ -261,7 +261,7 @@ function ContactsPage() {
     try {
       const all = theme ? rows : await fetchAllContacts(orgId, { stage, listId, webinarId, search });
       const content = toCsv(
-        ["Nome", "Email", "Telefone", "Etapa", "Temperatura", "Motivo", "Próxima acção", "Lançamentos", "Esteve presente", "Tempo a ver", "Compras", "Última actividade", "Origem", "Campanha"],
+        ["Nome", "Email", "Telefone", "Etapa", "Temperatura", "Motivo", "Próxima acção", "Lançamentos", "Presença", "Esteve presente", "Tempo a ver", "Compras", "Última actividade", "Origem", "Campanha"],
         all.map((c) => {
           const i = contactInsight(c);
           return [
@@ -273,6 +273,8 @@ function ContactsPage() {
             i.reason,
             i.nextAction.label,
             c.events_registered,
+            // «Participou» quando assistiu a pelo menos um evento; o número de eventos vem a seguir.
+            (c.events_attended ?? 0) > 0 ? "Participou" : "Não participou",
             c.events_attended,
             watchLabel(c.watched_seconds ?? 0),
             c.purchases,

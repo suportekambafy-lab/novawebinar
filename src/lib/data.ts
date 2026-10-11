@@ -180,20 +180,32 @@ export function useVideoSources(organizationId?: string) {
   });
 }
 
+/** Os participantes da organização, dos mais recentes aos mais antigos, em páginas de 1000 até 20 000. */
 export function useParticipants(organizationId?: string) {
   return useQuery({
     queryKey: ["participants", organizationId],
     enabled: Boolean(organizationId),
     queryFn: async () => {
       if (!organizationId) return [];
-      const { data, error } = await supabase
-        .from("participants")
-        .select("*, webinars(public_title, duration_seconds)")
-        .eq("organization_id", organizationId)
-        .order("joined_at", { ascending: false })
-        .limit(200);
-      if (error) throw error;
-      return data ?? [];
+      type Row = Database["public"]["Tables"]["participants"]["Row"] & {
+        webinars: { public_title: string; duration_seconds: number } | null;
+      };
+      const rows: Row[] = [];
+      // O servidor corta cada resposta a 1000 linhas: lêem-se página a página, com um tecto para não
+      // carregar o navegador. Ordem estável (data e id) para as páginas não se repetirem.
+      for (let from = 0; from < 20_000; from += 1000) {
+        const { data, error } = await supabase
+          .from("participants")
+          .select("*, webinars(public_title, duration_seconds)")
+          .eq("organization_id", organizationId)
+          .order("joined_at", { ascending: false })
+          .order("id")
+          .range(from, from + 999);
+        if (error) throw error;
+        rows.push(...((data ?? []) as Row[]));
+        if (!data || data.length < 1000) break;
+      }
+      return rows;
     },
   });
 }
