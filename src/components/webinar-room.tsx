@@ -2116,8 +2116,6 @@ export function WebinarRoom({
   if (liveLayout) {
     const host = followHost;
 
-    // No Suporte do Live só entram as perguntas que tiveram resposta (e as respostas).
-    const answered = supportThread.filter((m, i) => m.fromTeam || supportThread.slice(i + 1).some((n) => n.fromTeam));
     const liveOffer = cardOffer;
     const offerCardOpen = Boolean(liveOffer) && !offerMin && sheet !== "offer";
     // O chat no tema da sala (painel do computador, ou por baixo do vídeo empilhado); senão, branco por cima do vídeo.
@@ -2194,9 +2192,21 @@ export function WebinarRoom({
       </>
     );
 
+    // O Suporte com caixa de escrever: a conversa toda (perguntas e respostas), como no separador do Webinar.
+    // Empilhado, enche a zona dos comentários por baixo do vídeo; nos outros desenhos sobe como as outras folhas.
+    const supportSheet =
+      sheet === "support" ? (
+        <LiveSupportSheet
+          thread={supportThread.map((m) => ({ key: m.key, text: m.text, fromTeam: m.fromTeam, note: m.source ? retryNote(m.source) : null }))}
+          teamName={supportName}
+          full={liveStack}
+          composer={{ value: text, onChange: setText, onSubmit: () => void sendMessage(), inputProps: composerInput }}
+          onClose={closeSheet}
+        />
+      ) : null;
     const sheets = (
       <>
-        {sheet === "support" ? <LiveSupportSheet thread={answered.map((m) => ({ key: m.key, text: m.text, fromTeam: m.fromTeam }))} teamName={supportName} onClose={closeSheet} /> : null}
+        {liveStack ? null : supportSheet}
         {sheet === "offer" && currentOffer ? (
           <LiveOfferSheet countdown={liveOffer?.countdown ?? null} closed={offerClosed} onClose={closeSheet} onSupport={team ? undefined : () => setSheet("support")}>
             {offerPanel(true)}
@@ -2373,8 +2383,12 @@ export function WebinarRoom({
         </div>
         {liveStack ? (
           <>
-            <div className="flex min-h-0 flex-1 flex-col justify-end px-3.5 pb-[max(10px,env(safe-area-inset-bottom))] pt-3 md:px-5 md:pb-[max(20px,env(safe-area-inset-bottom))]">
-              {lower}
+            {/* A zona dos comentários é o contentor do Suporte: a folha enche-a e o vídeo fica à vista por cima. */}
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              <div className="flex min-h-0 flex-1 flex-col justify-end px-3.5 pb-[max(10px,env(safe-area-inset-bottom))] pt-3 md:px-5 md:pb-[max(20px,env(safe-area-inset-bottom))]">
+                {lower}
+              </div>
+              {supportSheet}
             </div>
             {sheets}
           </>

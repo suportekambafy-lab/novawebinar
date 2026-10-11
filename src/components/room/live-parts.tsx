@@ -853,16 +853,23 @@ export function LiveSheet({ onClose, children, label, className }: { onClose: ()
 
 export type LiveSupportMessage = { key: string; text: string; fromTeam: boolean; note?: ReactNode };
 
-/** O Suporte, como uma conversa do Instagram: o título «Suporte» e quem responde por cima de cada resposta. */
+/**
+ * O Suporte, como uma conversa do Instagram: o título «Suporte» e quem responde por cima de cada resposta.
+ * Com `composer`, a pessoa escreve aqui mesmo; com `full`, a folha enche o contentor (a zona dos comentários).
+ */
 export function LiveSupportSheet({
   thread,
   teamName,
   waiting,
+  composer,
+  full,
   onClose,
 }: {
   thread: readonly LiveSupportMessage[];
   teamName: string;
   waiting?: boolean | undefined;
+  composer?: { value: string; onChange: (value: string) => void; onSubmit: () => void; inputProps?: React.InputHTMLAttributes<HTMLInputElement> | undefined } | undefined;
+  full?: boolean | undefined;
   onClose: () => void;
 }) {
   const body = useRef<HTMLDivElement>(null);
@@ -871,7 +878,7 @@ export function LiveSupportSheet({
     if (node) node.scrollTop = node.scrollHeight;
   }, [thread.length, waiting]);
   return (
-    <LiveSheet onClose={onClose} label="Suporte" className="max-h-[66%]">
+    <LiveSheet onClose={onClose} label="Suporte" className={full ? "h-full" : "max-h-[66%]"}>
       <div className="grid grid-cols-[36px_minmax(0,1fr)_36px] items-center border-b border-room-line px-2 pb-2.5 pt-1">
         <span className="grid size-8 place-items-center justify-self-center rounded-full text-white" style={{ background: BRAND }}>
           <Headset className="size-[17px]" />
@@ -886,9 +893,39 @@ export function LiveSupportSheet({
           thread={thread}
           teamName={teamName}
           waiting={waiting}
-          empty={`Quando fizer uma pergunta no chat, a ${teamName} responde aqui, só para si.`}
+          empty={composer ? `Escreva à ${teamName}. A resposta aparece aqui, só para si.` : `Quando fizer uma pergunta no chat, a ${teamName} responde aqui, só para si.`}
         />
       </div>
+      {composer ? (
+        <form
+          className="flex shrink-0 items-center gap-1.5 border-t border-room-line px-3 pb-2.5 pt-2.5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (composer.value.trim()) composer.onSubmit();
+          }}
+        >
+          <input
+            {...composer.inputProps}
+            value={composer.value}
+            onChange={(event) => composer.onChange(event.target.value)}
+            placeholder="Escreva à equipa..."
+            enterKeyHint="send"
+            maxLength={200}
+            aria-label="Mensagem ao suporte"
+            // 16 px no mínimo: abaixo disso o Safari do iPhone amplia a página ao tocar no campo.
+            className="h-11 min-w-0 flex-1 rounded-full bg-room-raised px-4 text-[16px] text-room-text outline-none placeholder:text-room-subtle"
+          />
+          <button
+            type="submit"
+            aria-label="Enviar"
+            disabled={!composer.value.trim()}
+            className="grid size-11 shrink-0 place-items-center rounded-full text-white transition disabled:opacity-40"
+            style={{ background: BRAND }}
+          >
+            <SendHorizontal className="size-5" />
+          </button>
+        </form>
+      ) : null}
     </LiveSheet>
   );
 }
