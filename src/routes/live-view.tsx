@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Copy, UserRoundCog } from "lucide-react";
+import { Copy, Moon, Sun, UserRoundCog } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/app-shell";
@@ -25,6 +25,8 @@ import { resolveRange } from "@/lib/date-range";
 import { formatSessionStart, lifecycleDetail, lifecycleLabel } from "@/lib/schedule";
 import { useLiveViewers } from "@/lib/live-presence";
 import { getTeamRoomToken } from "@/lib/room-team.functions";
+
+const THEME_KEY = "nw-live-view-theme";
 
 export const Route = createFileRoute("/live-view")({
   validateSearch: (search: Record<string, unknown>): { webinar?: string | undefined } =>
@@ -62,7 +64,27 @@ function LiveViewPage() {
   const organizationId = workspace?.organizationId;
   const { webinar } = Route.useSearch();
   const navigate = useNavigate();
-  const dark = useSystemDark();
+  // O tema da vista: o do sistema, ou o que a pessoa escolheu no botão (fica guardado neste navegador).
+  const systemDark = useSystemDark();
+  const [themePref, setThemePref] = useState<"dark" | "light" | null>(null);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(THEME_KEY);
+      if (saved === "dark" || saved === "light") setThemePref(saved);
+    } catch {
+      // Sem armazenamento: segue o sistema.
+    }
+  }, []);
+  const dark = themePref ? themePref === "dark" : systemDark;
+  const toggleTheme = () => {
+    const next = dark ? "light" : "dark";
+    setThemePref(next);
+    try {
+      localStorage.setItem(THEME_KEY, next);
+    } catch {
+      // Sem armazenamento: vale só até recarregar.
+    }
+  };
   const allViewers = useLiveViewers(organizationId);
   const viewers = useMemo(
     () => (webinar ? allViewers.filter((v) => v.webinarId === webinar) : allViewers),
@@ -235,6 +257,10 @@ function LiveViewPage() {
             </SelectContent>
           </Select>
           {selected ? <TeamLink webinarId={selected.id} slug={selected.slug} /> : null}
+          <Button variant="outline" size="sm" className="gap-2" onClick={toggleTheme} aria-label={dark ? "Mudar para o modo claro" : "Mudar para o modo escuro"}>
+            {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            {dark ? "Modo claro" : "Modo escuro"}
+          </Button>
         </div>
       }
     >
