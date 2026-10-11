@@ -134,7 +134,7 @@ function ContactsPage() {
   const serverScope = exemplo || theme ? undefined : orgId;
   const { data: serverCounts } = useContactStageCounts(serverScope, listId, webinarId);
   const { data: serverSources } = useContactSources(serverScope, listId, webinarId);
-  const { data: page$, isLoading } = useContacts(serverScope, { stage, listId, webinarId, search, page });
+  const { data: page$, isLoading, error: pageError } = useContacts(serverScope, { stage, listId, webinarId, search, page });
   const { data: themeRows = [], isLoading: themeLoading } = useThemeContacts(theme ? orgId : undefined, themeIds);
   const rows = theme ? filterContacts(themeRows, { stage, search }) : (page$?.rows ?? []);
   const inRows = rows.some((r) => r.id === openId);
@@ -391,7 +391,8 @@ function ContactsPage() {
               activeId={openId}
               onSelect={openContact}
               loading={theme ? themeLoading : isLoading}
-              empty={search || stage ? "Ninguém com este filtro." : "Ninguém neste grupo ainda."}
+              // Uma consulta falhada não pode parecer uma lista vazia: diz-se que não carregou.
+              empty={pageError ? "Não foi possível carregar os contactos. Tente novamente." : search || stage ? "Ninguém com este filtro." : "Ninguém neste grupo ainda."}
               selection={
                 selected
                   ? {

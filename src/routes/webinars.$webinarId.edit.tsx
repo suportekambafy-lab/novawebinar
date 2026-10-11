@@ -275,7 +275,7 @@ function EditWebinar() {
       ...base,
       internal_name: webinar.internal_name,
       public_title: webinar.public_title,
-      description: webinar.description,
+      description: webinar.description ?? "",
       host_name: webinar.host_name ?? "",
       host_role: webinar.host_role ?? "",
       host_avatar_url: webinar.host_avatar_url ?? "",
