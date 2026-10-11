@@ -91,8 +91,9 @@ const frameClass = "aspect-video w-full rounded-md bg-foreground/90";
 export function useVideoShape(url: string | null | undefined, provider?: string | null) {
   const [shape, setShape] = useState<"horizontal" | "vertical" | null>(null);
   useEffect(() => {
-    setShape(null);
+    // Sem endereço (a sala deixa de precisar da forma ao rodar), fica a forma já lida: nada a descarregar.
     if (!url || !isHttpUrl(url)) return;
+    setShape(null);
     let stop = false;
     const done = (w?: unknown, h?: unknown) => {
       if (!stop && typeof w === "number" && typeof h === "number" && w > 0 && h > 0) setShape(w >= h ? "horizontal" : "vertical");
@@ -162,7 +163,11 @@ export function VideoPlayer({
   const saveDataRef = useRef(saveData);
   saveDataRef.current = saveData;
   const recoveryRef = useRef(0);
+  /** A última posição vista: um leitor refeito depois de uma falha retoma daqui. */
+  const lastTimeRef = useRef(0);
   const [failed, setFailed] = useState(false);
+  /** Conta os leitores refeitos depois de uma falha: cada um liga os efeitos ao elemento novo. */
+  const [attempt, setAttempt] = useState(0);
   const [playbackVisible, setPlaybackVisible] = useState(controls);
   const valid = isHttpUrl(url);
   const embed = valid ? embedUrl(url, provider) : null;
@@ -180,6 +185,18 @@ export function VideoPlayer({
     recoveryRef.current = 0;
   }, [controls, url]);
 
+  // Na sala o som nunca pára: em vez do ecrã de erro definitivo, um leitor novo daí a 5 s, na última posição.
+  useEffect(() => {
+    if (!failed || controls) return;
+    const timer = window.setTimeout(() => {
+      recoveryRef.current = 0;
+      seekedRef.current = false;
+      setFailed(false);
+      setAttempt((n) => n + 1);
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [controls, failed]);
+
   // Corrige o desvio entre o relógio da sessão e o vídeo. Sem isto, quem sai e
   // volta (separador em segundo plano, telemóvel bloqueado, falha de rede) fica
   // com a imagem atrás do chat e da oferta — parece que o vídeo travou.
@@ -188,6 +205,9 @@ export function VideoPlayer({
     // Parado à espera do toque (poupar dados), não se acerta o ponto: cada salto descarregava vídeo.
     if (!video || controls || !autoPlay) return;
 
+    // Numa rede lenta, cada salto para o relógio deita fora o que já estava descarregado e volta a carregar:
+    // a tolerância sobe, e nunca se salta enquanto o vídeo está a carregar.
+    const tolerance = saveDataRef.current ? Math.max(syncToleranceSeconds, 15) : syncToleranceSeconds;
     const resync = (force = false) => {
       const target = targetRef.current;
       if (target == null || !Number.isFinite(target)) return;
@@ -196,35 +216,41 @@ export function VideoPlayer({
       const wanted = limit !== undefined ? Math.min(target, limit) : target;
       if (wanted < 0) return;
       const drift = wanted - video.currentTime;
-      if (!force && Math.abs(drift) < syncToleranceSeconds) return;
-      if (video.readyState < HTMLMediaElement.HAVE_METADATA) return;
+      if (!force && Math.abs(drift) < tolerance) return;
+      if (video.readyState < (force ? HTMLMediaElement.HAVE_METADATA : HTMLMediaElement.HAVE_FUTURE_DATA)) return;
       video.currentTime = wanted;
     };
 
+    const play = () => {
+      if (autoPlay && video.paused && !video.ended && video.isConnected) void video.play().catch(() => undefined);
+    };
+    // Voltar ao separador ou desbloquear o telemóvel: acerta o ponto e, se o carregamento parou, retoma-o.
     const wake = () => {
       if (document.visibilityState !== "visible") return;
       resync();
       if (video.readyState < HTMLMediaElement.HAVE_FUTURE_DATA) hlsRef.current?.startLoad();
-      if (autoPlay && video.paused && !video.ended && video.isConnected) void video.play().catch(() => undefined);
+      play();
     };
-
+    // Uma paragem a carregar é normal numa rede fraca: o hls.js continua sozinho. Reiniciar o carregamento
+    // aqui deitava fora o pedaço a meio e, ao rodar o telemóvel, virava um ciclo sem som.
+    const nudge = () => play();
 
     resync();
     const interval = window.setInterval(() => resync(), 2000);
     document.addEventListener("visibilitychange", wake);
     window.addEventListener("focus", wake);
     window.addEventListener("pageshow", wake);
-    video.addEventListener("stalled", wake);
-    video.addEventListener("waiting", wake);
+    video.addEventListener("stalled", nudge);
+    video.addEventListener("waiting", nudge);
     return () => {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", wake);
       window.removeEventListener("focus", wake);
       window.removeEventListener("pageshow", wake);
-      video.removeEventListener("stalled", wake);
-      video.removeEventListener("waiting", wake);
+      video.removeEventListener("stalled", nudge);
+      video.removeEventListener("waiting", nudge);
     };
-  }, [autoPlay, controls, syncToleranceSeconds, url]);
+  }, [attempt, autoPlay, controls, syncToleranceSeconds, url]);
 
 
   // O iPhone só deixa arrancar sozinho um vídeo mudo e dentro da página: o React não escreve o atributo
@@ -235,12 +261,12 @@ export function VideoPlayer({
     video.defaultMuted = muted;
     video.toggleAttribute("muted", muted);
     video.setAttribute("webkit-playsinline", "");
-  }, [muted, url]);
+  }, [attempt, muted, url]);
 
   // O salto para o ponto de entrada, uma vez. A poupar dados e parado à espera do toque, fica para quando tocar:
   // saltar antes descarregava vídeo que ninguém via.
   const jumpToStart = (video: HTMLVideoElement) => {
-    const wanted = targetRef.current ?? startAtSeconds;
+    const wanted = targetRef.current ?? (lastTimeRef.current > 0 ? lastTimeRef.current : startAtSeconds);
     if (wanted > 0 && !seekedRef.current && Number.isFinite(video.duration)) {
       seekedRef.current = true;
       video.currentTime = Math.min(wanted, Math.max(0, video.duration - 1));
@@ -286,7 +312,7 @@ export function VideoPlayer({
       video.removeEventListener("canplay", ensurePlaying);
       video.removeEventListener("pause", ensurePlaying);
     };
-  }, [autoPlay, muted]);
+  }, [attempt, autoPlay, muted]);
 
   // Na sala ao vivo, a imagem é desenhada num canvas e o elemento de vídeo fica
   // fora da superfície visível. Assim nenhum navegador consegue sobrepor os
@@ -339,7 +365,7 @@ export function VideoPlayer({
     };
     frame = window.requestAnimationFrame(paint);
     return () => window.cancelAnimationFrame(frame);
-  }, [controls, fit]);
+  }, [attempt, controls, fit]);
 
 
   useEffect(() => {
@@ -358,13 +384,11 @@ export function VideoPlayer({
         setFailed(true);
         return;
       }
-      // A qualidade nunca passa do tamanho do leitor no ecrã (o <video> escondido tem o tamanho do
-      // canvas) e arranca pela rede medida, não pela melhor: em 3G, 1080p logo à partida eram
-      // paragens e dados gastos. A poupar dados, no máximo 360p e só 10 s guardados à frente.
-      // O tecto pelo tamanho reescreve `autoLevelCapping` a cada mudança de tamanho: a poupar dados fica
-      // desligado, senão os 360p duravam até à primeira medição do leitor.
+      // A qualidade segue só a rede medida, com tecto fixo (720p; 360p a poupar dados). Ligá-la ao tamanho do
+      // leitor trocava de qualidade a cada rotação do telemóvel, o que nos aparelhos fracos dava erro de
+      // descodificação e deixava a sala sem som.
       const hls = new Hls({
-        capLevelToPlayerSize: !saveDataRef.current,
+        capLevelToPlayerSize: false,
         startLevel: -1,
         maxBufferLength: saveDataRef.current ? 10 : 30,
       });
@@ -372,7 +396,7 @@ export function VideoPlayer({
       hls.loadSource(playbackUrl);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        if (saveDataRef.current) hls.autoLevelCapping = levelCap(hls.levels);
+        hls.autoLevelCapping = levelCap(hls.levels, saveDataRef.current ? 360 : 720);
         if (autoPlayRef.current && video.isConnected) void video.play().catch(() => undefined);
       });
       // Uma recuperação que voltou a tocar limpa o contador: só falhas seguidas contam para desistir.
@@ -409,7 +433,7 @@ export function VideoPlayer({
       destroy?.();
     };
     // Sem `autoPlay`: o toque que liga o som não pode voltar a carregar o vídeo (o iPhone perdia o som).
-  }, [isHls, playbackUrl, valid]);
+  }, [attempt, isHls, playbackUrl, valid]);
 
   // Ao sair, o vídeo pára de vez. O navegador pausa um elemento retirado da página, mas o «nunca parar» de
   // cima voltava a dar play antes da limpeza: o som seguia atrás do «Terminou» e duplicava ao rodar o aparelho.
@@ -421,7 +445,7 @@ export function VideoPlayer({
       video.removeAttribute("src");
       video.load();
     };
-  }, [videoRef]);
+  }, [attempt, videoRef]);
 
 
 
@@ -470,8 +494,9 @@ export function VideoPlayer({
       />
     );
 
+  // Na sala, enquanto o leitor novo não chega, fica o preto com o ícone: a mensagem técnica é só para o editor.
   if (failed)
-    return quiet ? (
+    return quiet || !controls ? (
       quietFallback
     ) : (
       <div
@@ -536,7 +561,10 @@ export function VideoPlayer({
         }, 800);
       }}
 
-      onTimeUpdate={(e) => onTime(Math.floor(e.currentTarget.currentTime))}
+      onTimeUpdate={(e) => {
+        lastTimeRef.current = e.currentTarget.currentTime;
+        onTime(Math.floor(e.currentTarget.currentTime));
+      }}
       onPlaying={() => {
         onPlaying?.();
       }}
