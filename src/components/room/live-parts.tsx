@@ -764,7 +764,8 @@ export function LiveComposer({
           maxLength={200}
           aria-label="Mensagem"
           className={cn(
-            "min-w-0 flex-1 bg-transparent outline-none", big ? "text-[17px]" : "text-[15px]",
+            // 16 px no mínimo: abaixo disso o Safari do iPhone amplia a página ao tocar no campo.
+            "min-w-0 flex-1 bg-transparent outline-none", big ? "text-[17px]" : "text-[16px]",
             panel ? "text-room-text placeholder:text-room-subtle" : "text-white placeholder:text-white/85",
           )}
         />

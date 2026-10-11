@@ -166,7 +166,8 @@ export function EntryScreen(props: EntryScreenProps) {
     fontFamily: ROOM_FONT,
   } as CSSProperties;
   const input =
-    "h-[50px] w-full min-w-0 rounded-xl bg-[var(--cw-field)] px-4 text-[15px] shadow-[0_0_0_1px_var(--cw-line)] outline-none placeholder:text-[var(--cw-ph)] focus:shadow-[0_0_0_2px_var(--cw-btn)] @3xl:h-[52px] @3xl:text-base";
+    // 16 px no mínimo: abaixo disso o Safari do iPhone amplia a página ao tocar no campo.
+    "h-[50px] w-full min-w-0 rounded-xl bg-[var(--cw-field)] px-4 text-[16px] shadow-[0_0_0_1px_var(--cw-line)] outline-none placeholder:text-[var(--cw-ph)] focus:shadow-[0_0_0_2px_var(--cw-btn)] @3xl:h-[52px] @3xl:text-base";
 
   return (
     <div

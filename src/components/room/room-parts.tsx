@@ -558,7 +558,8 @@ export function ChatComposer({
           placeholder={placeholder}
           enterKeyHint="send"
           maxLength={200}
-          className={cn("min-w-0 flex-1 bg-transparent text-room-text outline-none placeholder:text-room-subtle", compact ? "text-[15px]" : "text-[15.5px]")}
+          // 16 px no mínimo: abaixo disso o Safari do iPhone amplia a página ao tocar no campo.
+          className="min-w-0 flex-1 bg-transparent text-[16px] text-room-text outline-none placeholder:text-room-subtle"
         />
         <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
           <PopoverTrigger asChild>
