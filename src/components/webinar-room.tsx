@@ -360,7 +360,13 @@ export function WebinarRoom({
   // `liveFrame`). A forma lê-se antes de o leitor abrir (ficheiro ou oEmbed do Vimeo); o leitor
   // confirma-a (HLS). Quando a plataforma não diz (Bunny, Panda), vale a forma gravada (dados antigos).
   const [playerShape, setPlayerShape] = useState<LiveSettings["desk"] | null>(null);
-  const wide = useMedia("(min-width: 1024px)");
+  const desktop = useMedia("(min-width: 1024px)");
+  // Aparelho de toque (telemóvel, tablet): só nestes há aviso de rodar e chat maior no tablet.
+  const coarse = useMedia("(pointer: coarse)");
+  // «Computador» é só rato e teclado. O tablet fica sempre na árvore de telemóvel/tablet, que já tem o desenho
+  // deitado: ao rodar, deixa de passar a barreira dos 1024 px e trocar de árvore, o que criava um vídeo novo e, no
+  // Safari, o deixava em silêncio (arrancado sem toque, só os botões de volume lhe devolviam o som).
+  const wide = desktop && !coarse;
   // Webinar no telemóvel ao alto: a oferta sobe por cima do chat (como no Live) em vez de trocar de separador.
   const phoneTall = useMedia("(max-width: 767px) and (orientation: portrait)");
   // O botão de entrar pequeno só no telemóvel (ao alto ou deitado); o tablet usa o do computador, como na pré-visualização.
@@ -369,8 +375,6 @@ export function WebinarRoom({
   // Em cima, logo abaixo da zona da câmara, o vídeo a toda a largura com a barra do Live por dentro; por
   // baixo, o chat e a caixa de escrever, no tema da sala. O vídeo ao alto continua a encher o ecrã.
   const portrait = useMedia("(orientation: portrait)");
-  // Aparelho de toque (telemóvel, tablet): só nestes há aviso de rodar e chat maior no tablet.
-  const coarse = useMedia("(pointer: coarse)");
   // Telemóvel deitado (o `phone-land` do CSS): a coluna do chat compacta, para caberem mais mensagens.
   const phoneLand = useMedia("(orientation: landscape) and (max-width: 1023px) and (max-height: 540px)");
   // No Webinar a forma só decide o telemóvel deitado com o vídeo ao alto (`turnUp`); sem ela, deitado. Por isso a
