@@ -50,8 +50,9 @@ function verify(provider: ProviderId, secret: string, request: Request, raw: str
     }
     case "kambafy":
     case "webhook": {
-      // Sem segredo, a chave aleatória do endereço é a única credencial.
-      if (!secret) return null;
+      // A Kambafy chama a partir do navegador do comprador: o endereço fica à vista de quem comprou.
+      // Sem segredo, qualquer comprador forjava vendas; por isso ele é obrigatório.
+      if (!secret) return "Falta gerar o segredo do webhook nas definições da integração.";
       const sent =
         request.headers.get("x-webhook-secret") ??
         (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");

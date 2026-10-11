@@ -44,7 +44,7 @@ export const PROVIDERS: ProviderInfo[] = [
     secret: {
       label: "Segredo do webhook",
       help: "Gerado aqui. Por segurança só é mostrado quando o gera.",
-      required: false,
+      required: true,
       generate: true,
     },
     dashboardUrl: "https://kambafy.com",
@@ -138,7 +138,7 @@ export const PROVIDERS: ProviderInfo[] = [
     secret: {
       label: "Segredo",
       help: "Os pedidos têm de trazer o cabeçalho X-Webhook-Secret com este valor.",
-      required: false,
+      required: true,
       generate: true,
     },
     steps: [

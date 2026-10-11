@@ -102,6 +102,13 @@ describe("webhook de venda: resposta à plataforma", () => {
     expect((await send()).status).toBe(404);
   });
 
+  it("integração sem segredo recusa com 401: o endereço sozinho não chega", async () => {
+    answers["integrations.select"] = { data: { ...INTEGRATION, secret: "" }, error: null };
+    const response = await send(SALE, "");
+    expect(response.status).toBe(401);
+    expect(written("real_purchase_events")).toHaveLength(0);
+  });
+
   it("segredo errado responde 401 e não guarda o pedido em bruto", async () => {
     const response = await send(SALE, "outro");
     expect(response.status).toBe(401);
