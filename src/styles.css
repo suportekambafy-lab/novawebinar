@@ -391,6 +391,17 @@
   overscroll-behavior: none;
 }
 
+/* A árvore presa muda de altura devagar quando o teclado abre ou fecha (só a altura: o topo não anima,
+   senão a sala ficava um instante desalinhada). O vídeo encolhe com a mesma duração. */
+.live-room-shell--fixed {
+  transition: height 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-room-shell--fixed {
+    transition: none;
+  }
+}
+
 /* Fora da sala (barras do navegador, zona da barra de casa, puxar a página) vê-se o fundo da
    sala, nunca o do painel: no escuro tudo #0F0F0F, no claro tudo branco. */
 html:has(.live-room-shell),

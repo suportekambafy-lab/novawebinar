@@ -450,12 +450,31 @@ export function WebinarRoom({
 
   // No telemóvel, acompanhamos a abertura do teclado quadro a quadro. O bloqueio
   // do scroll evita o salto inicial do Safari para a composição antiga da sala.
+  // A altura do teclado, lida na primeira vez que abre: nas seguintes a sala encolhe logo ao tocar na caixa,
+  // ao mesmo tempo que o teclado sobe, em vez de dar um salto quando ele acaba de subir.
+  const keyboardHeightRef = useRef(0);
+  useEffect(() => {
+    try {
+      keyboardHeightRef.current = Number(localStorage.getItem("nw-keyboard")) || 0;
+    } catch {
+      // Sem armazenamento: aprende-se outra vez nesta visita.
+    }
+  }, []);
   useEffect(() => {
     const viewport = window.visualViewport;
     const room = roomRef.current;
     if (!viewport || !room) return;
 
     const paintVisibleRoom = () => {
+      const gap = window.innerHeight - viewport.height;
+      if (room.classList.contains("live-room-shell--keyboard") && gap > 120 && gap !== keyboardHeightRef.current) {
+        keyboardHeightRef.current = gap;
+        try {
+          localStorage.setItem("nw-keyboard", String(gap));
+        } catch {
+          // Sem armazenamento: fica só nesta visita.
+        }
+      }
       // A árvore presa (telemóvel e tablet) segue sempre a área visível; só o computador fica solto.
       if (!room.classList.contains("live-room-shell--fixed") && window.matchMedia("(min-width: 1024px)").matches) {
         room.style.removeProperty("--room-visible-height");
@@ -1825,10 +1844,11 @@ export function WebinarRoom({
   // o vídeo fica igual, no mesmo sítio; só a lista do chat encolhe. No Webinar, enquanto se escreve, recolhem o
   // título, os separadores e a mensagem fixada, e a oferta passa à barra (continua à vista), para a caixa de
   // escrever ficar logo acima do teclado. Ao fechar o teclado tudo volta ao sítio.
+  // Depois de a sala acabar de mudar de altura (a transição dura 240 ms).
   const feedToEnd = () =>
     window.setTimeout(() => {
       for (const node of [feedRef.current, liveFeedRef.current]) if (node) node.scrollTop = node.scrollHeight;
-    }, 180);
+    }, 300);
   const composerInput: React.InputHTMLAttributes<HTMLInputElement> = {
     onFocus: () => {
       const viewport = window.visualViewport;
@@ -1836,7 +1856,10 @@ export function WebinarRoom({
       if (viewport && room && (room.classList.contains("live-room-shell--fixed") || !window.matchMedia("(min-width: 1024px)").matches)) {
         setTyping(true);
         room.classList.add("live-room-shell--keyboard");
-        room.style.setProperty("--room-visible-height", `${Math.round(viewport.height)}px`);
+        // Já se sabe quanto o teclado ocupa: a sala encolhe já, em sincronia com ele; senão, espera pela área visível.
+        const known = keyboardHeightRef.current;
+        const height = known > 120 && known < window.innerHeight * 0.7 ? window.innerHeight - known : viewport.height;
+        room.style.setProperty("--room-visible-height", `${Math.round(height)}px`);
         room.style.setProperty("--room-visible-top", `${Math.round(viewport.offsetTop)}px`);
         window.scrollTo({ top: 0, behavior: "instant" });
       }
@@ -2285,7 +2308,7 @@ export function WebinarRoom({
               liveStack
                 ? // 16:9 à largura do ecrã (altura explícita, para animar). Com o teclado aberto o vídeo encolhe para
                   // um terço da área visível, devagar, e o chat fica com o resto: antes sobravam duas linhas.
-                  "prelive-dark relative h-[56.25vw] w-full overflow-hidden bg-black text-white transition-[height] duration-300 ease-out group-[.live-room-shell--keyboard]/room:h-[calc(var(--room-visible-height,100dvh)*0.32)]"
+                  "prelive-dark relative h-[56.25vw] w-full overflow-hidden bg-black text-white transition-[height] duration-[240ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] group-[.live-room-shell--keyboard]/room:h-[calc(var(--room-visible-height,100dvh)*0.32)]"
                 : land
                   ? // Deitado: o vídeo à esquerda, inteiro; o chat na coluna da direita, sem o tapar (como no Twitch).
                     // As unidades cq do vídeo medem esta área.
