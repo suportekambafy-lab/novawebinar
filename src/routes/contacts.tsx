@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
-import { contactInsight, sourceLabel, stageLabel, TEMPERATURE_LABEL, type ContactSummary } from "@/lib/contacts";
+import { contactInsight, sourceLabel, stageLabel, TEMPERATURE_LABEL, type ContactSummary, contactPresent } from "@/lib/contacts";
 import {
   contactFile,
   filterContacts,
@@ -273,8 +273,8 @@ function ContactsPage() {
             i.reason,
             i.nextAction.label,
             c.events_registered,
-            // «Participou» quando assistiu a pelo menos um evento; o número de eventos vem a seguir.
-            (c.events_attended ?? 0) > 0 ? "Participou" : "Não participou",
+            // «Participou» com tempo medido ou com a oferta vista ou clicada; o número de eventos vem a seguir.
+            contactPresent(c) ? "Participou" : "Não participou",
             c.events_attended,
             watchLabel(c.watched_seconds ?? 0),
             c.purchases,

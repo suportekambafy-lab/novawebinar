@@ -57,17 +57,27 @@ export function firstName(name: string | null | undefined) {
   return (name ?? "").trim().split(/\s+/)[0] ?? "";
 }
 
+/**
+ * Esteve na sala: tempo medido acima do mínimo, ou viu ou clicou na oferta (quem clica esteve lá, mesmo
+ * sem tempo medido, como nos dados importados de outra plataforma).
+ */
+export function contactPresent(c: Pick<ContactSummary, "events_attended" | "clicked_offer" | "reached_offer">) {
+  return (c.events_attended ?? 0) > 0 || Boolean(c.clicked_offer) || Boolean(c.reached_offer);
+}
+
 export function contactInsight(c: ContactSummary, now = Date.now()): ContactInsight {
   const stage = (STAGES.some((s) => s.id === c.stage) ? c.stage : "new") as Stage;
   const registered = c.events_registered ?? 0;
   const attended = c.events_attended ?? 0;
+  const present = contactPresent(c);
   const purchases = c.purchases ?? 0;
   const idleDays = c.last_seen_at ? Math.floor((now - Date.parse(c.last_seen_at)) / DAY) : 0;
   const hi = firstName(c.name) ? `Olá ${firstName(c.name)}` : "Olá";
 
   const parts: string[] = [];
   if (registered === 0) parts.push(c.source === "import" ? "Importado, ainda sem eventos" : "Ainda sem eventos");
-  else if (attended === 0) parts.push(`Inscreveu-se em ${plural(registered, "evento", "eventos")} e não apareceu`);
+  else if (!present) parts.push(`Inscreveu-se em ${plural(registered, "evento", "eventos")} e não apareceu`);
+  else if (attended === 0) parts.push(`Inscreveu-se em ${plural(registered, "evento", "eventos")} e esteve na sala`);
   else parts.push(`Assistiu a ${attended} de ${plural(registered, "evento", "eventos")}`);
   if (stage === "reached_offer") parts.push("viu a oferta e não clicou");
   if (stage === "clicked") parts.push("clicou na oferta e não iniciou o pagamento");
