@@ -187,9 +187,14 @@ export async function createRegistration(
 
 /* ---------- Captura externa (formulário embed ou API) ---------- */
 
-/** Os mesmos limites para a API, o formulário embed e a sala: trocar de porta não abre um limite novo. */
 export const perVisitor = new RateLimiter(10, 60_000);
 export const perTarget = new RateLimiter(300, 60_000);
+/**
+ * A sala tem limites mais largos: as operadoras partilham um IP entre muitos telemóveis, e uma audiência
+ * de 10 000 pessoas entra a mais de 1000 por minuto antes de começar. Chega para travar um ciclo num só IP.
+ */
+export const roomPerVisitor = new RateLimiter(60, 60_000);
+export const roomPerTarget = new RateLimiter(5000, 60_000);
 export const RATE_LIMITED = "Demasiadas inscrições seguidas. Tente daqui a um minuto.";
 
 export type CaptureResponse = { status: number; body: Record<string, unknown>; allowOrigin: string | null };

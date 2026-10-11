@@ -121,10 +121,10 @@ async function requestAudienceMeta() {
 export const joinPublicRoom = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => joinSchema.parse(data))
   .handler(async ({ data }) => {
-    const { loadRegistrationWebinar, openRegistrationSession, createRegistration, perVisitor, perTarget, RATE_LIMITED } =
+    const { loadRegistrationWebinar, openRegistrationSession, createRegistration, roomPerVisitor, roomPerTarget, RATE_LIMITED } =
       await import("@/lib/registration.server");
-    // Os mesmos limites da API: por visitante antes de tudo, por webinar depois de ele existir.
-    if (!perVisitor.allow(await requestIp())) throw new Error(RATE_LIMITED);
+    // Por visitante antes de tudo, por webinar depois de ele existir.
+    if (!roomPerVisitor.allow(await requestIp())) throw new Error(RATE_LIMITED);
     // Robô: preencheu o campo invisível. Nada se grava.
     if (data.website?.trim()) throw new Error("Não foi possível entrar na sala.");
     const fallback = await requestAudienceMeta();
@@ -132,7 +132,7 @@ export const joinPublicRoom = createServerFn({ method: "POST" })
     const webinar = await loadRegistrationWebinar(data.webinarId).catch(() => null);
     if (!webinar) throw new Error("Webinar indisponível.");
     if (webinar.status === "draft" && !data.teste) throw new Error("Webinar indisponível.");
-    if (!perTarget.allow(webinar.id)) throw new Error(RATE_LIMITED);
+    if (!roomPerTarget.allow(webinar.id)) throw new Error(RATE_LIMITED);
 
     // Os campos da página: os mesmos que a pessoa viu, com as mesmas regras.
     const { parseEntryFields, validateEntry } = await import("@/lib/entry-fields");
