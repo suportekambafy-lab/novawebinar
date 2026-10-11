@@ -367,7 +367,6 @@ export function LiveFeed({
                 <b className="mr-1.5 font-bold">{item.team?.name ?? "Você"}</b>
                 {item.team ? <TeamBadge text={item.team.badge} /> : null}
                 <span className={cn("font-medium", ink)}>{item.text}</span>
-                {item.team ? null : <OnlyYou panel={panel} />}
                 {item.reaction ? <ReactionPill text={item.reaction} onVideo={!panel} /> : null}
               </p>
               {item.note}

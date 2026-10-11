@@ -1282,7 +1282,7 @@ function Panel({
                   item.kind === "sale" ? (
                     <SaleLine key={item.key} text={`${item.s.buyer} comprou ${item.s.product}`} color={props.saleColor} />
                   ) : item.kind === "mine" ? (
-                    <ChatLine key={item.key} author="Você" text={item.m.text} badge="Só você vê" tone="mine" reaction={item.reaction} big tight={tight} />
+                    <ChatLine key={item.key} author="Você" text={item.m.text} tone="mine" reaction={item.reaction} big tight={tight} />
                   ) : (
                     <div key={item.key} className={cn(props.highlight === `comment:${item.c.id}` && "-mx-2 rounded-lg bg-primary/15 px-2 py-1")}>
                       <ChatLine author={item.c.author} text={item.c.message} tone={item.c.agent ? "agent" : "people"} big tight={tight} />

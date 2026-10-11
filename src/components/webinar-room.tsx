@@ -1667,7 +1667,7 @@ export function WebinarRoom({
                   {team ? (
                     <ChatLine author={viewerName} text={item.message} tone="team" badge={TEAM_BADGE[team.role]} reaction={item.reaction} big tight={phoneLand} />
                   ) : (
-                    <ChatLine author="Você" text={item.message} tone="mine" badge="Só você vê" reaction={item.reaction} big tight={phoneLand} />
+                    <ChatLine author="Você" text={item.message} tone="mine" reaction={item.reaction} big tight={phoneLand} />
                   )}
                   {item.source ? retryNote(item.source) : null}
                 </div>
