@@ -104,6 +104,8 @@ export type EntryScreenProps = {
   buttonText: string;
   /** O aviso no topo do cartão (vagas em % ou texto curto); sem ele, só o título. */
   notice?: EntryNotice | null | undefined;
+  /** A capa por cima do formulário, de borda a borda do cartão; sem ela, o cartão começa no aviso ou no título. */
+  coverUrl?: string | null | undefined;
   fields: readonly EntryField[];
   values: Readonly<Record<string, string>>;
   onChange?: ((values: Record<string, string>) => void) | undefined;
@@ -200,6 +202,14 @@ export function EntryScreen(props: EntryScreenProps) {
           boxShadow: light ? `0 10px 30px rgba(0,0,0,.08), 0 0 0 1px ${p.line}` : `0 30px 80px rgba(0,0,0,.45), 0 0 0 1px ${p.line}`,
         }}
       >
+        {props.coverUrl ? (
+          <img
+            src={props.coverUrl}
+            alt=""
+            // Uma imagem não estica na grelha: a largura leva as margens do cartão, para ir de borda a borda.
+            className={cn("-mx-6 -mt-6 aspect-video w-[calc(100%+3rem)] max-w-none rounded-t-[18px] object-cover @3xl:-mx-8 @3xl:-mt-8 @3xl:w-[calc(100%+4rem)]", hl("cover"))}
+          />
+        ) : null}
         {notice ? (
           // Uma linha leve por cima do título, com espaço antes dele: o título respira.
           <div className={cn("mb-2 grid gap-1.5", hl("progress"))}>

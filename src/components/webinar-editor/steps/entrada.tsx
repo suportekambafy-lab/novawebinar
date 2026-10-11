@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -9,11 +9,15 @@ import {
   Contact,
   Copy,
   FileText,
+  Image as ImageIcon,
   Link2,
+  Loader2,
   Palette,
   Plus,
   RefreshCw,
   ShoppingCart,
+  Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,6 +57,7 @@ export function StepEntrada({
   onColors,
   mode,
   onMode,
+  upload,
   roomLink,
   embed,
 }: {
@@ -65,6 +70,8 @@ export function StepEntrada({
   onColors: (colors: { card: string; button: string }) => void;
   mode: "page" | "own";
   onMode: (mode: "page" | "own") => void;
+  /** A capa da página (e do webinar na lista): o envio corre no editor, que reduz e guarda a imagem. */
+  upload: { uploading: boolean; onFile: (file: File) => void };
   roomLink: string;
   /** O formulário para colar numa página externa (criado quando falta). */
   embed: { code: string | null; formId: string | null; creating: boolean; onCreate: () => void };
@@ -201,6 +208,8 @@ export function StepEntrada({
           </ol>
         </Section>
       ) : null}
+
+      <CoverSection form={form} set={set} uploading={upload.uploading} onUpload={upload.onFile} />
 
       <Section icon={Contact} title="Captar contactos" help="contactos">
         <div className="overflow-hidden rounded-xl border bg-white">
@@ -593,5 +602,52 @@ function LastCapture({ formId, draft }: { formId: string | null; draft: boolean 
         <RefreshCw className={cn(last.isFetching && "animate-spin")} />
       </Button>
     </div>
+  );
+}
+
+/** A capa: por cima do formulário na página de inscrição e, na lista de webinars, a imagem do webinar. */
+function CoverSection({
+  form,
+  set,
+  uploading,
+  onUpload,
+}: {
+  form: EditorForm;
+  set: SetForm;
+  uploading: boolean;
+  onUpload: (file: File) => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+  return (
+    <Section icon={ImageIcon} title="Capa">
+      <Field label="Imagem no topo da página" hint="Fica por cima do formulário e é a capa do webinar na lista. Formato 16:9.">
+        <input
+          ref={ref}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) onUpload(file);
+            e.target.value = "";
+          }}
+        />
+        {form.registration_cover_url ? (
+          <img src={form.registration_cover_url} alt="" className="mb-2 aspect-video w-full max-w-[320px] rounded-md object-cover ring-1 ring-[var(--border-subtle)]" />
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" disabled={uploading} onClick={() => ref.current?.click()}>
+            {uploading ? <Loader2 className="animate-spin" /> : <Upload />}
+            {form.registration_cover_url ? "Trocar capa" : "Carregar capa"}
+          </Button>
+          {form.registration_cover_url ? (
+            <Button variant="ghost" size="sm" onClick={() => set({ registration_cover_url: "" })}>
+              <Trash2 />
+              Remover
+            </Button>
+          ) : null}
+        </div>
+      </Field>
+    </Section>
   );
 }

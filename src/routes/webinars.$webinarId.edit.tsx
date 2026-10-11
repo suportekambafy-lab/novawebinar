@@ -313,6 +313,7 @@ function EditWebinar() {
       registration_progress_enabled: webinar.registration_progress_enabled ?? false,
       registration_progress_value: String(webinar.registration_progress_value ?? 92),
       registration_badge_text: webinar.registration_badge_text ?? "",
+      registration_cover_url: webinar.registration_cover_url ?? "",
       room_theme: webinar.room_theme === "light" ? "light" : "dark",
       share_title: webinar.share_title ?? "",
       share_description: webinar.share_description ?? "",
@@ -889,6 +890,8 @@ function EditWebinar() {
           registration_progress_enabled: form.registration_progress_enabled,
           registration_progress_value: Math.min(100, Math.max(0, Number(form.registration_progress_value) || 0)),
           registration_badge_text: form.registration_badge_text.trim().slice(0, 40),
+          // A capa da página, também a capa do webinar na lista.
+          registration_cover_url: form.registration_cover_url.trim() || null,
           entry_card_color: form.entry_card_color,
           entry_button_color: form.entry_button_color,
           // As regras do chat e o formato da sala (ao lado ou por cima do vídeo) ficam juntos.
@@ -943,11 +946,18 @@ function EditWebinar() {
   /* ---------- Imagens ---------- */
 
   const [uploadingImage, setUploadingImage] = useState(false);
-  const uploadImage = async (file: File, field: "host_avatar_url" | "share_image_url" | "cta_image_url") => {
+  const uploadImage = async (file: File, field: "host_avatar_url" | "share_image_url" | "cta_image_url" | "registration_cover_url") => {
     setUploadingImage(true);
     try {
       // Reduzida no navegador ao tamanho em que aparece: a foto da sala passa de ~900 KB a ~6 KB.
-      const preset = field === "host_avatar_url" ? IMAGE_PRESETS.avatar : field === "share_image_url" ? IMAGE_PRESETS.cover : IMAGE_PRESETS.offer;
+      const preset =
+        field === "host_avatar_url"
+          ? IMAGE_PRESETS.avatar
+          : field === "share_image_url"
+            ? IMAGE_PRESETS.cover
+            : field === "registration_cover_url"
+              ? IMAGE_PRESETS.pageCover
+              : IMAGE_PRESETS.offer;
       const small = await shrinkImage(file, preset);
       // «-160» marca a foto já reduzida: a sala serve-a como está (ver smallImage).
       const mark = small !== file && field === "host_avatar_url" ? "-160" : "";
@@ -1588,6 +1598,7 @@ function EditWebinar() {
       // (ou quando se escolhe a fase Inscrição).
       buttonText={titleOnly ? "" : form.registration_button_text || "Entrar na sala"}
       notice={titleOnly ? null : entryNotice(form)}
+      coverUrl={titleOnly ? null : form.registration_cover_url || null}
       fields={titleOnly ? [] : entryFields}
       values={{}}
       country={{ code: "AO", name: "Angola", dial: "+244", flag: "🇦🇴" }}
@@ -1875,6 +1886,7 @@ function EditWebinar() {
                     onColors={(c) => set({ entry_card_color: c.card, entry_button_color: c.button })}
                     mode={form.entry_mode}
                     onMode={(entry_mode) => set({ entry_mode })}
+                    upload={{ uploading: uploadingImage, onFile: (file) => void uploadImage(file, "registration_cover_url") }}
                     roomLink={roomLink}
                     embed={{
                       code: forms[0]

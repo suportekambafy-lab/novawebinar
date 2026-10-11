@@ -24,6 +24,8 @@ export const IMAGE_PRESETS = {
   },
   /** Imagem de partilha: JPEG, porque o WhatsApp não mostra pré-visualizações WebP nem acima de ~300 KB. */
   cover: { width: 1200, height: 630, types: ["image/jpeg"], quality: 0.8 },
+  /** Capa da página de inscrição (por cima do formulário) e do webinar na lista: 16:9. */
+  pageCover: { width: 1600, height: 900, types: ["image/webp", "image/jpeg"], quality: 0.8 },
   /** Imagem da oferta: WebP (ou PNG) para não perder a transparência de um produto recortado. */
   offer: { width: 1200, height: 1200, types: ["image/webp", "image/png"], quality: 0.8 },
 } satisfies Record<string, ShrinkPreset>;

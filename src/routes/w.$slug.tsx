@@ -763,6 +763,7 @@ export function PublicRoom({
         }
         buttonText={webinar.registration_button_text || "Entrar na sala"}
         notice={entryNotice(webinar)}
+        coverUrl={webinar.registration_cover_url || null}
         fields={fields}
         values={values}
         onChange={setValues}
