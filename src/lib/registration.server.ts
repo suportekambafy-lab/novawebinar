@@ -187,8 +187,10 @@ export async function createRegistration(
 
 /* ---------- Captura externa (formulário embed ou API) ---------- */
 
-const perVisitor = new RateLimiter(10, 60_000);
-const perTarget = new RateLimiter(300, 60_000);
+/** Os mesmos limites para a API, o formulário embed e a sala: trocar de porta não abre um limite novo. */
+export const perVisitor = new RateLimiter(10, 60_000);
+export const perTarget = new RateLimiter(300, 60_000);
+export const RATE_LIMITED = "Demasiadas inscrições seguidas. Tente daqui a um minuto.";
 
 export type CaptureResponse = { status: number; body: Record<string, unknown>; allowOrigin: string | null };
 
@@ -263,8 +265,7 @@ export async function registerFromCapture(
   }
   const allowOrigin = req.origin;
   const webinarId = form?.webinar_id ?? v.webinar_id!;
-  const rateLimited = () =>
-    fail({ status: 429, code: "rate_limited", message: "Demasiadas inscrições seguidas. Tente daqui a um minuto." }, allowOrigin);
+  const rateLimited = () => fail({ status: 429, code: "rate_limited", message: RATE_LIMITED }, allowOrigin);
   // Por visitante, em todos os alvos: trocar de webinar_id não abre um limite novo.
   if (!perVisitor.allow(req.ip)) return rateLimited();
   // Robô: responde como se tivesse corrido bem e não grava nada.

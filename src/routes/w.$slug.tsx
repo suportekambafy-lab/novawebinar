@@ -729,6 +729,7 @@ export function PublicRoom({
             ...(Object.keys(checked.answers).length ? { answers: checked.answers } : {}),
             mode: roomMode,
             teste: testMode,
+            ...(values["website"] ? { website: values["website"] } : {}),
             ...audienceMeta(),
           },
         });

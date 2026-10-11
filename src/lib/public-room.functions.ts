@@ -32,6 +32,8 @@ const joinSchema = z.object({
   utmCampaign: z.string().trim().max(120).optional(),
   utmContent: z.string().trim().max(120).optional(),
   referrer: z.string().trim().max(200).optional(),
+  /** Armadilha para robôs: um campo invisível que uma pessoa nunca preenche. */
+  website: z.string().max(200).optional(),
 });
 
 /** A credencial que joinPublicRoom entrega: o id da participação assinado pelo servidor. */
@@ -76,6 +78,20 @@ const UNAVAILABLE = "Serviço temporariamente indisponível. Tente novamente.";
 /** A sala reconhece esta mensagem e pede para entrar outra vez. */
 export const VIEWER_EXPIRED = "A sua entrada na sala expirou. Entre outra vez.";
 
+/** O IP de quem pede, para o limite de ritmo; fora de um pedido (testes) não há. */
+async function requestIp() {
+  try {
+    const { getRequest, getRequestIP } = await import("@tanstack/react-start/server");
+    const { clientIp } = await import("@/lib/registration");
+    return clientIp(getRequestIP(), getRequest().headers.get("x-forwarded-for"));
+  } catch {
+    return "local";
+  }
+}
+
+// ponytail: memória de cada instância da função; trava um ciclo, não um ataque distribuído.
+let chatLimiter: InstanceType<typeof import("@/lib/registration").RateLimiter> | undefined;
+
 /** Quem está a pedir: só a credencial emitida pelo servidor diz qual é a participação. */
 async function participantOf(token: string) {
   const { participantFromToken } = await import("@/lib/public-room.server");
@@ -105,14 +121,18 @@ async function requestAudienceMeta() {
 export const joinPublicRoom = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => joinSchema.parse(data))
   .handler(async ({ data }) => {
-    const { loadRegistrationWebinar, openRegistrationSession, createRegistration } = await import(
-      "@/lib/registration.server"
-    );
+    const { loadRegistrationWebinar, openRegistrationSession, createRegistration, perVisitor, perTarget, RATE_LIMITED } =
+      await import("@/lib/registration.server");
+    // Os mesmos limites da API: por visitante antes de tudo, por webinar depois de ele existir.
+    if (!perVisitor.allow(await requestIp())) throw new Error(RATE_LIMITED);
+    // Robô: preencheu o campo invisível. Nada se grava.
+    if (data.website?.trim()) throw new Error("Não foi possível entrar na sala.");
     const fallback = await requestAudienceMeta();
 
     const webinar = await loadRegistrationWebinar(data.webinarId).catch(() => null);
     if (!webinar) throw new Error("Webinar indisponível.");
     if (webinar.status === "draft" && !data.teste) throw new Error("Webinar indisponível.");
+    if (!perTarget.allow(webinar.id)) throw new Error(RATE_LIMITED);
 
     // Os campos da página: os mesmos que a pessoa viu, com as mesmas regras.
     const { parseEntryFields, validateEntry } = await import("@/lib/entry-fields");
@@ -164,6 +184,10 @@ export const sendPublicRoomMessage = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => messageSchema.parse(data))
   .handler(async ({ data }) => {
     const participantId = await participantOf(data.token);
+    // Cada mensagem custa uma chamada à IA paga pela organização: um ciclo com um token esvaziava a carteira.
+    const { RateLimiter } = await import("@/lib/registration");
+    chatLimiter ??= new RateLimiter(6, 60_000);
+    if (!chatLimiter.allow(participantId)) throw new Error("Demasiadas mensagens seguidas. Aguarde um minuto.");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
     const { data: participant, error: participantError } = await supabaseAdmin

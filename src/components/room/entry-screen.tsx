@@ -277,6 +277,17 @@ export function EntryScreen(props: EntryScreenProps) {
           );
         })}
 
+        {/* Armadilha para robôs: fora do ecrã e do foco; uma pessoa nunca a preenche. */}
+        <input
+          type="text"
+          name="website"
+          value={props.values["website"] ?? ""}
+          onChange={(e) => set("website", e.target.value)}
+          tabIndex={-1}
+          autoComplete="off"
+          aria-hidden
+          className="absolute -left-[9999px] h-0 w-0 opacity-0"
+        />
         {props.error ? (
           <p className="text-sm font-medium text-[#E5484D]" role="alert">
             {props.error}
