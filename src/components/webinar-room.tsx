@@ -2264,7 +2264,7 @@ export function WebinarRoom({
         ref={roomRef}
         className={cn(
           // `--fixed`: esta árvore vive sempre presa à área visível, também num tablet com mais de 1024 px.
-          "live-room-shell live-room-shell--fixed room-ambient relative flex h-dvh flex-col overflow-hidden",
+          "live-room-shell live-room-shell--fixed group/room room-ambient relative flex h-dvh flex-col overflow-hidden",
           liveStack ? "text-room-text" : "live-room-shell--stage bg-black text-white",
           theme === "light" && "room-light",
         )}
@@ -2283,7 +2283,9 @@ export function WebinarRoom({
           <div
             className={
               liveStack
-                ? "prelive-dark relative aspect-video w-full overflow-hidden bg-black text-white"
+                ? // 16:9 à largura do ecrã (altura explícita, para animar). Com o teclado aberto o vídeo encolhe para
+                  // um terço da área visível, devagar, e o chat fica com o resto: antes sobravam duas linhas.
+                  "prelive-dark relative h-[56.25vw] w-full overflow-hidden bg-black text-white transition-[height] duration-300 ease-out group-[.live-room-shell--keyboard]/room:h-[calc(var(--room-visible-height,100dvh)*0.32)]"
                 : land
                   ? // Deitado: o vídeo à esquerda, inteiro; o chat na coluna da direita, sem o tapar (como no Twitch).
                     // As unidades cq do vídeo medem esta área.
