@@ -696,8 +696,8 @@ export function HeartButton({
 
 /** A reacção do chat simulado a uma mensagem real («❤️ 3»), no fim da linha. */
 /** «(VOCÊ)» a vermelho a seguir ao nome de quem está a ver: a pessoa sabe qual é a sua mensagem. */
-export function YouTag() {
-  return <em className="ml-1 font-bold not-italic text-[#E53935] [text-shadow:none]">(VOCÊ)</em>;
+export function YouTag({ className }: { className?: string | undefined }) {
+  return <em className={cn("font-bold not-italic text-[#E53935] [text-shadow:none]", className)}>(VOCÊ)</em>;
 }
 
 export function ReactionPill({ text, onVideo }: { text: string; onVideo?: boolean | undefined }) {
@@ -782,7 +782,7 @@ export function ChatLine({
           )}
         >
           {author}
-          {tone === "mine" ? <YouTag /> : null}
+          {tone === "mine" ? <YouTag className="ml-0.5" /> : null}
           {tone === "agent" ? <Zap className="ml-1 inline size-3 align-[-1px]" /> : null}
         </span>
         {badge ? (

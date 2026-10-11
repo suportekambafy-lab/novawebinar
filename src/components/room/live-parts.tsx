@@ -366,7 +366,7 @@ export function LiveFeed({
             <div key={item.key} className="lv-in">
               <p className="min-w-0 break-words">
                 <b className="mr-1.5 font-bold">{item.team?.name ?? item.name}</b>
-                {item.team ? <TeamBadge text={item.team.badge} /> : <YouTag />}
+                {item.team ? <TeamBadge text={item.team.badge} /> : <YouTag className="-ml-1 mr-1.5" />}
                 <span className={cn("font-medium", ink)}>{item.text}</span>
                 {item.reaction ? <ReactionPill text={item.reaction} onVideo={!panel} /> : null}
               </p>
