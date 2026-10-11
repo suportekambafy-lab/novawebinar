@@ -274,8 +274,9 @@ export function StepAgenda({
           </Field>
           <Field label="Horas" required>
             <div className="flex flex-wrap items-center gap-2">
+              {/* A chave é só a posição: com a hora na chave, cada dígito escrito recriava o campo e tirava-lhe o foco. */}
               {form.recurrence_times.map((time, i) => (
-                <span key={`${time}-${i}`} className="inline-flex h-9 items-center gap-1 rounded-md border bg-white pl-2 pr-1">
+                <span key={i} className="inline-flex h-9 items-center gap-1 rounded-md border bg-white pl-2 pr-1">
                   <Clock className="size-3.5 text-muted-foreground" />
                   <input
                     type="time"
