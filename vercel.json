@@ -1,13 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["gru1"],
+  "regions": ["dub1"],
   "images": {
     "sizes": [160],
     "domains": [],
     "remotePatterns": [
       {
         "protocol": "https",
-        "hostname": "xvijbyddczciqswtaycj.supabase.co",
+        "hostname": "nazhbxrhoailjwillzju.supabase.co",
         "pathname": "^/storage/v1/object/sign/.*$"
       }
     ],
