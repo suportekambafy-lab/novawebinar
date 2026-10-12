@@ -105,6 +105,7 @@ export function InternalWebinarRoom({
       preliveTemplate={countdown.style}
       preliveAppearance={w.prelive_appearance}
       preliveColor={countdown.color}
+      preliveAfterSeconds={mode === "live" ? countdown.afterSeconds : 0}
       theme={theme}
       appearance={appearance}
       onAppearance={choose}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  COUNTDOWN_OFF,
   activeOffer,
   offerDeadlinePassed,
   isGroupLink,
@@ -393,7 +394,8 @@ describe("contagem antes de começar", () => {
       color: "#16A34A",
       sound: false,
       background: { image: null, video: null },
-      after: 0,
+      afterOn: false,
+      after: 5,
     });
     expect(
       liveSettings({ live: { countdown: { on: "sim", minutes: 999, style: "glass", color: "x" } } })
@@ -405,17 +407,20 @@ describe("contagem antes de começar", () => {
       color: "#E8440C",
       sound: true,
       background: { image: null, video: null },
-      after: 0,
+      afterOn: false,
+      after: 5,
     });
     expect(
-      liveSettings({ live: { countdown: { on: false, minutes: 5, after: 3 } } }).countdown?.after,
-    ).toBe(3);
+      liveSettings({ live: { countdown: { on: false, minutes: 5, afterOn: true, after: 3 } } })
+        .countdown,
+    ).toMatchObject({ afterOn: true, after: 3 });
     expect(
-      liveSettings({ live: { countdown: { on: false, minutes: 5, after: 99 } } }).countdown?.after,
-    ).toBe(30);
+      liveSettings({ live: { countdown: { on: false, minutes: 5, afterOn: "sim", after: 99 } } })
+        .countdown,
+    ).toMatchObject({ afterOn: false, after: 30 });
     expect(
       liveSettings({ live: { countdown: { on: false, minutes: 5, after: "x" } } }).countdown?.after,
-    ).toBe(0);
+    ).toBe(5);
     const id = "2f3b8f3e-1c2d-4e5f-8a9b-0c1d2e3f4a5b";
     expect(
       liveSettings({
@@ -464,6 +469,7 @@ describe("contagem antes de começar", () => {
           color: "#2563EB",
           sound: true,
           background: none,
+          afterOn: true,
           after: 2,
         },
         legacy,
@@ -485,6 +491,7 @@ describe("contagem antes de começar", () => {
           color: "#2563EB",
           sound: true,
           background: none,
+          afterOn: true,
           after: 2,
         },
         legacy,
@@ -512,7 +519,8 @@ describe("contagem antes de começar", () => {
       color: "#E8440C",
       sound: false,
       background: { image: null, video: null },
-      after: 0,
+      afterOn: false,
+      after: 5,
     });
     // Sem contagem antes da hora mas com espera depois dela: o relógio só corre depois da hora.
     const late = roomCountdown(
@@ -523,12 +531,17 @@ describe("contagem antes de começar", () => {
         color: "#2563EB",
         sound: true,
         background: { image: null, video: null },
+        afterOn: true,
         after: 2,
       },
       legacy,
     );
     expect(late.seconds).toBe(0);
     expect(late.afterSeconds).toBe(120);
+    // Desligada depois da hora: os minutos guardados não contam.
+    expect(roomCountdown({ ...COUNTDOWN_OFF, afterOn: false, after: 2 }, legacy).afterSeconds).toBe(
+      0,
+    );
     expect(liveSettings({ live: { desk: "vertical" } }, legacy).countdown?.on).toBe(true);
     // A escolha nova ganha às colunas antigas; desligada, as antigas não contam.
     expect(

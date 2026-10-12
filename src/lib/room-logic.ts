@@ -415,8 +415,9 @@ export type CountdownStyle = "minimal" | "premium" | "dark" | "urgency";
 export type CountdownBackground = { image: string | null; video: string | null };
 export const COUNTDOWN_BACKGROUND_NONE: CountdownBackground = { image: null, video: null };
 /**
- * `on`/`minutes`: a sala abre antes da hora com a contagem. `after`: à hora marcada a contagem continua
- * ainda estes minutos (quem chega à hora vê o relógio) e só depois o vídeo começa, para quem se atrasa.
+ * Duas contagens independentes, com o mesmo aspecto: `on`/`minutes`, a sala abre antes da hora com o relógio
+ * a contar até à hora; `afterOn`/`after`, à hora marcada o relógio conta estes minutos e só depois o vídeo
+ * começa (quem chega à hora vê-o; quem se atrasa apanha o início).
  */
 export type RoomCountdown = {
   on: boolean;
@@ -425,6 +426,7 @@ export type RoomCountdown = {
   color: string;
   sound: boolean;
   background: CountdownBackground;
+  afterOn: boolean;
   after: number;
 };
 
@@ -435,8 +437,6 @@ export const COUNTDOWN_STYLES: readonly { id: CountdownStyle; name: string }[] =
   { id: "urgency", name: "Barra" },
 ];
 export const COUNTDOWN_MINUTES = [1, 3, 5, 10, 15] as const;
-/** Minutos depois da hora em que a contagem ainda corre antes de o vídeo começar; 0 desliga. */
-export const COUNTDOWN_AFTER_MINUTES = [0, 1, 2, 3, 5, 10] as const;
 export const COUNTDOWN_OFF: RoomCountdown = {
   on: false,
   minutes: 5,
@@ -444,7 +444,8 @@ export const COUNTDOWN_OFF: RoomCountdown = {
   color: "#E8440C",
   sound: true,
   background: COUNTDOWN_BACKGROUND_NONE,
-  after: 0,
+  afterOn: false,
+  after: 5,
 };
 
 function parseCountdownBackground(raw: unknown): CountdownBackground {
@@ -473,9 +474,11 @@ function parseCountdown(raw: unknown): RoomCountdown | null {
     color: offerColor(r["color"]),
     sound: r["sound"] !== false,
     background: parseCountdownBackground(r["background"]),
-    after: Number.isFinite(Number(r["after"]))
-      ? Math.min(30, Math.max(0, Math.round(Number(r["after"]))))
-      : 0,
+    afterOn: r["afterOn"] === true,
+    after:
+      Number.isFinite(Number(r["after"])) && Number(r["after"]) > 0
+        ? Math.min(30, Math.max(1, Math.round(Number(r["after"]))))
+        : COUNTDOWN_OFF.after,
   };
 }
 
@@ -500,7 +503,8 @@ export function countdownFromLegacy(
     color: OFFER_COLOR_DEFAULT,
     sound: legacy.prelive_sound !== false,
     background: COUNTDOWN_BACKGROUND_NONE,
-    after: 0,
+    afterOn: false,
+    after: 5,
   };
 }
 
@@ -516,7 +520,7 @@ export function roomCountdown(
   return {
     seconds: c.on ? c.minutes * 60 : 0,
     /** Segundos depois da hora em que o relógio ainda corre antes de o vídeo arrancar. */
-    afterSeconds: c.after * 60,
+    afterSeconds: c.afterOn ? c.after * 60 : 0,
     style: c.style as string,
     color: c.color,
     sound: c.sound,

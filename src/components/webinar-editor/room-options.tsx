@@ -36,7 +36,6 @@ import { peekCountdown, useCountdownPeek } from "./room-preview";
 import { cn } from "@/lib/utils";
 import {
   clock,
-  COUNTDOWN_AFTER_MINUTES,
   COUNTDOWN_MINUTES,
   COUNTDOWN_OFF,
   COUNTDOWN_STYLES,
@@ -101,7 +100,7 @@ export function RoomOptions({
   const setCountdown = (patch: Partial<RoomCountdown>, show = true) => {
     const next = { ...countdown, ...patch };
     onLive({ countdown: next });
-    peekCountdown((next.on || next.after > 0) && show);
+    peekCountdown((next.on || next.afterOn) && show);
   };
   useEffect(() => () => peekCountdown(false), []);
   // O temporizador: ao mexer, a pré-visualização vai para dentro dos minutos escolhidos, para se ver.
@@ -223,148 +222,157 @@ export function RoomOptions({
       </Section>
 
       <Section icon={Timer} title="Contagem antes de começar" help="contagem">
-        <div className="rounded-xl border bg-white p-3">
+        <div className="grid gap-3 rounded-xl border bg-white p-3">
           <SwitchRow
-            title="Mostrar a contagem"
-            description="A sala abre antes da hora, com o chat aberto e o relógio no lugar do vídeo."
+            title="Mostrar a contagem antes da hora"
+            description="A sala abre antes da hora, com o chat aberto e o relógio no lugar do vídeo a contar até à hora."
             checked={countdown.on}
             onChange={(on) => setCountdown({ on })}
           />
-        </div>
-        <div className="grid gap-1.5 rounded-xl border bg-white p-3">
-          <span className="text-[13px] font-medium">Depois da hora, o vídeo ainda espera</span>
-          <div
-            className="grid grid-cols-6 gap-1.5"
-            role="radiogroup"
-            aria-label="Minutos depois da hora"
-          >
-            {COUNTDOWN_AFTER_MINUTES.map((m) => (
-              <button
-                key={m}
-                type="button"
-                role="radio"
-                aria-checked={countdown.after === m}
-                onClick={() => setCountdown({ after: m }, m > 0)}
-                className={cn(
-                  "h-10 min-w-0 whitespace-nowrap rounded-lg px-1 text-[13.5px] font-semibold tabular-nums transition",
-                  countdown.after === m
-                    ? "bg-foreground text-background"
-                    : "bg-chip hover:bg-[var(--ds-gray-alpha-300)]",
-                )}
+          {countdown.on ? (
+            <div className="grid gap-1.5">
+              <span className="text-[13px] font-medium">A sala abre antes da hora</span>
+              <div
+                className="grid grid-cols-5 gap-1.5"
+                role="radiogroup"
+                aria-label="Minutos antes da hora"
               >
-                {m === 0 ? "Não" : `${m} min`}
-              </button>
-            ))}
-          </div>
-          <p className="text-[12.5px] leading-snug text-muted-foreground">
-            {countdown.after > 0
-              ? `Quem chega à hora marcada ainda vê a contagem ${countdown.after} min; o vídeo começa depois, para quem se atrasa.`
-              : "À hora marcada o vídeo começa logo."}
-          </p>
-        </div>
-        {countdown.on || countdown.after > 0 ? (
-          <>
-            <div
-              className="grid grid-cols-2 gap-2.5"
-              role="radiogroup"
-              aria-label="Estilo da contagem"
-            >
-              {COUNTDOWN_STYLES.map(({ id, name }) => {
-                const on = countdown.style === id;
-                return (
+                {COUNTDOWN_MINUTES.map((m) => (
                   <button
-                    key={id}
+                    key={m}
                     type="button"
                     role="radio"
-                    aria-checked={on}
-                    onClick={() => setCountdown({ style: id })}
-                    className="group grid gap-2 text-left"
+                    aria-checked={countdown.minutes === m}
+                    onClick={() => setCountdown({ minutes: m })}
+                    className={cn(
+                      "h-10 min-w-0 whitespace-nowrap rounded-lg px-1 text-[13.5px] font-semibold tabular-nums transition",
+                      countdown.minutes === m
+                        ? "bg-foreground text-background"
+                        : "bg-chip hover:bg-[var(--ds-gray-alpha-300)]",
+                    )}
                   >
-                    <span
-                      className={cn(
-                        "relative block overflow-hidden rounded-xl ring-1 ring-black/10 transition",
-                        on ? "ring-2 ring-foreground ring-offset-2" : "group-hover:ring-black/25",
-                      )}
-                    >
-                      <CountdownThumb style={id} color={countdown.color} />
-                      {on ? (
-                        <span className="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-foreground text-background">
-                          <Check className="size-3" />
-                        </span>
-                      ) : null}
-                    </span>
-                    <span
-                      className={cn(
-                        "text-[13px]",
-                        on ? "font-semibold" : "font-medium text-muted-foreground",
-                      )}
-                    >
-                      {name}
-                    </span>
+                    {m} min
                   </button>
-                );
-              })}
-            </div>
-            <Swatches
-              label="Cor da contagem"
-              value={countdown.color}
-              onChange={(color) => setCountdown({ color })}
-              options={OFFER_COLOR_SUGGESTIONS}
-            />
-            {countdown.on ? (
-              <div className="grid gap-1.5">
-                <span className="text-[13px] font-medium">A sala abre antes da hora</span>
-                <div
-                  className="grid grid-cols-5 gap-1.5"
-                  role="radiogroup"
-                  aria-label="Minutos antes da hora"
-                >
-                  {COUNTDOWN_MINUTES.map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      role="radio"
-                      aria-checked={countdown.minutes === m}
-                      onClick={() => setCountdown({ minutes: m })}
-                      className={cn(
-                        "h-10 min-w-0 whitespace-nowrap rounded-lg px-1 text-[13.5px] font-semibold tabular-nums transition",
-                        countdown.minutes === m
-                          ? "bg-foreground text-background"
-                          : "bg-chip hover:bg-[var(--ds-gray-alpha-300)]",
-                      )}
-                    >
-                      {m} min
-                    </button>
-                  ))}
-                </div>
+                ))}
               </div>
-            ) : null}
-            <CountdownBackgroundPicker
-              countdown={countdown}
-              onChange={(background) => setCountdown({ background })}
-              library={library}
-              providerLabel={providerLabel}
-              upload={backgroundUpload}
-            />
-            <div className="rounded-xl border bg-white p-3">
-              <SwitchRow
-                title="Música de fundo"
-                checked={countdown.sound}
-                onChange={(sound) => setCountdown({ sound }, false)}
-              />
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="justify-self-start"
-              onClick={() => peekCountdown(!peek)}
-            >
-              {peek ? <EyeOff /> : <Eye />}
-              {peek ? "Voltar ao vídeo" : "Ver na sala"}
-            </Button>
-          </>
-        ) : null}
+          ) : null}
+        </div>
       </Section>
+
+      <Section icon={Timer} title="Contagem depois de começar" help="contagem">
+        <div className="grid gap-3 rounded-xl border bg-white p-3">
+          <SwitchRow
+            title="Mostrar a contagem ao começar"
+            description="À hora marcada, o relógio conta estes minutos e só depois o vídeo começa: quem chega à hora vê-o, e quem se atrasa apanha o início."
+            checked={countdown.afterOn}
+            onChange={(afterOn) => setCountdown({ afterOn })}
+          />
+          {countdown.afterOn ? (
+            <div className="grid gap-1.5">
+              <span className="text-[13px] font-medium">O vídeo começa depois da hora</span>
+              <div
+                className="grid grid-cols-5 gap-1.5"
+                role="radiogroup"
+                aria-label="Minutos depois da hora"
+              >
+                {COUNTDOWN_MINUTES.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    role="radio"
+                    aria-checked={countdown.after === m}
+                    onClick={() => setCountdown({ after: m })}
+                    className={cn(
+                      "h-10 min-w-0 whitespace-nowrap rounded-lg px-1 text-[13.5px] font-semibold tabular-nums transition",
+                      countdown.after === m
+                        ? "bg-foreground text-background"
+                        : "bg-chip hover:bg-[var(--ds-gray-alpha-300)]",
+                    )}
+                  >
+                    {m} min
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </Section>
+
+      {countdown.on || countdown.afterOn ? (
+        <Section icon={Palette} title="Aspecto da contagem" help="contagem">
+          <div
+            className="grid grid-cols-2 gap-2.5"
+            role="radiogroup"
+            aria-label="Estilo da contagem"
+          >
+            {COUNTDOWN_STYLES.map(({ id, name }) => {
+              const on = countdown.style === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => setCountdown({ style: id })}
+                  className="group grid gap-2 text-left"
+                >
+                  <span
+                    className={cn(
+                      "relative block overflow-hidden rounded-xl ring-1 ring-black/10 transition",
+                      on ? "ring-2 ring-foreground ring-offset-2" : "group-hover:ring-black/25",
+                    )}
+                  >
+                    <CountdownThumb style={id} color={countdown.color} />
+                    {on ? (
+                      <span className="absolute right-1.5 top-1.5 grid size-5 place-items-center rounded-full bg-foreground text-background">
+                        <Check className="size-3" />
+                      </span>
+                    ) : null}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[13px]",
+                      on ? "font-semibold" : "font-medium text-muted-foreground",
+                    )}
+                  >
+                    {name}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <Swatches
+            label="Cor da contagem"
+            value={countdown.color}
+            onChange={(color) => setCountdown({ color })}
+            options={OFFER_COLOR_SUGGESTIONS}
+          />
+          <CountdownBackgroundPicker
+            countdown={countdown}
+            onChange={(background) => setCountdown({ background })}
+            library={library}
+            providerLabel={providerLabel}
+            upload={backgroundUpload}
+          />
+          <div className="rounded-xl border bg-white p-3">
+            <SwitchRow
+              title="Música de fundo"
+              checked={countdown.sound}
+              onChange={(sound) => setCountdown({ sound }, false)}
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="justify-self-start"
+            onClick={() => peekCountdown(!peek)}
+          >
+            {peek ? <EyeOff /> : <Eye />}
+            {peek ? "Voltar ao vídeo" : "Ver na sala"}
+          </Button>
+        </Section>
+      ) : null}
 
       <Section icon={Gauge} title="Temporizador" help="temporizador">
         <div className="rounded-xl border bg-white p-3">

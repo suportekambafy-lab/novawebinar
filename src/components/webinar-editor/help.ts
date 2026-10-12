@@ -14,7 +14,8 @@ export type Help = {
   tip?: string;
 };
 
-const SAME_LINK = "Depois de partilhar o link, não mude o endereço: os links antigos deixam de abrir.";
+const SAME_LINK =
+  "Depois de partilhar o link, não mude o endereço: os links antigos deixam de abrir.";
 
 /** Os textos do (i) de cada etapa e de cada secção do editor. */
 export const HELP = {
@@ -29,7 +30,8 @@ export const HELP = {
       "Em «Quem apresenta», ponha a foto, o nome e uma linha sobre a pessoa.",
       "Em «Cartão do link», escolha como o link aparece no WhatsApp.",
     ],
-    example: "«Como vender no Instagram sem anúncios», em …/w/vender-no-instagram, apresentado por Edna Kiala.",
+    example:
+      "«Como vender no Instagram sem anúncios», em …/w/vender-no-instagram, apresentado por Edna Kiala.",
     tip: SAME_LINK,
   },
   webinar: {
@@ -40,13 +42,18 @@ export const HELP = {
       "Dê um «Nome interno» para o distinguir dos outros.",
       "Ajuste o «Endereço da sala» e copie-o.",
     ],
-    example: "Título «Contabilidade simples para freelancers», nome interno «Contabilidade · outubro», endereço …/w/contabilidade-freelancers.",
+    example:
+      "Título «Contabilidade simples para freelancers», nome interno «Contabilidade · outubro», endereço …/w/contabilidade-freelancers.",
     tip: SAME_LINK,
   },
   apresentador: {
     title: "Quem apresenta",
     what: "A foto, o nome e uma linha sobre quem fala, junto ao vídeo.",
-    steps: ["Carregue uma «Foto» do rosto, de frente.", "Escreva o «Nome» e a «Descrição curta».", "Ligue o «Selo de verificado», se quiser."],
+    steps: [
+      "Carregue uma «Foto» do rosto, de frente.",
+      "Escreva o «Nome» e a «Descrição curta».",
+      "Ligue o «Selo de verificado», se quiser.",
+    ],
     example: "Edna Kiala, «Estrategista de vendas no Instagram», com o selo.",
     tip: "O selo só aparece na sala: veja-o na pré-visualização.",
   },
@@ -58,7 +65,8 @@ export const HELP = {
       "Em «WebHook», cole o endereço do seu sistema e ligue «Enviar».",
       "Confirme a bola verde: está ligado.",
     ],
-    example: "Cartão «Aula grátis: vender no Instagram», com «Ao vivo hoje às 20:00». Cada inscrição chega ao CRM pelo WebHook.",
+    example:
+      "Cartão «Aula grátis: vender no Instagram», com «Ao vivo hoje às 20:00». Cada inscrição chega ao CRM pelo WebHook.",
     tip: "O WhatsApp guarda o cartão algum tempo: acerte-o antes de partilhar.",
   },
 
@@ -67,8 +75,13 @@ export const HELP = {
   entrada: {
     title: "Página de entrada",
     what: "A página antes da sala: recolhe o contacto de quem entra.",
-    steps: ["Escolha a página do Novawebinar ou uma página externa.", "Deixe só os campos que vai usar.", "Escreva o texto do botão e escolha as cores."],
-    example: "Nome e WhatsApp, botão «Quero assistir à aula» e o aviso «87% das vagas preenchidas».",
+    steps: [
+      "Escolha a página do Novawebinar ou uma página externa.",
+      "Deixe só os campos que vai usar.",
+      "Escreva o texto do botão e escolha as cores.",
+    ],
+    example:
+      "Nome e WhatsApp, botão «Quero assistir à aula» e o aviso «87% das vagas preenchidas».",
     tip: "Cada campo a mais faz perder inscrições.",
   },
   ligarPagina: {
@@ -79,7 +92,8 @@ export const HELP = {
       "Copie o código do formulário e cole-o num bloco de HTML da sua página.",
       "Faça uma inscrição de teste e confirme que chegou, no passo 3.",
     ],
-    example: "Página no WordPress com o formulário a meio: Nome e WhatsApp, botão «Quero assistir à aula».",
+    example:
+      "Página no WordPress com o formulário a meio: Nome e WhatsApp, botão «Quero assistir à aula».",
     tip: "Num bloco de texto normal, o formulário não aparece. Com o webinar em rascunho, também não.",
   },
   contactos: {
@@ -102,13 +116,18 @@ export const HELP = {
       "Se quiser, ligue «Aviso no topo».",
       "Escolha «Vagas (%)» e escreva a percentagem, ou «Texto» e escreva a frase.",
     ],
-    example: "Botão «Quero assistir à aula» e o aviso «87% das vagas preenchidas» ou «Só 50 lugares».",
+    example:
+      "Botão «Quero assistir à aula» e o aviso «87% das vagas preenchidas» ou «Só 50 lugares».",
     tip: "Com 100%, parece que já não há lugar. O aviso não vai para uma página externa.",
   },
   coresPagina: {
     title: "Cores da página",
     what: "A cor do cartão e do botão; o texto ajusta-se sozinho.",
-    steps: ["Escolha a cor do «Cartão».", "Escolha a cor do «Botão», de preferência a da marca.", "Para outra cor, abra a roda ou escreva o código."],
+    steps: [
+      "Escolha a cor do «Cartão».",
+      "Escolha a cor do «Botão», de preferência a da marca.",
+      "Para outra cor, abra a roda ou escreva o código.",
+    ],
     example: "Cartão #0B1322 e botão #2563EB: o texto do botão fica branco.",
     tip: "No tema claro, o cartão escuro passa a branco.",
   },
@@ -118,8 +137,13 @@ export const HELP = {
   video: {
     title: "Vídeo",
     what: "O vídeo dá o tempo a tudo na sala: chat, audiência, oferta e vendas.",
-    steps: ["Carregue em «Carregar vídeo» e escolha de onde vem.", "Espere que a barra chegue aos 100%.", "Escolha o «Formato da sala» e a aparência."],
-    example: "Aula de 23 minutos em MP4 (1,8 GB), arrastada do computador; fica também na Biblioteca.",
+    steps: [
+      "Carregue em «Carregar vídeo» e escolha de onde vem.",
+      "Espere que a barra chegue aos 100%.",
+      "Escolha o «Formato da sala» e a aparência.",
+    ],
+    example:
+      "Aula de 23 minutos em MP4 (1,8 GB), arrastada do computador; fica também na Biblioteca.",
     tip: "O YouTube não serve: mostra os controlos e as sugestões dele por cima da aula.",
   },
   formato: {
@@ -141,19 +165,27 @@ export const HELP = {
       "Toque numa frase para a sala ir a esse minuto.",
       "Abra «Ver a transcrição completa» para ler tudo.",
     ],
-    example: "Aos 17:52 a Edna diz «vou mostrar-vos a mentoria»: é o minuto sugerido para a oferta.",
+    example:
+      "Aos 17:52 a Edna diz «vou mostrar-vos a mentoria»: é o minuto sugerido para a oferta.",
   },
   botaoEntrar: {
     title: "Botão de entrar",
     what: "Aparece ao centro do vídeo até a pessoa tocar para começar a ver.",
-    steps: ["«Só o botão»: um botão a pulsar.", "«Botão com informação»: o botão com «Aula ao vivo»."],
+    steps: [
+      "«Só o botão»: um botão a pulsar.",
+      "«Botão com informação»: o botão com «Aula ao vivo».",
+    ],
     example: "No telemóvel, a Kátia toca em «Assistir agora»: o vídeo começa, já com som.",
   },
   aparencia: {
     title: "Aparência",
     what: "Se a sala e a página de entrada aparecem claras ou escuras.",
-    steps: ["«Automático» segue o aparelho de quem vê.", "«Claro» ou «Escuro» fixa o mesmo tema para todos."],
-    example: "Aula às 21:00: com «Automático», quem tem o telemóvel em modo escuro vê a sala escura.",
+    steps: [
+      "«Automático» segue o aparelho de quem vê.",
+      "«Claro» ou «Escuro» fixa o mesmo tema para todos.",
+    ],
+    example:
+      "Aula às 21:00: com «Automático», quem tem o telemóvel em modo escuro vê a sala escura.",
     tip: "Cada pessoa pode trocar o tema no ⚙ do vídeo.",
   },
   corBotao: {
@@ -164,20 +196,25 @@ export const HELP = {
     tip: "«Ao vivo» é sempre vermelho e o + Seguir laranja: escolha uma cor que se distinga.",
   },
   contagem: {
-    title: "Contagem antes de começar",
-    what: "A sala abre uns minutos antes da hora, com o chat aberto e um relógio no lugar do vídeo. Pode também esperar uns minutos depois da hora, para quem se atrasa.",
+    title: "Contagem antes e depois de começar",
+    what: "Duas contagens independentes, com o mesmo aspecto: antes da hora, a sala abre mais cedo com o relógio a contar até à hora; depois de começar, à hora marcada o relógio conta uns minutos e só depois o vídeo arranca, para quem se atrasa.",
     steps: [
-      "Ligue «Mostrar a contagem» e escolha quantos minutos antes a sala abre.",
-      "Em «Depois da hora, o vídeo ainda espera», escolha quantos minutos o relógio continua depois da hora.",
-      "Escolha o estilo, a cor e, se quiser, uma imagem ou um vídeo de fundo.",
+      "«Contagem antes de começar»: ligue e escolha quantos minutos antes a sala abre.",
+      "«Contagem depois de começar»: ligue e escolha quantos minutos o vídeo espera depois da hora.",
+      "Em «Aspecto da contagem», escolha o estilo, a cor, a música e, se quiser, uma imagem ou um vídeo de fundo.",
     ],
-    example: "Aula às 20:00 com 5 minutos antes e 3 depois: às 19:55 as pessoas entram e vêem o relógio; quem chega às 20:00 ainda o vê; o vídeo começa às 20:03.",
+    example:
+      "Aula às 20:00 com 10 minutos depois de começar: quem chega às 20:00 vê o relógio a contar 10 minutos; o vídeo começa às 20:10 e quem chega às 20:15 entra no minuto 5.",
     tip: "Antes de a sala abrir, a sala de espera mostra o mesmo relógio, com o mesmo estilo e cor.",
   },
   temporizador: {
     title: "Temporizador",
     what: "A percentagem da aula por cima do vídeo: quem vê sabe quanto já passou.",
-    steps: ["Ligue «Mostrar o temporizador».", "Escolha de que minuto a que minuto está a apresentar.", "Escolha o modelo e a cor."],
+    steps: [
+      "Ligue «Mostrar o temporizador».",
+      "Escolha de que minuto a que minuto está a apresentar.",
+      "Escolha o modelo e a cor.",
+    ],
     example: "Aula de 40 minutos com a oferta aos 35: de 00:00 a 35:00. Aos 17:30 mostra 50%.",
     tip: "Fora desses minutos não aparece. Sem outra cor, usa a cor do botão.",
   },
@@ -189,7 +226,8 @@ export const HELP = {
       "Use «Adicionar rede» para o YouTube, o TikTok ou o Facebook.",
       "Escolha em «Quando aparece o + Seguir» os minutos.",
     ],
-    example: "instagram.com/ednakiala: no telemóvel abre na app; no computador, numa janela ao lado.",
+    example:
+      "instagram.com/ednakiala: no telemóvel abre na app; no computador, numa janela ao lado.",
     tip: "Sem nenhum link, o + Seguir não aparece.",
   },
   seguirMomentos: {
@@ -216,13 +254,17 @@ export const HELP = {
       "Gere os comentários: com IA, de uma folha ou à mão.",
       "Reveja-os em «Comentários gerados».",
     ],
-    example: "Aula de 23 minutos para Angola e Portugal, tom «Vendas»: uns 8 comentários por minuto.",
+    example:
+      "Aula de 23 minutos para Angola e Portugal, tom «Vendas»: uns 8 comentários por minuto.",
     tip: "Gerar com IA substitui os gerados antes; os escritos à mão ficam.",
   },
   chatQuem: {
     title: "Volume do chat",
     what: "Quantos comentários aparecem por minuto.",
-    steps: ["Escolha «Menos», «Normal» ou «Mais»: segue a Audiência.", "Para um número fixo, escolha «Escolher» e escreva quantos por minuto (até 60)."],
+    steps: [
+      "Escolha «Menos», «Normal» ou «Mais»: segue a Audiência.",
+      "Para um número fixo, escolha «Escolher» e escreva quantos por minuto (até 60).",
+    ],
     example: "Uma sala com 600 pessoas em «Normal»: uns 12 comentários por minuto.",
     tip: "Quando a audiência desce, o chat acalma.",
   },
@@ -234,13 +276,18 @@ export const HELP = {
       "Em «Nacionalidades», junte uma ou mais: mudam os nomes e a forma de escrever.",
       "Tire uma com o X.",
     ],
-    example: "Lançamento em Angola, com angolanos e brasileiros: «A ver de Luanda» e «Assistindo de Luanda».",
+    example:
+      "Lançamento em Angola, com angolanos e brasileiros: «A ver de Luanda» e «Assistindo de Luanda».",
     tip: "Nacionalidades que não são as do seu público tornam o chat falso.",
   },
   tom: {
     title: "Como escrevem",
     what: "O tom das mensagens e, à parte, se levam emojis.",
-    steps: ["Escolha «Natural», «Vendas» ou «Formal».", "Leia as mensagens de exemplo.", "Ligue ou desligue «Com emojis»."],
+    steps: [
+      "Escolha «Natural», «Vendas» ou «Formal».",
+      "Leia as mensagens de exemplo.",
+      "Ligue ou desligue «Com emojis».",
+    ],
     example: "Em «Vendas»: «Quero entrar. Até quando dá para comprar?»",
   },
   realismo: {
@@ -251,14 +298,20 @@ export const HELP = {
       "Ligue «Alunos que já compraram» e escreva o nome do curso.",
       "Escreva quantos (até 100) ou toque num atalho; escolha quando: na aula ou na oferta.",
     ],
-    example: "Lançamento grande, 20 alunos da «Mentoria Vendas no Instagram», na oferta: «Já fiz e recomendo muito».",
+    example:
+      "Lançamento grande, 20 alunos da «Mentoria Vendas no Instagram», na oferta: «Já fiz e recomendo muito».",
     tip: "Ninguém promete resultados e nenhuma mensagem se repete.",
   },
   perguntas: {
     title: "Perguntas do apresentador",
     what: "Quando o apresentador pergunta algo, algumas pessoas do chat respondem.",
-    steps: ["Ligue «O chat responde».", "Escreva quantas pessoas respondem ou toque num atalho.", "Toque numa pergunta para ver esse minuto."],
-    example: "Aos 02:15, «Faz sentido, gente?»: quatro respondem «Sim!», «Certo», «Faz todo o sentido»…",
+    steps: [
+      "Ligue «O chat responde».",
+      "Escreva quantas pessoas respondem ou toque num atalho.",
+      "Toque numa pergunta para ver esse minuto.",
+    ],
+    example:
+      "Aos 02:15, «Faz sentido, gente?»: quatro respondem «Sim!», «Certo», «Faz todo o sentido»…",
     tip: "As perguntas vêm da transcrição, feita ao gerar com IA.",
   },
   gerar: {
@@ -280,13 +333,18 @@ export const HELP = {
       "Mude o minuto, o nome ou o texto e guarde.",
       "Escreva a «Mensagem fixada no chat».",
     ],
-    example: "«Quanto custa em kwanzas?» aos 18:20 é cedo demais: passa para 21:05, depois do preço.",
+    example:
+      "«Quanto custa em kwanzas?» aos 18:20 é cedo demais: passa para 21:05, depois do preço.",
   },
   avisoSuporte: {
     title: "Aviso do Suporte",
     what: "Se a pessoa não abrir a resposta do Suporte em 20 segundos, o chat avisa-a; só ela vê.",
-    steps: ["Ligue «Avisar no chat quando o Suporte responde».", "Garanta quem responda: o Agente IA ou a equipa no Atendimento."],
-    example: "A Celma pergunta por Multicaixa; 20 s depois da resposta, vê «@Celma, já respondemos à sua dúvida».",
+    steps: [
+      "Ligue «Avisar no chat quando o Suporte responde».",
+      "Garanta quem responda: o Agente IA ou a equipa no Atendimento.",
+    ],
+    example:
+      "A Celma pergunta por Multicaixa; 20 s depois da resposta, vê «@Celma, já respondemos à sua dúvida».",
   },
 
   /* ---------- Audiência ---------- */
@@ -294,21 +352,32 @@ export const HELP = {
   audiencia: {
     title: "Audiência",
     what: "Quantas pessoas a sala diz que estão a ver, ao longo do vídeo.",
-    steps: ["Indique com quantas começa e até quantas chega.", "Escolha o «Formato» da curva.", "Arraste no gráfico para ver cada minuto."],
+    steps: [
+      "Indique com quantas começa e até quantas chega.",
+      "Escolha o «Formato» da curva.",
+      "Arraste no gráfico para ver cada minuto.",
+    ],
     example: "Começa com 120 e chega a 480 aos 18:00, quando a oferta abre.",
     tip: "Use números credíveis para o seu público (máximo 50 000).",
   },
   audienciaFormato: {
     title: "Formato da audiência",
     what: "Como o número muda ao longo do vídeo, ou se mostra só quem está mesmo a ver.",
-    steps: ["Escolha um formato simulado; «Acompanha a fala» é o recomendado.", "Ou escolha «Real + simulada», «Só a real» ou «Não mostrar»."],
+    steps: [
+      "Escolha um formato simulado; «Acompanha a fala» é o recomendado.",
+      "Ou escolha «Real + simulada», «Só a real» ou «Não mostrar».",
+    ],
     example: "«Dinâmica»: sobe no início, mantém-se a meio e desce no fim.",
     tip: "Com «Só a real» ou «Não mostrar», o gráfico desaparece.",
   },
   audienciaCurva: {
     title: "Como fica ao vivo",
     what: "O número de pessoas em cada minuto, com as ofertas, o + Seguir e as compras por baixo.",
-    steps: ["Arraste no gráfico: a sala vai a esse minuto.", "Use ← e → para andar 5 segundos.", "Cada ponto verde é uma compra."],
+    steps: [
+      "Arraste no gráfico: a sala vai a esse minuto.",
+      "Use ← e → para andar 5 segundos.",
+      "Cada ponto verde é uma compra.",
+    ],
     example: "Sobe até 480, a linha «Oferta 18:00» marca o pitch e há 10 compras depois dela.",
   },
 
@@ -323,7 +392,8 @@ export const HELP = {
       "Em «Quando aparece», use o pitch encontrado ou arraste na barra.",
       "Em «Aparência», escolha «Quadrada» ou «Compacta» e a cor.",
     ],
-    example: "Mentoria de 100 000 Kz por 25 000 Kz, checkout da Kambafy, abre aos 18:00. No telemóvel, o cartão sobe por cima do chat.",
+    example:
+      "Mentoria de 100 000 Kz por 25 000 Kz, checkout da Kambafy, abre aos 18:00. No telemóvel, o cartão sobe por cima do chat.",
     tip: "Pode juntar até 3 ofertas relâmpago: quando uma abre, a anterior fecha.",
   },
   aparenciaOferta: {
@@ -347,20 +417,28 @@ export const HELP = {
       "Veja como fica em «Ver o zero na sala».",
       "Escolha, se quiser, o «Último dia da oferta».",
     ],
-    example: "A oferta abre aos 18:00 do vídeo, com 10 minutos e «O botão fecha»: aos 28:00 o botão passa a «Oferta encerrada».",
+    example:
+      "A oferta abre aos 18:00 do vídeo, com 10 minutos e «O botão fecha»: aos 28:00 o botão passa a «Oferta encerrada».",
     tip: "Use «O botão fecha» só se o disser no pitch.",
   },
   depoisVideo: {
     title: "Quando a aula acaba",
     what: "Quanto tempo a sala fica aberta para comprar depois do vídeo.",
-    steps: ["Escolha «Fecha já», 15 min, 30 min, 1 h ou 2 h.", "Veja como fica em «Ver a sala depois do vídeo»."],
+    steps: [
+      "Escolha «Fecha já», 15 min, 30 min, 1 h ou 2 h.",
+      "Veja como fica em «Ver a sala depois do vídeo».",
+    ],
     example: "Aula das 20:00 com 23 minutos e 30 min depois: a sala fecha às 20:53.",
   },
   utm: {
     title: "Origem das vendas",
     what: "Leva ao checkout de onde veio cada pessoa, para saber que anúncio vendeu.",
-    steps: ["Ligue «Levar a origem ao checkout».", "Use nos anúncios o link da sala com utm_source e utm_campaign."],
-    example: "…/w/aula?utm_source=instagram: o checkout recebe utm_source=instagram e o minuto do clique.",
+    steps: [
+      "Ligue «Levar a origem ao checkout».",
+      "Use nos anúncios o link da sala com utm_source e utm_campaign.",
+    ],
+    example:
+      "…/w/aula?utm_source=instagram: o checkout recebe utm_source=instagram e o minuto do clique.",
     tip: "Sem anúncio, a origem fica «novawebinar».",
   },
 
@@ -400,7 +478,10 @@ export const HELP = {
   vendasLinha: {
     title: "Na linha do vídeo",
     what: "As compras ao longo do vídeo: cada ponto é uma compra.",
-    steps: ["Arraste no gráfico para ir a esse minuto.", "Toque num ponto para ver a compra a aparecer."],
+    steps: [
+      "Arraste no gráfico para ir a esse minuto.",
+      "Toque num ponto para ver a compra a aparecer.",
+    ],
     example: "Aos 20:00, o gráfico mostra «6 de 10 compras».",
   },
 
@@ -414,7 +495,8 @@ export const HELP = {
       "Veja cada automação por momento e se está ligada.",
       "Em «Abrir o fluxo», junte as peças ou use o modelo; escreva e ligue.",
     ],
-    example: "Confirmação por WhatsApp na inscrição; no fim, cada segmento de quem não comprou recebe a sua mensagem.",
+    example:
+      "Confirmação por WhatsApp na inscrição; no fim, cada segmento de quem não comprou recebe a sua mensagem.",
     tip: "Quem compra sai das automações de venda dessa oferta.",
   },
 
@@ -429,7 +511,8 @@ export const HELP = {
       "Autonomia: até onde vai sem a equipa.",
       "Ligar: o nome no chat e o interruptor.",
     ],
-    example: "«Equipa Edna» responde às dúvidas e envia o link da oferta; um pedido de desconto passa ao Atendimento.",
+    example:
+      "«Equipa Edna» responde às dúvidas e envia o link da oferta; um pedido de desconto passa ao Atendimento.",
     tip: "Desligado, o Suporte vai directo para o Atendimento.",
   },
   autonomia: {
@@ -457,7 +540,10 @@ export const HELP = {
   agenteEquipa: {
     title: "Passa à equipa quando",
     what: "Quando o agente pára e passa a conversa à equipa, no Atendimento.",
-    steps: ["Ligue os casos: não sabe, pedem uma pessoa, é sobre pagamento.", "Responda a essas conversas no Atendimento."],
+    steps: [
+      "Ligue os casos: não sabe, pedem uma pessoa, é sobre pagamento.",
+      "Responda a essas conversas no Atendimento.",
+    ],
     example: "«Paguei e não recebi o acesso» vai para o Atendimento.",
     tip: "Tenha alguém no Atendimento durante a sessão.",
   },
@@ -480,20 +566,29 @@ export const HELP = {
       "«Just in time»: a cada 15, 30 ou 60 min. Para anúncios o dia todo.",
       "«Sempre disponível»: começa quando a pessoa entra. Para uma aula sem hora.",
     ],
-    example: "Repetir às terças e quintas às 20:00: quem se inscreve na segunda vê «Começa a 13/10, 20:00» e fica nessa sessão.",
+    example:
+      "Repetir às terças e quintas às 20:00: quem se inscreve na segunda vê «Começa a 13/10, 20:00» e fica nessa sessão.",
     tip: "Confirme o fuso: 20:00 em Luanda são 19:00 em Lisboa no inverno.",
   },
   agendaQuando: {
     title: "Quando",
     what: "O dia, a hora e o fuso da sessão.",
-    steps: ["«Uma data»: escolha a data e a hora.", "«Repetir»: escolha os dias e as horas (até 6).", "Escolha o fuso da cidade onde marca a hora."],
+    steps: [
+      "«Uma data»: escolha a data e a hora.",
+      "«Repetir»: escolha os dias e as horas (até 6).",
+      "Escolha o fuso da cidade onde marca a hora.",
+    ],
     example: "Segundas e quartas às 13:00 e às 21:00, fuso de Lisboa: quatro sessões por semana.",
     tip: "Sem dias escolhidos, repete todos os dias.",
   },
   agendaIntervalo: {
     title: "Intervalo",
     what: "Com «Just in time», começa uma sessão a cada 15, 30 ou 60 minutos.",
-    steps: ["Escolha o intervalo.", "Ligue «Sem sessões de noite» (das 22:00 às 07:00).", "Escolha o fuso do seu público."],
+    steps: [
+      "Escolha o intervalo.",
+      "Ligue «Sem sessões de noite» (das 22:00 às 07:00).",
+      "Escolha o fuso do seu público.",
+    ],
     example: "A cada 15 min: quem se inscreve às 14:07 entra às 14:15.",
   },
   agendaSessao: {

@@ -635,8 +635,8 @@ export function PublicRoom({
   // Com o temporizador de arranque ligado, a sala abre antes da hora: as pessoas
   // entram, o chat funciona e o lugar do vídeo mostra a contagem animada.
   const countdown = roomCountdown(webinar.live.countdown, webinar);
-  // A contagem corre desde que a sala abre (antes da hora) até ao arranque do vídeo, que pode ficar uns
-  // minutos depois da hora marcada: quem chega à hora ainda vê o relógio, e quem se atrasa apanha o início.
+  // Duas contagens independentes: a sala abre antes da hora com o relógio a contar até à hora; à hora, o
+  // relógio pode contar outra vez uns minutos até o vídeo arrancar (quem se atrasa apanha o início).
   const delayMs = countdown.afterSeconds * 1000;
   const preliveSeconds = countdown.seconds + countdown.afterSeconds;
   const roomOpensMs = startMs === null ? null : startMs - countdown.seconds * 1000;
@@ -973,6 +973,7 @@ export function PublicRoom({
       preliveAppearance={webinar.prelive_appearance}
       preliveColor={countdown.color}
       preliveBackground={{ image: countdown.background.image, video: webinar.countdown_video }}
+      preliveAfterSeconds={testMode || plan.kind === "replay" ? 0 : countdown.afterSeconds}
       onSend={asTeam ? teamChat.send : onSend}
       supportMessages={asTeam ? [] : (privateThread?.messages ?? [])}
       onProgress={asTeam ? undefined : onProgress}

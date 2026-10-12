@@ -419,7 +419,9 @@ export function PreliveCountdown({
   color,
   fill,
   background,
+  after = 0,
 }: {
+  /** Segundos até o vídeo começar. */
   remaining: number;
   total: number;
   message: string;
@@ -433,17 +435,28 @@ export function PreliveCountdown({
   fill?: boolean | undefined;
   /** A imagem ou o vídeo de fundo escolhidos no editor; sem nenhum, a cor. */
   background?: CountdownBackdrop | null | undefined;
+  /**
+   * Segundos da contagem depois da hora. Com ela, são duas contagens seguidas: até à hora (o resto do
+   * total) e, à hora, outra vez do zero até o vídeo começar. A música segue o tempo real até ao vídeo.
+   */
+  after?: number | undefined;
 }) {
   useAmbientSound(soundEnabled && soundOn, remaining);
 
   const resolved = templateById(template);
   const look = normalizeAppearance(resolved.id, appearance);
+  const phase =
+    after > 0 && remaining > after
+      ? { remaining: remaining - after, total: Math.max(1, total - after) }
+      : after > 0
+        ? { remaining, total: after }
+        : { remaining, total };
 
   return (
     <TemplateView
       template={resolved.id}
-      remaining={remaining}
-      total={total}
+      remaining={phase.remaining}
+      total={phase.total}
       message={message}
       appearance={look}
       color={offerColor(color)}
