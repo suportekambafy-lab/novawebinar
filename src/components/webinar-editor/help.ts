@@ -205,7 +205,7 @@ export const HELP = {
     ],
     example:
       "Aula às 20:00 com 10 minutos depois de começar: quem chega às 20:00 vê o relógio a contar 10 minutos; o vídeo começa às 20:10 e quem chega às 20:15 entra no minuto 5.",
-    tip: "Antes de a sala abrir, a sala de espera mostra o mesmo relógio, com o mesmo estilo e cor.",
+    tip: "Antes de a sala abrir, a sala de espera mostra o mesmo relógio, com o mesmo estilo e cor. Na sala de teste, entrar é chegar à hora: a contagem depois de começar corre logo, com um botão para a saltar.",
   },
   temporizador: {
     title: "Temporizador",

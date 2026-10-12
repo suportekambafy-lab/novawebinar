@@ -237,7 +237,10 @@ export function WebinarRoom({
   teamMessages = [],
   testControls = false,
 }: {
-  /** Sala de teste: a barra do vídeo (play/pausa, avançar e recuar), como no YouTube. Nunca na sala pública. */
+  /**
+   * Sala de teste: a barra do vídeo (play/pausa, avançar e recuar), como no YouTube, e, sem `startsAt`,
+   * a contagem de `preliveSeconds` a correr desde a entrada (com um botão para a saltar). Nunca na sala pública.
+   */
   testControls?: boolean | undefined;
   webinar: RoomWebinar;
   /** «live»: vídeo em ecrã inteiro no telemóvel, com o chat por cima; no computador, o vídeo e o chat ao lado. */
@@ -461,11 +464,20 @@ export function WebinarRoom({
     checkout,
   });
 
-  const startMs = useMemo(() => {
+  const scheduledStartMs = useMemo(() => {
     if (!startsAt) return null;
     const value = new Date(startsAt).getTime();
     return Number.isNaN(value) ? null : value;
   }, [startsAt]);
+  // Sala de teste (sem hora marcada): entrar é chegar à hora. A contagem «depois de começar» corre a
+  // partir daí, com o relógio e o aspecto da sala a sério, e o vídeo arranca no fim (ou ao saltá-la).
+  // Terminada, a sala volta a não ter hora: o vídeo começa do início e tudo segue o relógio dele.
+  const [testStartMs] = useState(() =>
+    testControls && !startsAt && preliveSeconds > 0 ? Date.now() + preliveSeconds * 1000 : null,
+  );
+  const [testSkipped, setTestSkipped] = useState(false);
+  const testCounting = testStartMs !== null && !testSkipped && now < testStartMs;
+  const startMs = testCounting ? testStartMs : scheduledStartMs;
 
   useEffect(() => {
     // O relógio real também alimenta o contador da oferta. Tem de continuar
@@ -1498,6 +1510,15 @@ export function WebinarRoom({
               background={preliveBackground}
               after={preliveAfterSeconds}
             />
+            {testCounting ? (
+              <button
+                type="button"
+                onClick={() => setTestSkipped(true)}
+                className="absolute bottom-3 right-3 z-20 rounded-full bg-white/15 px-3 py-1.5 text-[12px] font-semibold text-white ring-1 ring-white/30 backdrop-blur transition hover:bg-white/25 active:scale-95"
+              >
+                Saltar contagem
+              </button>
+            ) : null}
           </div>
         )}
         {preliveEnding && (
