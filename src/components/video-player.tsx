@@ -147,7 +147,6 @@ export function VideoPlayer({
 }: Props) {
   const ownVideoRef = useRef<HTMLVideoElement>(null);
   const videoRef = mediaRef ?? ownVideoRef;
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const seekedRef = useRef(false);
   const targetRef = useRef<number | null>(liveTargetSeconds);
   const hlsRef = useRef<{
@@ -314,58 +313,34 @@ export function VideoPlayer({
     };
   }, [attempt, autoPlay, muted]);
 
-  // Na sala ao vivo, a imagem é desenhada num canvas e o elemento de vídeo fica
-  // fora da superfície visível. Assim nenhum navegador consegue sobrepor os
-  // seus próprios botões de play/pause durante carregamentos ou atualizações.
+  // Vigia: som a correr sem imagem (o descodificador de vídeo falhou em silêncio num aparelho fraco, ou o
+  // navegador suspendeu os fotogramas). Com o tempo a andar e o vídeo sem largura, tenta recuperar uma vez por
+  // leitor: no hls.js pela própria recuperação de media, no leitor nativo recarregando na mesma posição.
   useEffect(() => {
     if (controls) return;
     const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas) return;
-
-    let frame = 0;
-    const paint = () => {
-      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-        const width = Math.max(1, canvas.clientWidth);
-        const height = Math.max(1, canvas.clientHeight);
-        const ratio = window.devicePixelRatio || 1;
-        const pixelWidth = Math.round(width * ratio);
-        const pixelHeight = Math.round(height * ratio);
-        if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
-          canvas.width = pixelWidth;
-          canvas.height = pixelHeight;
-        }
-        const context = canvas.getContext("2d");
-        if (context) {
-          // À volta de um vídeo que não enche a moldura, preto (nunca branco, também no tema claro).
-          if (fit === "contain") {
-            context.fillStyle = "#000";
-            context.fillRect(0, 0, pixelWidth, pixelHeight);
-          }
-          if (video.videoWidth > 0 && video.videoHeight > 0) {
-            const sx = pixelWidth / video.videoWidth;
-            const sy = pixelHeight / video.videoHeight;
-            // Formas quase iguais (16:9 numa moldura 16:9 arredondada ao píxel): enche, para não ficar uma
-            // risca de fundo à volta do vídeo. Só uma forma mesmo diferente fica inteira, com margem.
-            const scale = fit === "contain" && Math.abs(sx / sy - 1) > 0.02 ? Math.min(sx, sy) : Math.max(sx, sy);
-            const drawWidth = video.videoWidth * scale;
-            const drawHeight = video.videoHeight * scale;
-            context.drawImage(
-              video,
-              (pixelWidth - drawWidth) / 2,
-              (pixelHeight - drawHeight) / 2,
-              drawWidth,
-              drawHeight,
-            );
-          }
-          setPlaybackVisible(true);
-        }
+    if (!video) return;
+    let recovered = false;
+    const check = () => {
+      if (recovered || !video.isConnected || video.paused || video.ended) return;
+      if (video.currentTime < 3 || video.videoWidth > 0) return;
+      recovered = true;
+      console.warn("[video] som sem imagem: a recuperar");
+      if (hlsRef.current) {
+        hlsRef.current.recoverMediaError();
+        return;
       }
-      frame = window.requestAnimationFrame(paint);
+      const at = video.currentTime;
+      video.load();
+      const resume = () => {
+        video.currentTime = at;
+        if (autoPlayRef.current) void video.play().catch(() => undefined);
+      };
+      video.addEventListener("loadedmetadata", resume, { once: true });
     };
-    frame = window.requestAnimationFrame(paint);
-    return () => window.cancelAnimationFrame(frame);
-  }, [attempt, controls, fit]);
+    const timer = window.setInterval(check, 3000);
+    return () => window.clearInterval(timer);
+  }, [attempt, controls]);
 
 
   useEffect(() => {
@@ -396,6 +371,10 @@ export function VideoPlayer({
       hls.loadSource(playbackUrl);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        // Uma rendition só de áudio (alguns codificadores juntam-na) daria som sem imagem: fora, quando há vídeo.
+        if (hls.levels.some((l) => l.videoCodec)) {
+          for (let i = hls.levels.length - 1; i >= 0; i -= 1) if (!hls.levels[i]?.videoCodec) hls.removeLevel(i);
+        }
         hls.autoLevelCapping = levelCap(hls.levels, saveDataRef.current ? 360 : 720);
         if (autoPlayRef.current && video.isConnected) void video.play().catch(() => undefined);
       });
@@ -523,7 +502,13 @@ export function VideoPlayer({
       preload={autoPlay ? "auto" : saveData ? "none" : "metadata"}
       disablePictureInPicture
       controlsList="nodownload noplaybackrate noremoteplayback"
-      className={controls ? cn(cls, "object-cover") : "nw-live-video pointer-events-none absolute inset-0 size-full object-cover opacity-0"}
+      // Na sala, o próprio elemento de vídeo é a imagem (desenhá-lo numa tela falhava em alguns aparelhos: som sem
+      // imagem). Os controlos nativos ficam escondidos por CSS (.nw-live-video) e o escudo de toque é de quem o monta.
+      className={
+        controls
+          ? cn(cls, "object-cover")
+          : cn("nw-live-video pointer-events-none absolute inset-0 size-full", fit === "contain" ? "object-contain" : "object-cover", !playbackVisible && "opacity-0")
+      }
       onLoadedMetadata={(e) => {
         const video = e.currentTarget;
         if (autoPlay || !saveData) jumpToStart(video);
@@ -566,8 +551,10 @@ export function VideoPlayer({
         onTime(Math.floor(e.currentTarget.currentTime));
       }}
       onPlaying={() => {
+        setPlaybackVisible(true);
         onPlaying?.();
       }}
+      onLoadedData={() => setPlaybackVisible(true)}
       onEnded={() => onEnded?.()}
     />
   );
@@ -578,14 +565,9 @@ export function VideoPlayer({
   // toque), a capa do vídeo da plataforma fica no lugar, em vez de preto.
   const poster = playbackVisible ? null : posterFromUrl(url);
   return (
-    <div className={cn(cls, "relative overflow-hidden", theme === "light" ? "bg-room-surface" : "bg-black")}>
+    <div className={cn(cls, "relative overflow-hidden", fit === "contain" || theme !== "light" ? "bg-black" : "bg-room-surface")}>
       {poster ? <img src={poster} alt="" aria-hidden className={cn("absolute inset-0 size-full", fit === "contain" ? "object-contain" : "object-cover")} /> : null}
       {videoElement}
-      <canvas
-        ref={canvasRef}
-        aria-hidden="true"
-        className={cn("absolute inset-0 size-full", !playbackVisible && "opacity-0")}
-      />
     </div>
   );
 }
