@@ -19,3 +19,12 @@ As palavras do produto (fluxo, automação, passo, disparo, momento, origem, seg
 - Um contato está numa única sequência por trilha.
 - Os ids do `mapa-de-automacao.json` são a referência do funil. O motor e o produto têm os seus próprios nomes; a ligação entre uns e outros está em `correspondencia-motor.md`. Ao criar ou renomear um gatilho, um facto ou uma automação pronta, actualize essa tabela.
 - Toda a automação vive dentro de um fluxo, e edita-se no desenho do fluxo. Não criar outro ecrã de edição nem automações soltas.
+
+## Ambiente de trabalho
+
+- Correr localmente: `npx vite dev --host 127.0.0.1 --port 8080`.
+- Base de dados: Supabase, projecto `nazhbxrhoailjwillzju`. Site: Vercel (deploy automático a cada push). Código: GitHub `suportekambafy-lab/novawebinar`, ramo `main`.
+- As chaves estão no ficheiro `.env`, que nunca se mostra, nem se copia para mensagens, nem vai para o GitHub.
+- Antes de dar um trabalho por concluído: `npx tsc --noEmit -p .` e `npx vitest run` (e `npm run build` em mudanças grandes).
+- No fim de cada trabalho, commit e push para `main`.
+- Migrações de base de dados ficam em `drizzle/migrations/`, numeradas a seguir à última; só com `IF NOT EXISTS`, sem `DROP`, e aplicadas com autorização do utilizador.
