@@ -149,6 +149,62 @@ export function presenceChannelName(organizationId: string) {
 }
 
 /**
+ * A identidade desta pessoa no canal, guardada no separador: um recarregamento (o Safari no telemóvel
+ * fá-lo por falta de memória) mantém a mesma chave e a mesma hora de entrada, em vez de aparecer na
+ * Vista ao vivo como uma entrada nova. Sem armazenamento, vale só esta abertura.
+ */
+export function presenceIdentity(webinarId: string, nowIso = new Date().toISOString()) {
+  const storageKey = `novawebinar:presence:${webinarId}`;
+  try {
+    const stored = window.sessionStorage.getItem(storageKey);
+    if (stored) {
+      const parsed = JSON.parse(stored) as { key?: unknown; joinedAt?: unknown };
+      if (typeof parsed.key === "string" && parsed.key.startsWith(`${webinarId}:`) && typeof parsed.joinedAt === "string") {
+        return { key: parsed.key, joinedAt: parsed.joinedAt };
+      }
+    }
+  } catch {
+    /* sem armazenamento */
+  }
+  const identity = { key: `${webinarId}:${Math.random().toString(36).slice(2)}`, joinedAt: nowIso };
+  try {
+    window.sessionStorage.setItem(storageKey, JSON.stringify(identity));
+  } catch {
+    /* sem armazenamento */
+  }
+  return identity;
+}
+
+/** Quanto tempo a Vista ao vivo segura uma pessoa depois de a ligação dela cair. */
+export const PRESENCE_GRACE_MS = 30_000;
+
+/**
+ * A lista a mostrar: quem está mesmo no canal mais quem saiu há menos de `graceMs` (o telemóvel
+ * perde a ligação ao bloquear o ecrã ou ao mudar de app e volta segundos depois; sem isto a pessoa
+ * «entrava e saía» a cada queda). `lingering` é o que ficou da leitura anterior; devolve o novo.
+ */
+export function withLingering(
+  current: LiveViewer[],
+  previous: LiveViewer[],
+  lingering: Map<string, { viewer: LiveViewer; until: number }>,
+  nowMs: number,
+  graceMs = PRESENCE_GRACE_MS,
+) {
+  const present = new Set(current.map((v) => v.key));
+  const next = new Map<string, { viewer: LiveViewer; until: number }>();
+  for (const [key, entry] of lingering) {
+    if (!present.has(key) && entry.until > nowMs) next.set(key, entry);
+  }
+  // Só quem estava mesmo no canal começa a esperar; quem já esperava e expirou sai de vez.
+  for (const viewer of previous) {
+    if (!present.has(viewer.key) && !lingering.has(viewer.key)) {
+      next.set(viewer.key, { viewer, until: nowMs + graceMs });
+    }
+  }
+  return { viewers: [...current, ...[...next.values()].map((entry) => entry.viewer)], lingering: next };
+}
+
+/**
  * O canal de presença é público: qualquer pessoa com o id da conta o pode ouvir. Por isso
  * vai só o primeiro nome e a inicial («Ana C.») e o sítio arredondado ao da cidade (~11 km).
  * ponytail: mitigação; o canal privado precisa de políticas em realtime.messages e de
@@ -198,8 +254,9 @@ export function useLivePresence({
     void (async () => {
       const place = await lookupPlace();
       if (!active) return;
+      const identity = presenceIdentity(webinarId);
       channel = supabase.channel(presenceChannelName(organizationId), {
-        config: { presence: { key: `${webinarId}:${Math.random().toString(36).slice(2)}` } },
+        config: { presence: { key: identity.key } },
       });
       const payload = {
         webinarId,
@@ -207,7 +264,7 @@ export function useLivePresence({
         name: publicName(name),
         mode,
         device: detectDevice(),
-        joinedAt: new Date().toISOString(),
+        joinedAt: identity.joinedAt,
         ...publicPlace(place),
       };
       channel.subscribe((status) => {
@@ -240,12 +297,15 @@ export function useLivePresence({
 /** Lista, em tempo real, quem está agora dentro das salas do workspace. */
 export function useLiveViewers(organizationId: string | null | undefined) {
   const [viewers, setViewers] = useState<LiveViewer[]>([]);
+  const shownRef = useRef<LiveViewer[]>([]);
+  const lingeringRef = useRef(new Map<string, { viewer: LiveViewer; until: number }>());
 
   useEffect(() => {
     if (!organizationId) return;
     const channel = supabase.channel(presenceChannelName(organizationId), {
       config: { presence: { key: `painel:${Math.random().toString(36).slice(2)}` } },
     });
+    let expiry: number | null = null;
 
     const read = () => {
       const state = channel.presenceState<Record<string, unknown>>();
@@ -271,7 +331,16 @@ export function useLiveViewers(organizationId: string | null | undefined) {
           joinedAt: (entry["joinedAt"] as string) ?? new Date().toISOString(),
         });
       }
-      setViewers(rows);
+      // Quem acabou de cair fica mais uns segundos; volta a ler-se quando o primeiro expirar.
+      const now = Date.now();
+      const merged = withLingering(rows, shownRef.current, lingeringRef.current, now);
+      shownRef.current = merged.viewers;
+      lingeringRef.current = merged.lingering;
+      setViewers(merged.viewers);
+      if (expiry !== null) window.clearTimeout(expiry);
+      expiry = null;
+      const soonest = Math.min(...[...merged.lingering.values()].map((entry) => entry.until));
+      if (Number.isFinite(soonest)) expiry = window.setTimeout(read, Math.max(250, soonest - now + 50));
     };
 
     channel
@@ -283,6 +352,9 @@ export function useLiveViewers(organizationId: string | null | undefined) {
       });
 
     return () => {
+      if (expiry !== null) window.clearTimeout(expiry);
+      shownRef.current = [];
+      lingeringRef.current = new Map();
       void supabase.removeChannel(channel);
     };
   }, [organizationId]);
