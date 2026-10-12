@@ -90,13 +90,18 @@ export function InternalWebinarRoom({
     timezone,
   };
   const countdown = roomCountdown(live.countdown, w);
-  const preliveSeconds = mode === "live" ? countdown.seconds + countdown.afterSeconds : 0;
+  // Ao vivo, as duas contagens seguidas a partir da abertura; no replay (sem hora), só a de depois de
+  // começar, que a sala corre à entrada.
+  const preliveSeconds =
+    mode === "live" ? countdown.seconds + countdown.afterSeconds : countdown.afterSeconds;
 
   return (
     <WebinarRoom
       mode={mode}
       startsAt={
-        preliveSeconds > 0 ? new Date(previewOpenedAt + preliveSeconds * 1000).toISOString() : null
+        mode === "live" && preliveSeconds > 0
+          ? new Date(previewOpenedAt + preliveSeconds * 1000).toISOString()
+          : null
       }
       syncWithStart={false}
       preliveSeconds={preliveSeconds}
@@ -105,7 +110,7 @@ export function InternalWebinarRoom({
       preliveTemplate={countdown.style}
       preliveAppearance={w.prelive_appearance}
       preliveColor={countdown.color}
-      preliveAfterSeconds={mode === "live" ? countdown.afterSeconds : 0}
+      preliveAfterSeconds={countdown.afterSeconds}
       theme={theme}
       appearance={appearance}
       onAppearance={choose}

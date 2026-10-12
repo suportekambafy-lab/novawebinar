@@ -238,8 +238,8 @@ export function WebinarRoom({
   testControls = false,
 }: {
   /**
-   * Sala de teste: a barra do vídeo (play/pausa, avançar e recuar), como no YouTube, e, sem `startsAt`,
-   * a contagem de `preliveSeconds` a correr desde a entrada (com um botão para a saltar). Nunca na sala pública.
+   * Sala de teste: a barra do vídeo (play/pausa, avançar e recuar), como no YouTube, e o botão para
+   * saltar a contagem à entrada. Nunca na sala pública.
    */
   testControls?: boolean | undefined;
   webinar: RoomWebinar;
@@ -299,7 +299,10 @@ export function WebinarRoom({
   resumeSeconds?: number | null;
   /** Ponto mais avançado já visto por esta pessoa: evita repetir eventos ao recuar. */
   resumePeakSeconds?: number | null;
-  /** Contagem animada antes do arranque, em segundos. Zero desliga. */
+  /**
+   * Contagem animada antes do arranque, em segundos. Zero desliga. Sem `startsAt` (replay, sem horário,
+   * sala de teste), corre desde a entrada quando o vídeo começa do início.
+   */
   preliveSeconds?: number;
   /** Som de fundo durante a contagem de arranque. */
   preliveSound?: boolean;
@@ -469,15 +472,18 @@ export function WebinarRoom({
     const value = new Date(startsAt).getTime();
     return Number.isNaN(value) ? null : value;
   }, [startsAt]);
-  // Sala de teste (sem hora marcada): entrar é chegar à hora. A contagem «depois de começar» corre a
-  // partir daí, com o relógio e o aspecto da sala a sério, e o vídeo arranca no fim (ou ao saltá-la).
-  // Terminada, a sala volta a não ter hora: o vídeo começa do início e tudo segue o relógio dele.
-  const [testStartMs] = useState(() =>
-    testControls && !startsAt && preliveSeconds > 0 ? Date.now() + preliveSeconds * 1000 : null,
+  // Sem hora de arranque (replay, webinar sem horário, sala de teste): entrar é chegar à hora. A
+  // contagem «depois de começar» corre a partir daí, com o relógio e o aspecto da sala a sério, e o
+  // vídeo arranca no fim, do início. Quem retoma o replay a meio não a vê outra vez. Terminada, a
+  // sala volta a não ter hora e tudo segue o relógio do vídeo. Na sala de teste há um botão para a saltar.
+  const [entryStartMs] = useState(() =>
+    !startsAt && preliveSeconds > 0 && (resumeSeconds ?? 0) <= 0
+      ? Date.now() + preliveSeconds * 1000
+      : null,
   );
-  const [testSkipped, setTestSkipped] = useState(false);
-  const testCounting = testStartMs !== null && !testSkipped && now < testStartMs;
-  const startMs = testCounting ? testStartMs : scheduledStartMs;
+  const [entrySkipped, setEntrySkipped] = useState(false);
+  const entryCounting = entryStartMs !== null && !entrySkipped && now < entryStartMs;
+  const startMs = entryCounting ? entryStartMs : scheduledStartMs;
 
   useEffect(() => {
     // O relógio real também alimenta o contador da oferta. Tem de continuar
@@ -564,7 +570,8 @@ export function WebinarRoom({
     return () => meta.remove();
   }, []);
 
-  const scheduled = mode === "live" && startMs !== null;
+  // No replay a sala não tem hora; só a contagem à entrada a marca, até o vídeo arrancar.
+  const scheduled = (mode === "live" || entryCounting) && startMs !== null;
   const elapsed = startMs === null ? 0 : (now - startMs) / 1000;
   const waiting = scheduled && elapsed < 0;
   const untilStart = Math.max(0, Math.round(-elapsed));
@@ -1510,10 +1517,10 @@ export function WebinarRoom({
               background={preliveBackground}
               after={preliveAfterSeconds}
             />
-            {testCounting ? (
+            {testControls && entryCounting ? (
               <button
                 type="button"
-                onClick={() => setTestSkipped(true)}
+                onClick={() => setEntrySkipped(true)}
                 className="absolute bottom-3 right-3 z-20 rounded-full bg-white/15 px-3 py-1.5 text-[12px] font-semibold text-white ring-1 ring-white/30 backdrop-blur transition hover:bg-white/25 active:scale-95"
               >
                 Saltar contagem

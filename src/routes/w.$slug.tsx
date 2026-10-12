@@ -893,15 +893,13 @@ export function PublicRoom({
   }
 
   // Sala de teste: entra sempre, a qualquer hora — sem sala de espera, sem
-  // contagem antes da hora e sem depender da hora marcada. Entrar é chegar à hora: se a
-  // contagem «depois de começar» estiver ligada, corre a partir daí e o vídeo espera por ela
-  // (a sala tem um botão para a saltar). O vídeo arranca sempre do início (nunca retoma onde
-  // ficou: quem viu até ao fim abria em «Transmissão terminou») e todo o conteúdo segue o
-  // relógio do vídeo, como num replay ao vivo.
+  // contagem antes da hora e sem depender da hora marcada. O vídeo arranca sempre
+  // do início (nunca retoma onde ficou: quem viu até ao fim abria em «Transmissão
+  // terminou») e todo o conteúdo segue o relógio do vídeo, como num replay ao vivo.
   // Quem regressa segue a sua sessão (`plan`); no replay depois da sessão, retoma onde ficou (neste aparelho,
   // ou até onde viu noutro).
   const roomStartsAt =
-    testMode || plan.kind === "replay"
+    testMode || effectiveMode === "replay"
       ? null
       : plan.kind === "session"
         ? new Date(plan.startMs + delayMs).toISOString()
@@ -909,8 +907,9 @@ export function PublicRoom({
           ? new Date(new Date(webinar.session_start).getTime() + delayMs).toISOString()
           : webinar.session_start;
   const syncWithStart = testMode || plan.kind === "replay" ? false : webinar.sync_video_with_start;
-  const effectivePreliveSeconds =
-    plan.kind === "replay" ? 0 : testMode ? countdown.afterSeconds : preliveSeconds;
+  // Sem hora de arranque (replay, sala de teste, webinar sem horário), entrar é chegar à hora: a contagem
+  // «depois de começar» corre a partir daí e o vídeo espera por ela (a sala de teste tem um botão para a saltar).
+  const effectivePreliveSeconds = roomStartsAt === null ? countdown.afterSeconds : preliveSeconds;
   const resumeAt = testMode
     ? null
     : plan.kind === "replay"
@@ -976,7 +975,7 @@ export function PublicRoom({
       preliveAppearance={webinar.prelive_appearance}
       preliveColor={countdown.color}
       preliveBackground={{ image: countdown.background.image, video: webinar.countdown_video }}
-      preliveAfterSeconds={plan.kind === "replay" ? 0 : countdown.afterSeconds}
+      preliveAfterSeconds={countdown.afterSeconds}
       onSend={asTeam ? teamChat.send : onSend}
       supportMessages={asTeam ? [] : (privateThread?.messages ?? [])}
       onProgress={asTeam ? undefined : onProgress}
