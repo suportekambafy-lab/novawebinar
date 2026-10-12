@@ -165,9 +165,13 @@ export const HELP = {
   },
   contagem: {
     title: "Contagem antes de começar",
-    what: "A sala abre uns minutos antes da hora, com o chat aberto e um relógio no lugar do vídeo.",
-    steps: ["Ligue «Mostrar a contagem».", "Escolha o estilo e a cor.", "Escolha quantos minutos antes a sala abre."],
-    example: "Aula às 20:00 com 5 minutos: às 19:55 as pessoas entram, falam no chat e vêem o relógio a descer.",
+    what: "A sala abre uns minutos antes da hora, com o chat aberto e um relógio no lugar do vídeo. Pode também esperar uns minutos depois da hora, para quem se atrasa.",
+    steps: [
+      "Ligue «Mostrar a contagem» e escolha quantos minutos antes a sala abre.",
+      "Em «Depois da hora, o vídeo ainda espera», escolha quantos minutos o relógio continua depois da hora.",
+      "Escolha o estilo, a cor e, se quiser, uma imagem ou um vídeo de fundo.",
+    ],
+    example: "Aula às 20:00 com 5 minutos antes e 3 depois: às 19:55 as pessoas entram e vêem o relógio; quem chega às 20:00 ainda o vê; o vídeo começa às 20:03.",
     tip: "Antes de a sala abrir, a sala de espera mostra o mesmo relógio, com o mesmo estilo e cor.",
   },
   temporizador: {

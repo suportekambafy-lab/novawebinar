@@ -393,6 +393,7 @@ describe("contagem antes de começar", () => {
       color: "#16A34A",
       sound: false,
       background: { image: null, video: null },
+      after: 0,
     });
     expect(
       liveSettings({ live: { countdown: { on: "sim", minutes: 999, style: "glass", color: "x" } } })
@@ -404,7 +405,17 @@ describe("contagem antes de começar", () => {
       color: "#E8440C",
       sound: true,
       background: { image: null, video: null },
+      after: 0,
     });
+    expect(
+      liveSettings({ live: { countdown: { on: false, minutes: 5, after: 3 } } }).countdown?.after,
+    ).toBe(3);
+    expect(
+      liveSettings({ live: { countdown: { on: false, minutes: 5, after: 99 } } }).countdown?.after,
+    ).toBe(30);
+    expect(
+      liveSettings({ live: { countdown: { on: false, minutes: 5, after: "x" } } }).countdown?.after,
+    ).toBe(0);
     const id = "2f3b8f3e-1c2d-4e5f-8a9b-0c1d2e3f4a5b";
     expect(
       liveSettings({
@@ -446,11 +457,20 @@ describe("contagem antes de começar", () => {
     const none = { image: null, video: null };
     expect(
       roomCountdown(
-        { on: true, minutes: 3, style: "urgency", color: "#2563EB", sound: true, background: none },
+        {
+          on: true,
+          minutes: 3,
+          style: "urgency",
+          color: "#2563EB",
+          sound: true,
+          background: none,
+          after: 2,
+        },
         legacy,
       ),
     ).toEqual({
       seconds: 180,
+      afterSeconds: 120,
       style: "urgency",
       color: "#2563EB",
       sound: true,
@@ -465,6 +485,7 @@ describe("contagem antes de começar", () => {
           color: "#2563EB",
           sound: true,
           background: none,
+          after: 2,
         },
         legacy,
       ).seconds,
@@ -491,7 +512,23 @@ describe("contagem antes de começar", () => {
       color: "#E8440C",
       sound: false,
       background: { image: null, video: null },
+      after: 0,
     });
+    // Sem contagem antes da hora mas com espera depois dela: o relógio só corre depois da hora.
+    const late = roomCountdown(
+      {
+        on: false,
+        minutes: 3,
+        style: "urgency",
+        color: "#2563EB",
+        sound: true,
+        background: { image: null, video: null },
+        after: 2,
+      },
+      legacy,
+    );
+    expect(late.seconds).toBe(0);
+    expect(late.afterSeconds).toBe(120);
     expect(liveSettings({ live: { desk: "vertical" } }, legacy).countdown?.on).toBe(true);
     // A escolha nova ganha às colunas antigas; desligada, as antigas não contam.
     expect(

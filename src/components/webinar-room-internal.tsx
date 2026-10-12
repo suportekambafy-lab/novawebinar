@@ -9,7 +9,13 @@ import {
   useWorkspace,
 } from "@/lib/data";
 import { useSimulatedPurchases, useSocialProof } from "@/components/social-proof-editor";
-import { liveSettings, offerDeadlinePassed, parseExtraOffers, roomCountdown, roomFormat } from "@/lib/room-logic";
+import {
+  liveSettings,
+  offerDeadlinePassed,
+  parseExtraOffers,
+  roomCountdown,
+  roomFormat,
+} from "@/lib/room-logic";
 import { preliveTitle } from "@/lib/prelive-templates";
 import { programmedAppearance, useRoomAppearance } from "@/lib/room-theme";
 
@@ -45,12 +51,14 @@ export function InternalWebinarRoom({
   }, [notified]);
 
   // O tema programado no editor (Automático segue o aparelho); o ⚙ experimenta sem guardar.
-  const { appearance, theme, choose } = useRoomAppearance(webinar ? programmedAppearance(webinar) : "dark", null);
+  const { appearance, theme, choose } = useRoomAppearance(
+    webinar ? programmedAppearance(webinar) : "dark",
+    null,
+  );
   // Guardamos o tema para o esqueleto seguir o aspeto da sala.
   useEffect(() => {
     if (webinar) cacheRoomTheme(webinarId, theme);
   }, [webinar, theme, webinarId]);
-
 
   if (isLoading) return <RoomSkeleton theme={getCachedRoomTheme(webinarId)} />;
 
@@ -82,15 +90,13 @@ export function InternalWebinarRoom({
     timezone,
   };
   const countdown = roomCountdown(live.countdown, w);
-  const preliveSeconds = mode === "live" ? countdown.seconds : 0;
+  const preliveSeconds = mode === "live" ? countdown.seconds + countdown.afterSeconds : 0;
 
   return (
     <WebinarRoom
       mode={mode}
       startsAt={
-        preliveSeconds > 0
-          ? new Date(previewOpenedAt + preliveSeconds * 1000).toISOString()
-          : null
+        preliveSeconds > 0 ? new Date(previewOpenedAt + preliveSeconds * 1000).toISOString() : null
       }
       syncWithStart={false}
       preliveSeconds={preliveSeconds}
@@ -116,17 +122,12 @@ export function InternalWebinarRoom({
         id: webinar.id,
         public_title: webinar.public_title,
         description: webinar.description,
-        host_name:
-          (webinar as { host_name?: string | null }).host_name ?? "",
+        host_name: (webinar as { host_name?: string | null }).host_name ?? "",
         host_role: (webinar as { host_role?: string | null }).host_role ?? "",
-        host_avatar_url:
-          (webinar as { host_avatar_url?: string | null }).host_avatar_url ?? "",
-        chat_pin_title:
-          (webinar as { chat_pin_title?: string | null }).chat_pin_title ?? "",
-        chat_pin_message:
-          (webinar as { chat_pin_message?: string | null }).chat_pin_message ?? "",
-        offer_pin_title:
-          (webinar as { offer_pin_title?: string | null }).offer_pin_title ?? "",
+        host_avatar_url: (webinar as { host_avatar_url?: string | null }).host_avatar_url ?? "",
+        chat_pin_title: (webinar as { chat_pin_title?: string | null }).chat_pin_title ?? "",
+        chat_pin_message: (webinar as { chat_pin_message?: string | null }).chat_pin_message ?? "",
+        offer_pin_title: (webinar as { offer_pin_title?: string | null }).offer_pin_title ?? "",
         offer_pin_message:
           (webinar as { offer_pin_message?: string | null }).offer_pin_message ?? "",
         cta_text: webinar.cta_text,

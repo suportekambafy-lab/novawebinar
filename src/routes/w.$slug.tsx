@@ -7,7 +7,11 @@ import { detectDevice, lookupPlace, type GeoPlace } from "@/lib/live-presence";
 import { leadSource } from "@/lib/contacts";
 import { loadPixels, trackPixels } from "@/lib/pixels";
 import { retry } from "@/lib/utils";
-import { DEFAULT_PHONE_COUNTRY, phoneCountryForIso, type PhoneCountry } from "@/lib/phone-countries";
+import {
+  DEFAULT_PHONE_COUNTRY,
+  phoneCountryForIso,
+  type PhoneCountry,
+} from "@/lib/phone-countries";
 import { WebinarRoom, type RoomProgressOptions } from "@/components/webinar-room";
 import { ROOM_VIEWPORT } from "@/lib/room-viewport";
 import { RoomSkeleton, getCachedRoomTheme, cacheRoomTheme } from "@/components/room-skeleton";
@@ -40,14 +44,18 @@ import {
 /** A origem (UTM) do endereço, para a atribuição de um teste A/B. */
 function roomUtm(search: Record<string, unknown>) {
   const pick = (key: "utm_source" | "utm_medium" | "utm_campaign" | "utm_content") =>
-    typeof search[key] === "string" && search[key] ? { [key]: String(search[key]).slice(0, 120) } : {};
+    typeof search[key] === "string" && search[key]
+      ? { [key]: String(search[key]).slice(0, 120) }
+      : {};
   return {
     ...pick("utm_source"),
     ...pick("utm_medium"),
     ...pick("utm_campaign"),
     ...pick("utm_content"),
     // Pré-visualização de uma variante de um teste A/B: só para o organizador ver as duas.
-    ...(typeof search["variante"] === "string" && search["variante"] ? { variante: String(search["variante"]).slice(0, 2) } : {}),
+    ...(typeof search["variante"] === "string" && search["variante"]
+      ? { variante: String(search["variante"]).slice(0, 2) }
+      : {}),
   };
 }
 
@@ -61,23 +69,35 @@ export const Route = createFileRoute("/w/$slug")({
     nome: typeof search["nome"] === "string" ? search["nome"].slice(0, 80) : undefined,
     email: typeof search["email"] === "string" ? search["email"].slice(0, 160) : undefined,
     // Link de equipa: «1» com sessão iniciada na organização, ou o código do link copiado na Vista ao vivo.
-    equipa: typeof search["equipa"] === "string" && search["equipa"] ? search["equipa"].slice(0, 200) : undefined,
+    equipa:
+      typeof search["equipa"] === "string" && search["equipa"]
+        ? search["equipa"].slice(0, 200)
+        : undefined,
     // Pré-visualização de uma variante de um teste A/B («A», «B»…).
-    variante: typeof search["variante"] === "string" && search["variante"] ? search["variante"].slice(0, 2) : undefined,
+    variante:
+      typeof search["variante"] === "string" && search["variante"]
+        ? search["variante"].slice(0, 2)
+        : undefined,
     // Origem do lead: fica no endereço até à inscrição.
-    ...Object.fromEntries(
+    ...(Object.fromEntries(
       ["utm_source", "utm_medium", "utm_campaign", "utm_content", "fbclid", "gclid"]
         .filter((key) => typeof search[key] === "string" && search[key])
         .map((key) => [key, String(search[key]).slice(0, 200)]),
     ) as Partial<
-      Record<"utm_source" | "utm_medium" | "utm_campaign" | "utm_content" | "fbclid" | "gclid", string>
-    >,
+      Record<
+        "utm_source" | "utm_medium" | "utm_campaign" | "utm_content" | "fbclid" | "gclid",
+        string
+      >
+    >),
   }),
   loader: ({ context, params, location }) =>
     context.queryClient
       .ensureQueryData({
         queryKey: ["public-room", params.slug],
-        queryFn: () => getPublicRoom({ data: { slug: params.slug, ...roomUtm(location.search as Record<string, unknown>) } }),
+        queryFn: () =>
+          getPublicRoom({
+            data: { slug: params.slug, ...roomUtm(location.search as Record<string, unknown>) },
+          }),
       })
       // Falha passageira: a página abre na mesma e a sala volta a tentar sozinha.
       .catch(() => undefined),
@@ -229,15 +249,18 @@ export function PublicRoom({
     [source],
   );
 
-  const { data: loaded, isLoading, isError } = useQuery({
+  const {
+    data: loaded,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["public-room", slug],
     queryFn: () => fetchRoom({ data: { slug, ...roomUtm(source) } }),
     // Enquanto ninguém entrou na sala, revemos a sessão de minuto a minuto:
     // assim que a sessão do dia termina, a sala de espera volta a abrir
     // com a contagem para a próxima sessão. Uma leitura falhada nunca tira a
     // sala a quem a tem aberta: fica a que já estava e tenta-se outra vez.
-    refetchInterval: (query) =>
-      query.state.status === "error" ? 5000 : viewer ? false : 60_000,
+    refetchInterval: (query) => (query.state.status === "error" ? 5000 : viewer ? false : 60_000),
     // A sala veio no HTML (loader): não se volta a pedir logo a seguir a abrir a página.
     staleTime: 60_000,
   });
@@ -245,13 +268,18 @@ export function PublicRoom({
   // guardar), ao vivo. A sala pública nunca lê o rascunho.
   const draft = useRoomDraft(testMode ? loaded?.webinar.id : null);
   const data = useMemo(
-    () => (loaded && draft ? { ...loaded, webinar: applyRoomDraft(loaded.webinar, draft) } : loaded),
+    () =>
+      loaded && draft ? { ...loaded, webinar: applyRoomDraft(loaded.webinar, draft) } : loaded,
     [loaded, draft],
   );
 
   // Aparência: a programada no editor, ou a que a pessoa escolheu no ⚙ do vídeo (uma por sala, neste
   // browser). Na sala de teste experimenta-se sem guardar, para nunca mudar a sala a sério.
-  const { appearance, theme, choose: chooseAppearance } = useRoomAppearance(
+  const {
+    appearance,
+    theme,
+    choose: chooseAppearance,
+  } = useRoomAppearance(
     data ? programmedAppearance(data.webinar) : "dark",
     testMode ? null : `cw:room-appearance:${slug}`,
   );
@@ -259,7 +287,9 @@ export function PublicRoom({
   // A equipa: confirma o link (ou a sessão iniciada na organização) e guarda o nome escolhido neste browser.
   const getTeamToken = useServerFn(getTeamRoomToken);
   const checkTeamToken = useServerFn(checkTeamRoomToken);
-  const [teamToken, setTeamToken] = useState<string | "checking" | "denied" | null>(equipa ? "checking" : null);
+  const [teamToken, setTeamToken] = useState<string | "checking" | "denied" | null>(
+    equipa ? "checking" : null,
+  );
   const [member, setMember] = useState<{ name: string; role: TeamRole } | null>(null);
   const memberKey = `cw:equipa:${slug}`;
   const teamWebinarId = data?.webinar.id;
@@ -269,7 +299,9 @@ export function PublicRoom({
     const ask =
       equipa === "1"
         ? getTeamToken({ data: { webinarId: teamWebinarId } }).then((r) => r.token)
-        : checkTeamToken({ data: { webinarId: teamWebinarId, token: equipa } }).then((r) => (r.ok ? equipa : "denied"));
+        : checkTeamToken({ data: { webinarId: teamWebinarId, token: equipa } }).then((r) =>
+            r.ok ? equipa : "denied",
+          );
     ask.then(
       (token) => active && setTeamToken(token),
       () => active && setTeamToken("denied"),
@@ -281,13 +313,25 @@ export function PublicRoom({
   const savedMember = (() => {
     if (typeof window === "undefined") return null;
     try {
-      const raw = JSON.parse(window.localStorage.getItem(memberKey) ?? "null") as { name?: unknown; role?: unknown } | null;
-      return typeof raw?.name === "string" ? { name: raw.name, role: raw.role === "apresentador" ? ("apresentador" as const) : ("equipa" as const) } : null;
+      const raw = JSON.parse(window.localStorage.getItem(memberKey) ?? "null") as {
+        name?: unknown;
+        role?: unknown;
+      } | null;
+      return typeof raw?.name === "string"
+        ? {
+            name: raw.name,
+            role: raw.role === "apresentador" ? ("apresentador" as const) : ("equipa" as const),
+          }
+        : null;
     } catch {
       return null;
     }
   })();
-  const teamReady = typeof teamToken === "string" && teamToken !== "checking" && teamToken !== "denied" && member !== null;
+  const teamReady =
+    typeof teamToken === "string" &&
+    teamToken !== "checking" &&
+    teamToken !== "denied" &&
+    member !== null;
   // Os comentários da equipa chegam a todos os que estão na sala, pelo canal da sala (só ao vivo).
   const teamChat = useRoomTeam(
     roomMode === "live" && teamWebinarId && (viewer || teamReady) ? teamWebinarId : null,
@@ -378,7 +422,11 @@ export function PublicRoom({
   // a seguir a escrever (quando a resposta é esperada), de 5 em 5. Antes eram 12 pedidos por minuto a
   // cada pessoa na sala, mesmo sem conversa.
   const lastSentRef = useRef(0);
-  const { data: privateThread, refetch: refetchThread, error: threadError } = useQuery({
+  const {
+    data: privateThread,
+    refetch: refetchThread,
+    error: threadError,
+  } = useQuery({
     queryKey: ["public-room-messages", viewer?.token],
     enabled: Boolean(viewer?.token),
     refetchInterval: () => (Date.now() - lastSentRef.current < 120_000 ? 5000 : 30_000),
@@ -446,7 +494,9 @@ export function PublicRoom({
         ...(person.phone ? { phone: person.phone } : {}),
         videoSecond: Math.max(0, Math.round(positionRef.current)),
       };
-      void retry(() => joinGroup({ data })).catch((error: unknown) => console.error("[oferta] grupo não registado", error));
+      void retry(() => joinGroup({ data })).catch((error: unknown) =>
+        console.error("[oferta] grupo não registado", error),
+      );
     },
     [joinGroup, viewer],
   );
@@ -518,8 +568,14 @@ export function PublicRoom({
       const hearts = Math.min(pendingHeartsRef.current, 500);
       if (hearts > 0) {
         pendingHeartsRef.current -= hearts;
-        const heartsData = { token: viewer.token, count: hearts, videoSecond: Math.max(0, Math.round(seconds)) };
-        void saveHearts(options?.final ? { data: heartsData, fetch: keepalive } : { data: heartsData }).catch(() => {
+        const heartsData = {
+          token: viewer.token,
+          count: hearts,
+          videoSecond: Math.max(0, Math.round(seconds)),
+        };
+        void saveHearts(
+          options?.final ? { data: heartsData, fetch: keepalive } : { data: heartsData },
+        ).catch(() => {
           pendingHeartsRef.current += hearts;
         });
       }
@@ -564,14 +620,26 @@ export function PublicRoom({
     collectPhone: webinar.registration_collect_phone,
     requirePhone: webinar.registration_require_phone,
   });
-  const offerClosedByDeadline = offerDeadlinePassed(webinar.offer_deadline, webinar.timezone, Date.now());
+  const offerClosedByDeadline = offerDeadlinePassed(
+    webinar.offer_deadline,
+    webinar.timezone,
+    Date.now(),
+  );
 
-  const startMs = plan.kind === "session" ? plan.startMs : webinar.session_start ? new Date(webinar.session_start).getTime() : null;
+  const startMs =
+    plan.kind === "session"
+      ? plan.startMs
+      : webinar.session_start
+        ? new Date(webinar.session_start).getTime()
+        : null;
   // Com o temporizador de arranque ligado, a sala abre antes da hora: as pessoas
   // entram, o chat funciona e o lugar do vídeo mostra a contagem animada.
   const countdown = roomCountdown(webinar.live.countdown, webinar);
-  const preliveSeconds = countdown.seconds;
-  const roomOpensMs = startMs === null ? null : startMs - preliveSeconds * 1000;
+  // A contagem corre desde que a sala abre (antes da hora) até ao arranque do vídeo, que pode ficar uns
+  // minutos depois da hora marcada: quem chega à hora ainda vê o relógio, e quem se atrasa apanha o início.
+  const delayMs = countdown.afterSeconds * 1000;
+  const preliveSeconds = countdown.seconds + countdown.afterSeconds;
+  const roomOpensMs = startMs === null ? null : startMs - countdown.seconds * 1000;
   const inWaitingRoom =
     roomMode === "live" &&
     !testMode &&
@@ -596,7 +664,13 @@ export function PublicRoom({
 
   // A equipa entra sempre (antes da hora, em rascunho, depois do fim): não passa pelo formulário nem conta.
   if (equipa && (teamToken === "checking" || teamToken === "denied" || teamToken === null))
-    return <TeamNotice theme={theme} state={teamToken === "denied" ? "denied" : "checking"} loginHref={equipa === "1" ? "/auth/login" : undefined} />;
+    return (
+      <TeamNotice
+        theme={theme}
+        state={teamToken === "denied" ? "denied" : "checking"}
+        loginHref={equipa === "1" ? "/auth/login" : undefined}
+      />
+    );
   if (equipa && !member)
     return (
       <TeamEntry
@@ -658,13 +732,17 @@ export function PublicRoom({
   // A sessão desta pessoa já acabou e ela já comprou: tem acesso, não volta a ver a venda.
   if (plan.kind === "bought")
     return (
-      <main className={`room-ambient flex min-h-dvh items-center justify-center px-6 text-center ${themeClass}`}>
+      <main
+        className={`room-ambient flex min-h-dvh items-center justify-center px-6 text-center ${themeClass}`}
+      >
         <div className="max-w-sm space-y-3">
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-room-subtle">Compra confirmada</p>
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-room-subtle">
+            Compra confirmada
+          </p>
           <h1 className="text-2xl font-black text-room-text">Já tem acesso</h1>
           <p className="text-sm leading-relaxed text-room-subtle">
-            A sua compra de «{webinar.public_title}» está confirmada. Use o acesso que recebeu depois do pagamento; se não o
-            encontrar, procure no e-mail que usou na compra.
+            A sua compra de «{webinar.public_title}» está confirmada. Use o acesso que recebeu
+            depois do pagamento; se não o encontrar, procure no e-mail que usou na compra.
           </p>
         </div>
       </main>
@@ -674,12 +752,17 @@ export function PublicRoom({
   // próxima» como se fosse nova; o mesmo «ao vivo» não volta a passar-lhe).
   if (plan.kind === "ended")
     return (
-      <main className={`room-ambient flex min-h-dvh items-center justify-center px-6 text-center ${themeClass}`}>
+      <main
+        className={`room-ambient flex min-h-dvh items-center justify-center px-6 text-center ${themeClass}`}
+      >
         <div className="max-w-md space-y-4">
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-room-subtle">Transmissão terminou</p>
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-room-subtle">
+            Transmissão terminou
+          </p>
           <h1 className="text-2xl font-black text-room-text sm:text-3xl">{webinar.public_title}</h1>
           <p className="text-sm leading-relaxed text-room-subtle">
-            A sua sessão ({formatSessionStart(plan.startMs, webinar.timezone)}) já terminou e esta aula não fica gravada.
+            A sua sessão ({formatSessionStart(plan.startMs, webinar.timezone)}) já terminou e esta
+            aula não fica gravada.
           </p>
         </div>
       </main>
@@ -691,10 +774,14 @@ export function PublicRoom({
   // O prazo da oferta fecha também o replay.
   if (effectiveMode === "replay" && offerClosedByDeadline && !testMode)
     return (
-      <main className={`room-ambient flex min-h-dvh items-center justify-center px-6 text-center ${themeClass}`}>
+      <main
+        className={`room-ambient flex min-h-dvh items-center justify-center px-6 text-center ${themeClass}`}
+      >
         <div className="max-w-sm space-y-3">
           <h1 className="text-xl font-black text-room-text">O replay terminou</h1>
-          <p className="text-sm text-room-subtle">Esta gravação esteve disponível até ao fim do prazo da oferta.</p>
+          <p className="text-sm text-room-subtle">
+            Esta gravação esteve disponível até ao fim do prazo da oferta.
+          </p>
         </div>
       </main>
     );
@@ -756,7 +843,11 @@ export function PublicRoom({
         setViewer(next);
       } catch (cause) {
         const message = cause instanceof Error && cause.message.length < 120 ? cause.message : "";
-        setError(message && !/indispon/i.test(message) ? message : "Não foi possível entrar agora. Tente novamente.");
+        setError(
+          message && !/indispon/i.test(message)
+            ? message
+            : "Não foi possível entrar agora. Tente novamente.",
+        );
       } finally {
         setEntering(false);
       }
@@ -776,7 +867,10 @@ export function PublicRoom({
         // O vídeo desfocado por trás do formulário é enfeite: só no computador. No telemóvel (dados móveis,
         // aparelhos fracos) fica o fundo liso: a aula inteira começava a descarregar antes de a pessoa se inscrever.
         video={
-          !saveData && typeof window !== "undefined" && window.matchMedia("(min-width: 1024px) and (pointer: fine)").matches && isDirectVideo(webinar.video_url, webinar.video_provider)
+          !saveData &&
+          typeof window !== "undefined" &&
+          window.matchMedia("(min-width: 1024px) and (pointer: fine)").matches &&
+          isDirectVideo(webinar.video_url, webinar.video_provider)
             ? { url: webinar.video_url!, startSeconds: elapsed }
             : null
         }
@@ -805,14 +899,25 @@ export function PublicRoom({
   // Quem regressa segue a sua sessão (`plan`); no replay depois da sessão, retoma onde ficou (neste aparelho,
   // ou até onde viu noutro).
   const roomStartsAt =
-    testMode || plan.kind === "replay" ? null : plan.kind === "session" ? new Date(plan.startMs).toISOString() : webinar.session_start;
+    testMode || plan.kind === "replay"
+      ? null
+      : plan.kind === "session"
+        ? new Date(plan.startMs + delayMs).toISOString()
+        : webinar.session_start
+          ? new Date(new Date(webinar.session_start).getTime() + delayMs).toISOString()
+          : webinar.session_start;
   const syncWithStart = testMode || plan.kind === "replay" ? false : webinar.sync_video_with_start;
   const effectivePreliveSeconds = testMode || plan.kind === "replay" ? 0 : preliveSeconds;
-  const resumeAt = testMode ? null : plan.kind === "replay" ? (resumeSeconds ?? plan.resumeSeconds) : resumeSeconds;
-  const resumePeak = testMode ? null : plan.kind === "replay" ? Math.max(resumePeakSeconds ?? 0, plan.resumeSeconds) : resumePeakSeconds;
-
-
-
+  const resumeAt = testMode
+    ? null
+    : plan.kind === "replay"
+      ? (resumeSeconds ?? plan.resumeSeconds)
+      : resumeSeconds;
+  const resumePeak = testMode
+    ? null
+    : plan.kind === "replay"
+      ? Math.max(resumePeakSeconds ?? 0, plan.resumeSeconds)
+      : resumePeakSeconds;
 
   return (
     <WebinarRoom
@@ -827,7 +932,13 @@ export function PublicRoom({
         utm: webinar.offer_utm,
         timezone: webinar.timezone,
       }}
-      sales={{ where: webinar.sales_where === "chat" || webinar.sales_where === "video" ? webinar.sales_where : "both", real: webinar.sales_show_real }}
+      sales={{
+        where:
+          webinar.sales_where === "chat" || webinar.sales_where === "video"
+            ? webinar.sales_where
+            : "both",
+        real: webinar.sales_show_real,
+      }}
       audienceFormat={audience.format}
       hostVerified={webinar.host_verified}
       format={webinar.room_format}

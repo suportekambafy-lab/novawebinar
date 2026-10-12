@@ -193,7 +193,9 @@ function PeekCountdown({
   fill?: boolean;
   video?: { url: string; provider?: string | null | undefined } | null | undefined;
 }) {
-  const total = (live.countdown?.minutes ?? 5) * 60;
+  const total =
+    ((live.countdown?.on ? (live.countdown?.minutes ?? 5) : 0) + (live.countdown?.after ?? 0)) *
+      60 || 300;
   const [left, setLeft] = useState(total - 8);
   useEffect(() => setLeft(total - 8), [total]);
   useEffect(() => {
@@ -569,7 +571,8 @@ function WebinarPreview(props: RoomPreviewProps) {
       : "";
   const { open, afterVideo, videoEnded, shown, tab, lastSale } = roomMoment(props);
   const live = props.liveSettings ?? LIVE_DEFAULTS;
-  const peek = useCountdownPeek() && Boolean(live.countdown?.on);
+  const peek =
+    useCountdownPeek() && Boolean(live.countdown?.on || (live.countdown?.after ?? 0) > 0);
   const social = useFollow(props, Boolean(open));
   // Deitado, como na sala: o chat numa coluna ao lado do vídeo; oculta-se no X e volta no botão (abre
   // também quando o editor mostra outro separador). Oculto, as mensagens, os corações e a oferta ficam
@@ -1023,7 +1026,8 @@ function LivePreview(props: RoomPreviewProps) {
       ? "outline outline-2 outline-offset-4 outline-[#E8440C] shadow-[0_0_0_10px_rgba(232,68,12,.25)]"
       : "";
   const { open, afterVideo, videoEnded, shown, lastSale } = roomMoment(props);
-  const peek = useCountdownPeek() && Boolean(live.countdown?.on);
+  const peek =
+    useCountdownPeek() && Boolean(live.countdown?.on || (live.countdown?.after ?? 0) > 0);
   const supportOpen = props.tab === "support";
   const { follow, onHost: openFollow, sheet: followSheet, host } = useFollow(props, Boolean(open));
   useEffect(() => {

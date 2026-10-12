@@ -36,6 +36,7 @@ import { peekCountdown, useCountdownPeek } from "./room-preview";
 import { cn } from "@/lib/utils";
 import {
   clock,
+  COUNTDOWN_AFTER_MINUTES,
   COUNTDOWN_MINUTES,
   COUNTDOWN_OFF,
   COUNTDOWN_STYLES,
@@ -100,7 +101,7 @@ export function RoomOptions({
   const setCountdown = (patch: Partial<RoomCountdown>, show = true) => {
     const next = { ...countdown, ...patch };
     onLive({ countdown: next });
-    peekCountdown(next.on && show);
+    peekCountdown((next.on || next.after > 0) && show);
   };
   useEffect(() => () => peekCountdown(false), []);
   // O temporizador: ao mexer, a pré-visualização vai para dentro dos minutos escolhidos, para se ver.
@@ -230,7 +231,38 @@ export function RoomOptions({
             onChange={(on) => setCountdown({ on })}
           />
         </div>
-        {countdown.on ? (
+        <div className="grid gap-1.5 rounded-xl border bg-white p-3">
+          <span className="text-[13px] font-medium">Depois da hora, o vídeo ainda espera</span>
+          <div
+            className="grid grid-cols-6 gap-1.5"
+            role="radiogroup"
+            aria-label="Minutos depois da hora"
+          >
+            {COUNTDOWN_AFTER_MINUTES.map((m) => (
+              <button
+                key={m}
+                type="button"
+                role="radio"
+                aria-checked={countdown.after === m}
+                onClick={() => setCountdown({ after: m }, m > 0)}
+                className={cn(
+                  "h-10 min-w-0 whitespace-nowrap rounded-lg px-1 text-[13.5px] font-semibold tabular-nums transition",
+                  countdown.after === m
+                    ? "bg-foreground text-background"
+                    : "bg-chip hover:bg-[var(--ds-gray-alpha-300)]",
+                )}
+              >
+                {m === 0 ? "Não" : `${m} min`}
+              </button>
+            ))}
+          </div>
+          <p className="text-[12.5px] leading-snug text-muted-foreground">
+            {countdown.after > 0
+              ? `Quem chega à hora marcada ainda vê a contagem ${countdown.after} min; o vídeo começa depois, para quem se atrasa.`
+              : "À hora marcada o vídeo começa logo."}
+          </p>
+        </div>
+        {countdown.on || countdown.after > 0 ? (
           <>
             <div
               className="grid grid-cols-2 gap-2.5"
@@ -279,32 +311,34 @@ export function RoomOptions({
               onChange={(color) => setCountdown({ color })}
               options={OFFER_COLOR_SUGGESTIONS}
             />
-            <div className="grid gap-1.5">
-              <span className="text-[13px] font-medium">A sala abre antes da hora</span>
-              <div
-                className="grid grid-cols-5 gap-1.5"
-                role="radiogroup"
-                aria-label="Minutos antes da hora"
-              >
-                {COUNTDOWN_MINUTES.map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    role="radio"
-                    aria-checked={countdown.minutes === m}
-                    onClick={() => setCountdown({ minutes: m })}
-                    className={cn(
-                      "h-10 min-w-0 whitespace-nowrap rounded-lg px-1 text-[13.5px] font-semibold tabular-nums transition",
-                      countdown.minutes === m
-                        ? "bg-foreground text-background"
-                        : "bg-chip hover:bg-[var(--ds-gray-alpha-300)]",
-                    )}
-                  >
-                    {m} min
-                  </button>
-                ))}
+            {countdown.on ? (
+              <div className="grid gap-1.5">
+                <span className="text-[13px] font-medium">A sala abre antes da hora</span>
+                <div
+                  className="grid grid-cols-5 gap-1.5"
+                  role="radiogroup"
+                  aria-label="Minutos antes da hora"
+                >
+                  {COUNTDOWN_MINUTES.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      role="radio"
+                      aria-checked={countdown.minutes === m}
+                      onClick={() => setCountdown({ minutes: m })}
+                      className={cn(
+                        "h-10 min-w-0 whitespace-nowrap rounded-lg px-1 text-[13.5px] font-semibold tabular-nums transition",
+                        countdown.minutes === m
+                          ? "bg-foreground text-background"
+                          : "bg-chip hover:bg-[var(--ds-gray-alpha-300)]",
+                      )}
+                    >
+                      {m} min
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : null}
             <CountdownBackgroundPicker
               countdown={countdown}
               onChange={(background) => setCountdown({ background })}
