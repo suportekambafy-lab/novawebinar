@@ -85,26 +85,63 @@ const ROOM_SELECT =
   "id, organization_id, public_title, description, status, room_theme, host_name, host_role, host_avatar_url, chat_pin_title, chat_pin_message, offer_pin_title, offer_pin_message, scheduled_at, session_end_time, schedule_mode, recurrence_enabled, recurrence_pattern, recurrence_weekday, recurrence_start_time, recurrence_end_time, jit_interval_minutes, timezone, duration_seconds, replay_enabled, waiting_room_enabled, prelive_enabled, prelive_seconds, prelive_sound, prelive_message, prelive_template, prelive_appearance, easy_access, sync_video_with_start, cta_text, cta_url, cta_color, cta_price_original, cta_price_now, cta_image_url, cta_countdown_seconds, cta_start_seconds, cta_end_seconds, registration_headline, registration_subtitle, registration_button_text, registration_collect_phone, registration_require_phone, registration_cover_url, registration_badge_text, registration_progress_enabled, registration_progress_value, registration_scarcity_note, share_title, share_description, share_image_url, video_source_id, entry_fields, entry_card_color, entry_button_color, extra_offers, offer_deadline, offer_countdown_end, offer_utm, sales_show_real, sales_where, recurrence_days, recurrence_times, jit_skip_night, host_verified, room_theme_system, chat_settings, video_sources(source_url, provider, duration_seconds, storage_path)";
 
 /**
+ * Uma cache curta, por instância do servidor: a mesma sala pedida por centenas de pessoas no mesmo minuto
+ * faz uma só leitura. Em carga, cada página custava cerca de dez consultas e a base de dados ficava a 25
+ * páginas por segundo; com a cache, custa quase nenhuma. Um pedido em curso é partilhado (sem avalanche
+ * quando a entrada expira), e uma falha não fica guardada.
+ */
+const ROOM_TTL_MS = 10_000;
+const roomCache = new Map<string, { until: number; value: Promise<RoomPayload | null> }>();
+function cachedRoom(key: string, load: () => Promise<RoomPayload | null>): Promise<RoomPayload | null> {
+  const hit = roomCache.get(key);
+  if (hit && hit.until > Date.now()) return hit.value;
+  if (roomCache.size > 1000) roomCache.clear();
+  const value = load().catch((error: unknown) => {
+    roomCache.delete(key);
+    throw error;
+  });
+  roomCache.set(key, { until: Date.now() + ROOM_TTL_MS, value });
+  return value;
+}
+/** Só para os testes: esquece as salas guardadas. */
+export function clearPublicRoomCache() {
+  roomCache.clear();
+}
+
+type RoomRow = NonNullable<Awaited<ReturnType<typeof readRoomRow>>>;
+async function readRoomRow(column: "slug" | "id", value: string) {
+  const { data, error } = await supabaseAdmin.from("webinars").select(ROOM_SELECT).eq(column, value).maybeSingle();
+  // Falha de leitura não é "não existe": quem chama mantém a sala que já tem.
+  if (error) throw new Error(UNAVAILABLE);
+  return data;
+}
+
+export type RoomPayload = Awaited<ReturnType<typeof buildRoom>>;
+
+/**
  * A sala de um endereço. Primeiro um webinar com esse slug; senão um teste A/B com esse endereço, que
  * entrega a variante desta pessoa (ver ab-tests/assign.server) sem o endereço mudar.
  */
 export async function loadPublicRoom(slug: string, meta: import("@/lib/ab-tests/assign.server").AssignmentMeta = {}, preview?: string | null) {
-  const bySlug = await supabaseAdmin.from("webinars").select(ROOM_SELECT).eq("slug", slug).maybeSingle();
-  // Falha de leitura não é "não existe": quem chama mantém a sala que já tem.
-  if (bySlug.error) throw new Error(UNAVAILABLE);
-  let webinar = bySlug.data;
-  let abTest: { id: string; variantId: string; preview: boolean } | null = null;
-  if (!webinar) {
-    const { resolveTestSlug } = await import("@/lib/ab-tests/assign.server");
-    const resolved = await resolveTestSlug(slug, meta, preview);
-    if (!resolved) return null;
-    const byId = await supabaseAdmin.from("webinars").select(ROOM_SELECT).eq("id", resolved.webinarId).maybeSingle();
-    if (byId.error) throw new Error(UNAVAILABLE);
-    if (!byId.data) return null;
-    webinar = byId.data;
-    abTest = { id: resolved.testId, variantId: resolved.variantId, preview: resolved.preview };
-  }
+  const bySlug = await cachedRoom(`slug:${slug}`, async () => {
+    const row = await readRoomRow("slug", slug);
+    return row ? buildRoom(row) : null;
+  });
+  if (bySlug) return bySlug;
+  const { resolveTestSlug } = await import("@/lib/ab-tests/assign.server");
+  const resolved = await resolveTestSlug(slug, meta, preview);
+  if (!resolved) return null;
+  const byId = await cachedRoom(`id:${resolved.webinarId}`, async () => {
+    const row = await readRoomRow("id", resolved.webinarId);
+    return row ? buildRoom(row) : null;
+  });
+  if (!byId) return null;
+  return { ...byId, abTest: { id: resolved.testId, variantId: resolved.variantId, preview: resolved.preview } };
+}
 
+/** O que a sala pública recebe, a partir da linha do webinar: comentários, oferta, legendas, vídeo assinado. */
+async function buildRoom(webinar: RoomRow) {
+  const abTest: { id: string; variantId: string; preview: boolean } | null = null;
   const source = webinar.video_sources;
   const live = liveSettings(webinar.chat_settings);
   // A assinatura do vídeo e o convite do grupo correm ao lado das seis leituras, em vez de esperar por elas.

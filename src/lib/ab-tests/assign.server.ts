@@ -33,8 +33,28 @@ export type ActiveTest = OptimizableTest & {
   variants: { id: string; label: string; webinar_id: string | null; traffic_percentage: number; position: number }[];
 };
 
+/** Uma cache curta por instância: em carga, o mesmo teste é pedido centenas de vezes por minuto. */
+const TEST_TTL_MS = 30_000;
+const testCache = new Map<string, { until: number; value: Promise<ActiveTest | null> }>();
+/** Só para os testes: esquece os testes guardados. */
+export function clearTestCache() {
+  testCache.clear();
+}
+
 /** O teste com este endereço, se existe e já saiu do rascunho; arquivado não abre. */
-export async function findTestBySlug(slug: string): Promise<ActiveTest | null> {
+export function findTestBySlug(slug: string): Promise<ActiveTest | null> {
+  const hit = testCache.get(slug);
+  if (hit && hit.until > Date.now()) return hit.value;
+  if (testCache.size > 1000) testCache.clear();
+  const value = readTestBySlug(slug).catch((error: unknown) => {
+    testCache.delete(slug);
+    throw error;
+  });
+  testCache.set(slug, { until: Date.now() + TEST_TTL_MS, value });
+  return value;
+}
+
+async function readTestBySlug(slug: string): Promise<ActiveTest | null> {
   const { data, error } = await supabaseAdmin
     .from("ab_tests")
     .select("id, organization_id, status, assignment_mode, applied_variant_id, objective, auto_optimize, auto_optimize_after_days, optimized_at, started_at")
@@ -89,18 +109,19 @@ export async function resolveTestSlug(slug: string, meta: AssignmentMeta = {}, p
     return { testId: test.id, variantId: winner.id, webinarId: winner.webinar_id!, visitor, preview: false };
   }
 
-  const { data: existing } = await supabaseAdmin
-    .from("ab_test_assignments")
-    .select("variant_id")
-    .eq("ab_test_id", test.id)
-    .eq("visitor_id", visitor)
-    .maybeSingle();
-  if (existing) {
-    const variant = test.variants.find((v) => v.id === existing.variant_id) ?? control;
+  // Em pausa ou concluído não se atribui mais ninguém: quem já tinha variante mantém-na, o resto vê o controlo.
+  if (test.status !== "active") {
+    const { data: existing } = await supabaseAdmin
+      .from("ab_test_assignments")
+      .select("variant_id")
+      .eq("ab_test_id", test.id)
+      .eq("visitor_id", visitor)
+      .maybeSingle();
+    const variant = (existing && test.variants.find((v) => v.id === existing.variant_id)) || control;
     return { testId: test.id, variantId: variant.id, webinarId: variant.webinar_id!, visitor, preview: false };
   }
 
-  if (test.status !== "active") return { testId: test.id, variantId: control.id, webinarId: control.webinar_id!, visitor, preview: false };
+  // Ativo: uma só ida à base. A função ab_assign guarda a escolha ou, se a pessoa já tinha variante, devolve essa.
 
   const bucket = test.assignment_mode === "legacy" ? Math.floor(Math.random() * 100) : bucketOf(visitor, test.id);
   const chosen = pickVariant(test.variants, bucket);

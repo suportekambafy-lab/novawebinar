@@ -45,7 +45,7 @@ vi.mock("@/integrations/supabase/client.server", () => {
   };
 });
 
-const { loadPublicRoom, loadRoomMessages, participantFromToken, recordCta, roomToken } = await import("./public-room.server");
+const { clearPublicRoomCache, loadPublicRoom, loadRoomMessages, participantFromToken, recordCta, roomToken } = await import("./public-room.server");
 
 const down: Result = { data: null, error: { message: "fetch failed" } };
 const WEBINAR = {
@@ -57,6 +57,7 @@ const WEBINAR = {
 const PARTICIPANT = "11111111-1111-4111-8111-111111111111";
 
 beforeEach(() => {
+  clearPublicRoomCache();
   answers = { "webinars.select": { data: WEBINAR, error: null } };
   inserts = [];
 });
@@ -90,6 +91,7 @@ describe("sala pública com a base de dados em baixo", () => {
       error: null,
     };
     const first = await loadPublicRoom("sessao");
+    clearPublicRoomCache();
     const second = await loadPublicRoom("sessao");
     expect(first?.webinar.video_url).toMatch(/^https:\/\/cdn\/org\/aula\.mp4\?token=/);
     expect(second?.webinar.video_url).toBe(first?.webinar.video_url);
@@ -100,13 +102,16 @@ describe("sala pública com a base de dados em baixo", () => {
     answers["webinars.select"] = { data: { ...WEBINAR, waiting_room_enabled: true, chat_settings: live }, error: null };
     expect((await loadPublicRoom("sessao"))?.webinar.waiting_video).toBeNull();
     answers["video_sources.select"] = { data: { storage_path: "org/fundo.mp4", source_url: null, provider: "upload" }, error: null };
+    clearPublicRoomCache();
     expect((await loadPublicRoom("sessao"))?.webinar.waiting_video).toEqual({ url: expect.stringMatching(/^https:\/\/cdn\/org\/fundo\.mp4/), provider: "upload" });
     answers["webinars.select"] = { data: { ...WEBINAR, waiting_room_enabled: false, chat_settings: live }, error: null };
+    clearPublicRoomCache();
     expect((await loadPublicRoom("sessao"))?.webinar.waiting_video).toBeNull();
   });
 
   it("o convite do grupo do fluxo vem com a sala; sem grupo, null", async () => {
     expect((await loadPublicRoom("sessao"))?.webinar.group_url).toBeNull();
+    clearPublicRoomCache();
     answers["automation_workflows.select"] = {
       data: [{ canvas: { nodes: [{ kind: "group", url: "chat.whatsapp.com/abc" }] } }],
       error: null,
