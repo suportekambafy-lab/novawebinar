@@ -772,8 +772,10 @@ export function PublicRoom({
         live={live.live}
         liveLabel={live.label}
         // O vídeo desfocado por trás do formulário é enfeite: a poupar dados, fica o fundo liso (nada descarrega).
+        // O vídeo desfocado por trás do formulário é enfeite: só no computador. No telemóvel (dados móveis,
+        // aparelhos fracos) fica o fundo liso: a aula inteira começava a descarregar antes de a pessoa se inscrever.
         video={
-          !saveData && isDirectVideo(webinar.video_url, webinar.video_provider)
+          !saveData && typeof window !== "undefined" && window.matchMedia("(min-width: 1024px) and (pointer: fine)").matches && isDirectVideo(webinar.video_url, webinar.video_provider)
             ? { url: webinar.video_url!, startSeconds: elapsed }
             : null
         }

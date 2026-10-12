@@ -313,6 +313,45 @@ export function VideoPlayer({
     };
   }, [attempt, autoPlay, muted]);
 
+  // O ecrã não bloqueia enquanto a aula corre: numa aula de 90 minutos sem toques, o telemóvel apagava o ecrã e
+  // parava o vídeo. Pede-se o bloqueio de ecrã ao tocar e volta-se a pedir ao regressar à página.
+  useEffect(() => {
+    if (controls) return;
+    const video = videoRef.current;
+    if (!video || typeof navigator === "undefined" || !("wakeLock" in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    const acquire = async () => {
+      if (lock || document.visibilityState !== "visible" || video.paused) return;
+      try {
+        lock = await navigator.wakeLock.request("screen");
+        lock.addEventListener("release", () => {
+          lock = null;
+        });
+      } catch {
+        lock = null;
+      }
+    };
+    const release = () => {
+      void lock?.release().catch(() => undefined);
+      lock = null;
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void acquire();
+    };
+    video.addEventListener("playing", acquire);
+    video.addEventListener("pause", release);
+    video.addEventListener("ended", release);
+    document.addEventListener("visibilitychange", onVisible);
+    void acquire();
+    return () => {
+      video.removeEventListener("playing", acquire);
+      video.removeEventListener("pause", release);
+      video.removeEventListener("ended", release);
+      document.removeEventListener("visibilitychange", onVisible);
+      release();
+    };
+  }, [attempt, controls]);
+
   // Vigia: som a correr sem imagem (o descodificador de vídeo falhou em silêncio num aparelho fraco, ou o
   // navegador suspendeu os fotogramas). Com o tempo a andar e o vídeo sem largura, tenta recuperar uma vez por
   // leitor: no hls.js pela própria recuperação de media, no leitor nativo recarregando na mesma posição.
@@ -362,10 +401,15 @@ export function VideoPlayer({
       // A qualidade segue só a rede medida, com tecto fixo (720p; 360p a poupar dados). Ligá-la ao tamanho do
       // leitor trocava de qualidade a cada rotação do telemóvel, o que nos aparelhos fracos dava erro de
       // descodificação e deixava a sala sem som.
+      // Memória num webinar de 90 minutos num telemóvel: o que já passou sai do buffer ao fim de 60 s (por
+      // omissão ficava tudo), e nunca se guarda mais de 60 s à frente, mesmo com rede boa (por omissão até 10 min).
       const hls = new Hls({
         capLevelToPlayerSize: false,
         startLevel: -1,
         maxBufferLength: saveDataRef.current ? 10 : 30,
+        maxMaxBufferLength: 60,
+        backBufferLength: 60,
+        maxBufferSize: saveDataRef.current ? 20 * 1000 * 1000 : 40 * 1000 * 1000,
       });
       hlsRef.current = hls;
       hls.loadSource(playbackUrl);
