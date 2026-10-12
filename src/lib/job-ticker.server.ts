@@ -22,8 +22,10 @@ const PASSES = {
 };
 
 export function startJobTicker() {
-  // JOB_TICKER=off desliga-o onde a fila já é empurrada por uma chamada agendada.
-  if (slot.__jobTicker || process.env["JOB_TICKER"] === "off") return;
+  // JOB_TICKER=off desliga-o onde a fila já é empurrada por uma chamada agendada. Na Vercel nunca corre: a
+  // função é congelada entre pedidos e o relógio acordava a meio, com o fetch a falhar de minuto a minuto;
+  // aí a fila é empurrada pela chamada agendada a /api/public/run-jobs (pg_cron + pg_net).
+  if (slot.__jobTicker || process.env["JOB_TICKER"] === "off" || process.env["VERCEL"]) return;
   const running = new Set<string>();
   slot.__jobTicker = setInterval(() => {
     for (const [name, pass] of Object.entries(PASSES)) {
