@@ -76,6 +76,7 @@ export function StepVideo({
   onFormat,
   live,
   onLive,
+  backgroundUpload,
 }: {
   video: VideoSourceLite | null;
   library: readonly VideoSourceLite[];
@@ -92,6 +93,8 @@ export function StepVideo({
   onFormat: (format: RoomFormat) => void;
   live: LiveSettings;
   onLive: (patch: Partial<LiveSettings>) => void;
+  /** A imagem de fundo da contagem: o envio reduz-a e grava o endereço em `live.countdown.background`. */
+  backgroundUpload: { uploading: boolean; onFile: (file: File) => void };
 }) {
   const [dialog, setDialog] = useState(false);
   const [full, setFull] = useState(false);
@@ -215,7 +218,17 @@ export function StepVideo({
           </div>
         ) : null}
       </Section>
-      <RoomOptions live={live} onLive={onLive} appearance={appearance} onAppearance={onAppearance} clock={c} transcript={transcript} />
+      <RoomOptions
+        live={live}
+        onLive={onLive}
+        appearance={appearance}
+        onAppearance={onAppearance}
+        clock={c}
+        transcript={transcript}
+        library={library}
+        providerLabel={providerLabel}
+        backgroundUpload={backgroundUpload}
+      />
 
       {video ? (
         <Section icon={Mic} title="Transcrição" help="transcricao" aside={transcript.length ? <CountPill>{transcript.length} frases</CountPill> : null}>

@@ -628,6 +628,7 @@ export function PublicRoom({
         color={countdown.color}
         onZero={() => setWaiting(false)}
         video={webinar.waiting_video}
+        countdownBackground={{ image: countdown.background.image, video: webinar.countdown_video }}
         showCountdown={webinar.live.waiting.countdown}
         groupUrl={(webinar as { group_url?: string | null }).group_url}
       />
@@ -860,6 +861,7 @@ export function PublicRoom({
       preliveTemplate={countdown.style}
       preliveAppearance={webinar.prelive_appearance}
       preliveColor={countdown.color}
+      preliveBackground={{ image: countdown.background.image, video: webinar.countdown_video }}
       onSend={asTeam ? teamChat.send : onSend}
       supportMessages={asTeam ? [] : (privateThread?.messages ?? [])}
       onProgress={asTeam ? undefined : onProgress}

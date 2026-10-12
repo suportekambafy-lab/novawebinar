@@ -48,7 +48,11 @@ export const AUDIENCE_FORMATS: {
     description: "Soma o número simulado a quem está mesmo a ver.",
   },
   { value: "real", label: "Só a real", description: "Mostra só quem está mesmo na sala." },
-  { value: "off", label: "Não mostrar", description: "A sala não mostra quantas pessoas estão a ver." },
+  {
+    value: "off",
+    label: "Não mostrar",
+    description: "A sala não mostra quantas pessoas estão a ver.",
+  },
 ];
 
 export type AudienceContext = {
@@ -206,7 +210,11 @@ export function discountPercent(from: string, price: string): number | null {
 }
 
 /** Quanto falta no cronómetro da oferta no segundo `t` do vídeo; antes de abrir, o total. */
-export function offerCountdownLeft(countdownSeconds: number, startSeconds: number | null, t: number) {
+export function offerCountdownLeft(
+  countdownSeconds: number,
+  startSeconds: number | null,
+  t: number,
+) {
   if (countdownSeconds <= 0) return 0;
   const open = startSeconds ?? 0;
   return Math.max(0, Math.min(countdownSeconds, countdownSeconds - (t - open)));
@@ -217,7 +225,12 @@ export function offerCountdownLeft(countdownSeconds: number, startSeconds: numbe
  * continua» o cronómetro sai e o botão fica; com «O botão fecha» o botão passa a «Oferta encerrada».
  * O último dia da oferta fecha sempre o botão. `left` é null quando não há cronómetro à vista.
  */
-export function offerTimer(countdownSeconds: number, remaining: number, closeAtZero: boolean, deadlinePassed = false) {
+export function offerTimer(
+  countdownSeconds: number,
+  remaining: number,
+  closeAtZero: boolean,
+  deadlinePassed = false,
+) {
   const zero = countdownSeconds > 0 && remaining <= 0;
   const closed = deadlinePassed || (zero && closeAtZero);
   return { left: countdownSeconds > 0 && !zero && !closed ? Math.round(remaining) : null, closed };
@@ -260,7 +273,9 @@ export const ROOM_FORMATS: readonly { id: RoomFormat; name: string; hint: string
  * ao lado do vídeo ou por cima dele, e assim não precisa de uma coluna nova.
  */
 export function roomFormat(chatSettings: unknown): RoomFormat {
-  return (chatSettings as { room_format?: unknown } | null)?.room_format === "live" ? "live" : "webinar";
+  return (chatSettings as { room_format?: unknown } | null)?.room_format === "live"
+    ? "live"
+    : "webinar";
 }
 
 /*
@@ -315,7 +330,10 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function parseWaiting(raw: unknown): WaitingRoom {
   const r = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
   const video = r["video"];
-  return { video: typeof video === "string" && UUID.test(video) ? video : null, countdown: r["countdown"] !== false };
+  return {
+    video: typeof video === "string" && UUID.test(video) ? video : null,
+    countdown: r["countdown"] !== false,
+  };
 }
 
 /**
@@ -323,7 +341,13 @@ function parseWaiting(raw: unknown): WaitingRoom {
  * passou, em %, num dos quatro modelos. Sem cor escolhida (null), usa a cor do botão.
  */
 export type TimerModel = "bar" | "ring" | "pill" | "clock";
-export type RoomTimer = { on: boolean; start: number; end: number; model: TimerModel; color: string | null };
+export type RoomTimer = {
+  on: boolean;
+  start: number;
+  end: number;
+  model: TimerModel;
+  color: string | null;
+};
 export const TIMER_MODELS: readonly { id: TimerModel; name: string }[] = [
   { id: "bar", name: "Barra" },
   { id: "ring", name: "Anel" },
@@ -340,7 +364,8 @@ export function timerProgress(seconds: number, start: number, end: number) {
 
 /** A % a mostrar neste segundo, arredondada; null com o temporizador desligado ou fora de «de… a…». */
 export function lessonTimerAt(timer: RoomTimer | null | undefined, seconds: number) {
-  if (!timer?.on || !(timer.end > timer.start) || seconds < timer.start || seconds > timer.end) return null;
+  if (!timer?.on || !(timer.end > timer.start) || seconds < timer.start || seconds > timer.end)
+    return null;
   return Math.round(timerProgress(seconds, timer.start, timer.end));
 }
 
@@ -386,7 +411,17 @@ function parseOfferColors(raw: unknown): OfferColors {
  * (`prelive-templates`), para os dados antigos continuarem a ler-se.
  */
 export type CountdownStyle = "minimal" | "premium" | "dark" | "urgency";
-export type RoomCountdown = { on: boolean; minutes: number; style: CountdownStyle; color: string; sound: boolean };
+/** O fundo da contagem: uma imagem (endereço) ou um vídeo da Biblioteca (o id em `video_sources`); sem nenhum, a cor. */
+export type CountdownBackground = { image: string | null; video: string | null };
+export const COUNTDOWN_BACKGROUND_NONE: CountdownBackground = { image: null, video: null };
+export type RoomCountdown = {
+  on: boolean;
+  minutes: number;
+  style: CountdownStyle;
+  color: string;
+  sound: boolean;
+  background: CountdownBackground;
+};
 
 export const COUNTDOWN_STYLES: readonly { id: CountdownStyle; name: string }[] = [
   { id: "minimal", name: "Anel" },
@@ -395,7 +430,27 @@ export const COUNTDOWN_STYLES: readonly { id: CountdownStyle; name: string }[] =
   { id: "urgency", name: "Barra" },
 ];
 export const COUNTDOWN_MINUTES = [1, 3, 5, 10, 15] as const;
-export const COUNTDOWN_OFF: RoomCountdown = { on: false, minutes: 5, style: "minimal", color: "#E8440C", sound: true };
+export const COUNTDOWN_OFF: RoomCountdown = {
+  on: false,
+  minutes: 5,
+  style: "minimal",
+  color: "#E8440C",
+  sound: true,
+  background: COUNTDOWN_BACKGROUND_NONE,
+};
+
+function parseCountdownBackground(raw: unknown): CountdownBackground {
+  const r = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
+  const image = r["image"];
+  const video = r["video"];
+  return {
+    image:
+      typeof image === "string" && /^https?:\/\//i.test(image) && image.length <= 2000
+        ? image
+        : null,
+    video: typeof video === "string" && UUID.test(video) ? video : null,
+  };
+}
 
 function parseCountdown(raw: unknown): RoomCountdown | null {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
@@ -404,17 +459,27 @@ function parseCountdown(raw: unknown): RoomCountdown | null {
   return {
     on: r["on"] === true,
     minutes: Number.isFinite(minutes) ? Math.min(30, Math.max(1, minutes)) : COUNTDOWN_OFF.minutes,
-    style: COUNTDOWN_STYLES.some((s) => s.id === r["style"]) ? (r["style"] as CountdownStyle) : COUNTDOWN_OFF.style,
+    style: COUNTDOWN_STYLES.some((s) => s.id === r["style"])
+      ? (r["style"] as CountdownStyle)
+      : COUNTDOWN_OFF.style,
     color: offerColor(r["color"]),
     sound: r["sound"] !== false,
+    background: parseCountdownBackground(r["background"]),
   };
 }
 
 /** As colunas prelive_* que o editor antigo (antes da versão 13) gravava. */
-export type LegacyCountdown = { prelive_enabled?: boolean | null; prelive_seconds?: number | null; prelive_template?: string | null; prelive_sound?: boolean | null };
+export type LegacyCountdown = {
+  prelive_enabled?: boolean | null;
+  prelive_seconds?: number | null;
+  prelive_template?: string | null;
+  prelive_sound?: boolean | null;
+};
 
 /** A contagem de um webinar antigo, lida das colunas prelive_*; desligada, null. */
-export function countdownFromLegacy(legacy: LegacyCountdown | null | undefined): RoomCountdown | null {
+export function countdownFromLegacy(
+  legacy: LegacyCountdown | null | undefined,
+): RoomCountdown | null {
   const seconds = legacy?.prelive_seconds ?? 0;
   if (!legacy?.prelive_enabled || seconds <= 0) return null;
   return {
@@ -423,6 +488,7 @@ export function countdownFromLegacy(legacy: LegacyCountdown | null | undefined):
     style: templateById(legacy.prelive_template).id,
     color: OFFER_COLOR_DEFAULT,
     sound: legacy.prelive_sound !== false,
+    background: COUNTDOWN_BACKGROUND_NONE,
   };
 }
 
@@ -430,14 +496,29 @@ export function countdownFromLegacy(legacy: LegacyCountdown | null | undefined):
  * O que a sala usa da contagem: os segundos (0 desliga), o estilo, a cor e o som. Sem a escolha nova
  * (webinars antigos), valem as colunas prelive_*, lidas como o editor as mostra.
  */
-export function roomCountdown(countdown: RoomCountdown | null | undefined, legacy: LegacyCountdown) {
+export function roomCountdown(
+  countdown: RoomCountdown | null | undefined,
+  legacy: LegacyCountdown,
+) {
   const c = countdown ?? countdownFromLegacy(legacy) ?? COUNTDOWN_OFF;
-  return { seconds: c.on ? c.minutes * 60 : 0, style: c.style as string, color: c.color, sound: c.sound };
+  return {
+    seconds: c.on ? c.minutes * 60 : 0,
+    style: c.style as string,
+    color: c.color,
+    sound: c.sound,
+    background: c.background,
+  };
 }
 
 export const OFFER_COLOR_DEFAULT = "#E8440C";
 /** As sugestões ao lado do seletor: laranja da marca, vermelho, verde, azul e roxo. */
-export const OFFER_COLOR_SUGGESTIONS = [OFFER_COLOR_DEFAULT, "#E3141F", "#16A34A", "#2563EB", "#7C3AED"] as const;
+export const OFFER_COLOR_SUGGESTIONS = [
+  OFFER_COLOR_DEFAULT,
+  "#E3141F",
+  "#16A34A",
+  "#2563EB",
+  "#7C3AED",
+] as const;
 /** As cores gravadas por nome antes de haver o código hex. */
 const OFFER_COLOR_NAMES: Record<string, string> = {
   laranja: OFFER_COLOR_DEFAULT,
@@ -464,11 +545,36 @@ export const LIVE_DEFAULTS: LiveSettings = {
   waiting: WAITING_DEFAULT,
 };
 
-export const FOLLOW_NETWORKS: readonly { id: FollowNetwork; name: string; example: string; android: string }[] = [
-  { id: "instagram", name: "Instagram", example: "https://www.instagram.com/perfil", android: "com.instagram.android" },
-  { id: "youtube", name: "YouTube", example: "https://www.youtube.com/@canal", android: "com.google.android.youtube" },
-  { id: "tiktok", name: "TikTok", example: "https://www.tiktok.com/@perfil", android: "com.zhiliaoapp.musically" },
-  { id: "facebook", name: "Facebook", example: "https://www.facebook.com/pagina", android: "com.facebook.katana" },
+export const FOLLOW_NETWORKS: readonly {
+  id: FollowNetwork;
+  name: string;
+  example: string;
+  android: string;
+}[] = [
+  {
+    id: "instagram",
+    name: "Instagram",
+    example: "https://www.instagram.com/perfil",
+    android: "com.instagram.android",
+  },
+  {
+    id: "youtube",
+    name: "YouTube",
+    example: "https://www.youtube.com/@canal",
+    android: "com.google.android.youtube",
+  },
+  {
+    id: "tiktok",
+    name: "TikTok",
+    example: "https://www.tiktok.com/@perfil",
+    android: "com.zhiliaoapp.musically",
+  },
+  {
+    id: "facebook",
+    name: "Facebook",
+    example: "https://www.facebook.com/pagina",
+    android: "com.facebook.katana",
+  },
 ];
 
 /**
@@ -477,7 +583,10 @@ export const FOLLOW_NETWORKS: readonly { id: FollowNetwork; name: string; exampl
  * largura do telemóvel, e inteiro no computador. A forma vem do ficheiro; sem ela, conta como deitado.
  */
 export type LiveVideoPlace = "fill" | "top" | "wide" | "column";
-export function liveVideoPlace(shape: "horizontal" | "vertical" | null | undefined, where: "desk" | "phone"): LiveVideoPlace {
+export function liveVideoPlace(
+  shape: "horizontal" | "vertical" | null | undefined,
+  where: "desk" | "phone",
+): LiveVideoPlace {
   if (shape === "vertical") return where === "phone" ? "fill" : "column";
   return where === "phone" ? "top" : "wide";
 }
@@ -489,9 +598,18 @@ export function liveVideoPlace(shape: "horizontal" | "vertical" | null | undefin
 export function liveSettings(chatSettings: unknown, legacy?: LegacyCountdown): LiveSettings {
   const raw = (chatSettings as { live?: unknown } | null)?.live;
   if (typeof raw !== "object" || raw === null || Array.isArray(raw))
-    return { ...LIVE_DEFAULTS, links: {}, moments: [], offerColors: {}, countdown: countdownFromLegacy(legacy) };
+    return {
+      ...LIVE_DEFAULTS,
+      links: {},
+      moments: [],
+      offerColors: {},
+      countdown: countdownFromLegacy(legacy),
+    };
   const r = raw as Record<string, unknown>;
-  const linksRaw = typeof r["links"] === "object" && r["links"] !== null ? (r["links"] as Record<string, unknown>) : {};
+  const linksRaw =
+    typeof r["links"] === "object" && r["links"] !== null
+      ? (r["links"] as Record<string, unknown>)
+      : {};
   const links: LiveSettings["links"] = {};
   for (const n of FOLLOW_NETWORKS) {
     const url = linksRaw[n.id];
@@ -500,8 +618,16 @@ export function liveSettings(chatSettings: unknown, legacy?: LegacyCountdown): L
   const moments = Array.isArray(r["moments"])
     ? (r["moments"] as unknown[])
         .map((m) => m as { start?: unknown; end?: unknown })
-        .filter((m) => Number.isFinite(Number(m.start)) && Number.isFinite(Number(m.end)) && Number(m.end) > Number(m.start))
-        .map((m) => ({ start: Math.max(0, Math.round(Number(m.start))), end: Math.round(Number(m.end)) }))
+        .filter(
+          (m) =>
+            Number.isFinite(Number(m.start)) &&
+            Number.isFinite(Number(m.end)) &&
+            Number(m.end) > Number(m.start),
+        )
+        .map((m) => ({
+          start: Math.max(0, Math.round(Number(m.start))),
+          end: Math.round(Number(m.end)),
+        }))
         .sort((a, b) => a.start - b.start)
     : [];
   return {
@@ -512,7 +638,9 @@ export function liveSettings(chatSettings: unknown, legacy?: LegacyCountdown): L
     hideFollowed: r["hideFollowed"] !== false,
     notify: r["notify"] !== false,
     offerColor: offerColor(r["offerColor"]),
-    offerLook: OFFER_LOOKS.some((l) => l.id === r["offerLook"]) ? (r["offerLook"] as OfferLook) : "square",
+    offerLook: OFFER_LOOKS.some((l) => l.id === r["offerLook"])
+      ? (r["offerLook"] as OfferLook)
+      : "square",
     offerColors: parseOfferColors(r["offerColors"]),
     countdown: parseCountdown(r["countdown"]) ?? countdownFromLegacy(legacy),
     header: r["header"] !== false,
@@ -534,7 +662,9 @@ export function offerColor(value: unknown) {
  * texto (os tokens da sala, só ali dentro; o texto ajusta-se ao fundo se não for escolhido). Sem
  * nenhuma cor, null: o cartão segue a cor do botão de entrar e o tema da sala.
  */
-export function offerColorVars(colors: OfferColors | null | undefined): Record<string, string> | null {
+export function offerColorVars(
+  colors: OfferColors | null | undefined,
+): Record<string, string> | null {
   const { button, card, text } = colors ?? {};
   if (!button && !card && !text) return null;
   const vars: Record<string, string> = {};
@@ -566,7 +696,12 @@ export function followMomentAt(moments: readonly FollowMoment[], seconds: number
 
 /** O @ do perfil, tirado do link (instagram.com/perfil/ → @perfil). */
 export function profileHandle(url: string) {
-  const last = url.replace(/[?#].*$/, "").split("/").filter(Boolean).pop() ?? "";
+  const last =
+    url
+      .replace(/[?#].*$/, "")
+      .split("/")
+      .filter(Boolean)
+      .pop() ?? "";
   return last ? `@${last.replace(/^@/, "")}` : "";
 }
 
@@ -581,7 +716,11 @@ export function followWebLink(network: FollowNetwork, url: string) {
  * No Android, um link «intent» abre a app da rede directamente no perfil e, sem a app, o site.
  * No iPhone o próprio link https abre a app (link universal), por isso fica igual.
  */
-export function followAppLink(network: FollowNetwork, web: string, platform: "android" | "ios" | "other") {
+export function followAppLink(
+  network: FollowNetwork,
+  web: string,
+  platform: "android" | "ios" | "other",
+) {
   if (platform !== "android") return web;
   let u: URL;
   try {
@@ -590,7 +729,10 @@ export function followAppLink(network: FollowNetwork, web: string, platform: "an
     return web;
   }
   const pkg = FOLLOW_NETWORKS.find((n) => n.id === network)?.android ?? "";
-  const path = network === "instagram" ? `${u.host}/_u/${u.pathname.replace(/^\/+/, "")}` : `${u.host}${u.pathname}${u.search}`;
+  const path =
+    network === "instagram"
+      ? `${u.host}/_u/${u.pathname.replace(/^\/+/, "")}`
+      : `${u.host}${u.pathname}${u.search}`;
   return `intent://${path}#Intent;scheme=https;package=${pkg};S.browser_fallback_url=${encodeURIComponent(web)};end`;
 }
 
@@ -598,7 +740,10 @@ export function followAppLink(network: FollowNetwork, web: string, platform: "an
  * Os minutos em que o apresentador pede para seguir ou subscrever, tirados da transcrição:
  * cada frase com «sigam», «segue», «inscrevam-se»… abre um momento de 30 s. Momentos colados juntam-se.
  */
-export function suggestFollowMoments(lines: readonly { at: number; text: string }[], length = 30): FollowMoment[] {
+export function suggestFollowMoments(
+  lines: readonly { at: number; text: string }[],
+  length = 30,
+): FollowMoment[] {
   const asks = /\b(sigam|siga|segue[mn]?|me segue|inscrev\w*|subscrev\w*|ativ[ae]m? o sininho)\b/i;
   const out: FollowMoment[] = [];
   for (const line of lines) {
@@ -636,7 +781,10 @@ export function parseExtraOffers(raw: unknown): OfferSlot[] {
       url: String(r["url"] ?? "").slice(0, 500),
       button: String(r["button"] ?? "").slice(0, 60) || "Quero entrar",
       countdown: Math.max(0, Math.round(Number(r["countdown"]) || 0)),
-      deadline: typeof r["deadline"] === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r["deadline"]) ? r["deadline"] : null,
+      deadline:
+        typeof r["deadline"] === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r["deadline"])
+          ? r["deadline"]
+          : null,
     });
   }
   return out.sort((a, b) => a.start - b.start).slice(0, 4);
@@ -657,9 +805,15 @@ export function activeOffer(offers: readonly OfferSlot[], t: number): OfferSlot 
 }
 
 /** O prazo da oferta terminou: depois do fim desse dia, no fuso do webinar. */
-export function offerDeadlinePassed(deadline: string | null | undefined, timezone: string, nowMs: number) {
+export function offerDeadlinePassed(
+  deadline: string | null | undefined,
+  timezone: string,
+  nowMs: number,
+) {
   if (!deadline || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) return false;
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: timezone || "UTC" }).format(new Date(nowMs));
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: timezone || "UTC" }).format(
+    new Date(nowMs),
+  );
   return today > deadline;
 }
 
@@ -673,7 +827,11 @@ export function purchaseOnScreen<T extends { purchase: { id: string }; from: num
   shown: ReadonlySet<string>,
   showing: string | null,
 ): T | null {
-  return schedule.find((s) => (s.purchase.id === showing || !shown.has(s.purchase.id)) && t >= s.from && t < s.to) ?? null;
+  return (
+    schedule.find(
+      (s) => (s.purchase.id === showing || !shown.has(s.purchase.id)) && t >= s.from && t < s.to,
+    ) ?? null
+  );
 }
 
 /** Onde a pessoa clicou para ir ao checkout. */
@@ -709,7 +867,10 @@ export function checkoutLink(
   set("utm_source", origin.source || "novawebinar");
   set("utm_medium", origin.medium || "webinar");
   set("utm_campaign", origin.campaign);
-  set("utm_content", `${origin.place}-${String(m).padStart(2, "0")}m${String(s).padStart(2, "0")}s`);
+  set(
+    "utm_content",
+    `${origin.place}-${String(m).padStart(2, "0")}m${String(s).padStart(2, "0")}s`,
+  );
   set("cw", origin.participant);
   return link.toString();
 }

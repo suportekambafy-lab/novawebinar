@@ -83,7 +83,7 @@ import {
 } from "@/components/room/live-parts";
 import { GroupJoinDialog } from "@/components/room/group-join";
 import { cn, isHttpUrl } from "@/lib/utils";
-import { PreliveCountdown, unlockPreliveAudio } from "@/components/prelive-countdown";
+import { PreliveCountdown, unlockPreliveAudio, type CountdownBackdrop } from "@/components/prelive-countdown";
 import { watchedStep } from "@/lib/participant-facts";
 import { chatEcho, placeOf, type ChatPerson } from "@/lib/chat-reactions";
 import { useSimulatedHearts } from "@/lib/room-hearts";
@@ -206,6 +206,7 @@ export function WebinarRoom({
   preliveTemplate = null,
   preliveAppearance,
   preliveColor,
+  preliveBackground,
   viewerName,
   organizationId,
   onSend,
@@ -291,6 +292,8 @@ export function WebinarRoom({
   preliveAppearance?: unknown;
   /** A cor da contagem (anel, blocos, barra). */
   preliveColor?: string | null | undefined;
+  /** A imagem ou o vídeo de fundo da contagem; sem nenhum, a cor. */
+  preliveBackground?: CountdownBackdrop | null | undefined;
   viewerName: string;
   /** Workspace da sessão. Com ele a sala aparece na vista ao vivo. */
   organizationId?: string | null;
@@ -1363,6 +1366,7 @@ export function WebinarRoom({
               appearance={preliveAppearance}
               color={preliveColor}
               fill={(liveLayout && !liveStack) || turnUp}
+              background={preliveBackground}
             />
           </div>
         )}

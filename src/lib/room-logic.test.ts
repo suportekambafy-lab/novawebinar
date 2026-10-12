@@ -65,7 +65,10 @@ describe("audiência por formato", () => {
   });
 
   it("a curva antiga de 28 pontos lê-se como Dinâmica", () => {
-    const old = [10, 40, 80, 90, 92, 95, 94, 93, 90, 85, 70, 60, 55, 52, 50, 49, 48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37];
+    const old = [
+      10, 40, 80, 90, 92, 95, 94, 93, 90, 85, 70, 60, 55, 52, 50, 49, 48, 47, 46, 45, 44, 43, 42,
+      41, 40, 39, 38, 37,
+    ];
     expect(inferAudienceFormat("simulated", old, ctx)).toBe("dynamic");
   });
 });
@@ -96,9 +99,17 @@ describe("várias ofertas no tempo do vídeo", () => {
   });
 
   it("lê as ofertas gravadas e ignora as que não têm minuto", () => {
-    const parsed = parseExtraOffers([{ start: 600, product: "Geral", url: "https://k.ao/x" }, { product: "sem minuto" }]);
+    const parsed = parseExtraOffers([
+      { start: 600, product: "Geral", url: "https://k.ao/x" },
+      { product: "sem minuto" },
+    ]);
     expect(parsed).toHaveLength(1);
-    expect(parsed[0]).toMatchObject({ start: 600, end: null, product: "Geral", button: "Quero entrar" });
+    expect(parsed[0]).toMatchObject({
+      start: 600,
+      end: null,
+      product: "Geral",
+      button: "Quero entrar",
+    });
   });
 
   it("o prazo fecha no dia seguinte ao escolhido, no fuso do webinar", () => {
@@ -111,8 +122,14 @@ describe("várias ofertas no tempo do vídeo", () => {
 
 describe("cores da entrada", () => {
   it("o texto ajusta-se ao fundo e ao botão", () => {
-    expect(entryPalette("#FFFFFF", "#FFFFFF")).toMatchObject({ text: "#171717", buttonText: "#171717" });
-    expect(entryPalette("#141414", "#E8440C")).toMatchObject({ text: "#FFFFFF", buttonText: "#FFFFFF" });
+    expect(entryPalette("#FFFFFF", "#FFFFFF")).toMatchObject({
+      text: "#171717",
+      buttonText: "#171717",
+    });
+    expect(entryPalette("#141414", "#E8440C")).toMatchObject({
+      text: "#FFFFFF",
+      buttonText: "#FFFFFF",
+    });
   });
 
   it("um código inválido volta às cores de origem", () => {
@@ -154,8 +171,13 @@ describe("oferta", () => {
   it("as cores da oferta ficam vazias por omissão e só aceitam códigos hex", () => {
     expect(liveSettings(null).offerColors).toEqual({});
     expect(liveSettings({ live: {} }).offerColors).toEqual({});
-    expect(liveSettings({ live: { offerColors: { button: "#16a34a", card: "azul", text: 3 } } }).offerColors).toEqual({ button: "#16A34A" });
-    expect(liveSettings({ live: { offerColors: { card: "#0F172A", text: "#FACC15" } } }).offerColors).toEqual({ card: "#0F172A", text: "#FACC15" });
+    expect(
+      liveSettings({ live: { offerColors: { button: "#16a34a", card: "azul", text: 3 } } })
+        .offerColors,
+    ).toEqual({ button: "#16A34A" });
+    expect(
+      liveSettings({ live: { offerColors: { card: "#0F172A", text: "#FACC15" } } }).offerColors,
+    ).toEqual({ card: "#0F172A", text: "#FACC15" });
   });
 
   it("as cores da oferta só mudam o cartão quando escolhidas; o texto ajusta-se ao fundo", () => {
@@ -235,7 +257,11 @@ describe("opções da sala", () => {
         entry: "pulse",
         badge: "blue",
         links: { instagram: " https://www.instagram.com/amadorubenn/ ", youtube: "", x: "y" },
-        moments: [{ start: 130, end: 160 }, { start: 50, end: 40 }, { start: 10, end: 40 }],
+        moments: [
+          { start: 130, end: 160 },
+          { start: 50, end: 40 },
+          { start: 10, end: 40 },
+        ],
         notify: false,
         hideFollowed: false,
         offerColor: "azul",
@@ -244,13 +270,22 @@ describe("opções da sala", () => {
     expect(live.desk).toBe("vertical");
     expect(live.entry).toBe("pulse");
     expect(live.links).toEqual({ instagram: "https://www.instagram.com/amadorubenn/" });
-    expect(live.moments).toEqual([{ start: 10, end: 40 }, { start: 130, end: 160 }]);
+    expect(live.moments).toEqual([
+      { start: 10, end: 40 },
+      { start: 130, end: 160 },
+    ]);
     expect(live.notify).toBe(false);
     expect(live.hideFollowed).toBe(false);
     // As cores gravadas por nome passam ao código hex; um código escreve-se em maiúsculas.
     expect(live.offerColor).toBe("#2563EB");
     expect(liveSettings({ live: { entry: "outro" } }).entry).toBe("info");
-    expect(liveSettings(null)).toMatchObject({ desk: "horizontal", entry: "info", notify: true, hideFollowed: true, offerColor: "#E8440C" });
+    expect(liveSettings(null)).toMatchObject({
+      desk: "horizontal",
+      entry: "info",
+      notify: true,
+      hideFollowed: true,
+      offerColor: "#E8440C",
+    });
     expect(liveSettings({ live: { offerColor: "rosa" } }).offerColor).toBe("#E8440C");
     expect(liveSettings({ live: { offerColor: "#ff00aa" } }).offerColor).toBe("#FF00AA");
     expect(liveSettings({ live: { offerColor: "#ff00a" } }).offerColor).toBe("#E8440C");
@@ -273,8 +308,13 @@ describe("opções da sala", () => {
   it("a sala de espera: sem vídeo e com a contagem por omissão; um id estragado não passa", () => {
     const id = "6f1c2a7e-1b2c-4d5e-8f90-123456789abc";
     expect(liveSettings(null).waiting).toEqual({ video: null, countdown: true });
-    expect(liveSettings({ live: { waiting: { video: id, countdown: false } } }).waiting).toEqual({ video: id, countdown: false });
-    expect(liveSettings({ live: { waiting: { video: "x'; drop", countdown: "não" } } }).waiting).toEqual({ video: null, countdown: true });
+    expect(liveSettings({ live: { waiting: { video: id, countdown: false } } }).waiting).toEqual({
+      video: id,
+      countdown: false,
+    });
+    expect(
+      liveSettings({ live: { waiting: { video: "x'; drop", countdown: "não" } } }).waiting,
+    ).toEqual({ video: null, countdown: true });
   });
 
   it("o lugar do vídeo depende só da forma do ficheiro e do aparelho", () => {
@@ -297,9 +337,15 @@ describe("opções da sala", () => {
   it("tira o @ do link e no YouTube pede para subscrever", () => {
     expect(profileHandle("https://www.instagram.com/amadorubenn/")).toBe("@amadorubenn");
     expect(profileHandle("https://www.tiktok.com/@amadoruben?lang=pt")).toBe("@amadoruben");
-    expect(followWebLink("youtube", "https://www.youtube.com/@amadorubenn")).toBe("https://www.youtube.com/@amadorubenn?sub_confirmation=1");
-    expect(followWebLink("youtube", "https://www.youtube.com/@x?sub_confirmation=1")).toBe("https://www.youtube.com/@x?sub_confirmation=1");
-    expect(followWebLink("instagram", "https://www.instagram.com/x/")).toBe("https://www.instagram.com/x/");
+    expect(followWebLink("youtube", "https://www.youtube.com/@amadorubenn")).toBe(
+      "https://www.youtube.com/@amadorubenn?sub_confirmation=1",
+    );
+    expect(followWebLink("youtube", "https://www.youtube.com/@x?sub_confirmation=1")).toBe(
+      "https://www.youtube.com/@x?sub_confirmation=1",
+    );
+    expect(followWebLink("instagram", "https://www.instagram.com/x/")).toBe(
+      "https://www.instagram.com/x/",
+    );
   });
 
   it("no Android abre a app no perfil, com o site como plano B; no resto fica o link", () => {
@@ -307,8 +353,12 @@ describe("opções da sala", () => {
     expect(ig).toBe(
       "intent://www.instagram.com/_u/amadorubenn/#Intent;scheme=https;package=com.instagram.android;S.browser_fallback_url=https%3A%2F%2Fwww.instagram.com%2Famadorubenn%2F;end",
     );
-    expect(followAppLink("tiktok", "https://www.tiktok.com/@x", "android")).toContain("package=com.zhiliaoapp.musically");
-    expect(followAppLink("instagram", "https://www.instagram.com/x/", "ios")).toBe("https://www.instagram.com/x/");
+    expect(followAppLink("tiktok", "https://www.tiktok.com/@x", "android")).toContain(
+      "package=com.zhiliaoapp.musically",
+    );
+    expect(followAppLink("instagram", "https://www.instagram.com/x/", "ios")).toBe(
+      "https://www.instagram.com/x/",
+    );
     expect(followAppLink("instagram", "não é link", "android")).toBe("não é link");
   });
 
@@ -330,45 +380,131 @@ describe("opções da sala", () => {
 describe("contagem antes de começar", () => {
   it("lê a escolha gravada e corrige o que vier estragado", () => {
     expect(liveSettings(null).countdown).toBeNull();
-    expect(liveSettings({ live: { countdown: { on: true, minutes: 10, style: "dark", color: "#16a34a", sound: false } } }).countdown).toEqual({
+    expect(
+      liveSettings({
+        live: {
+          countdown: { on: true, minutes: 10, style: "dark", color: "#16a34a", sound: false },
+        },
+      }).countdown,
+    ).toEqual({
       on: true,
       minutes: 10,
       style: "dark",
       color: "#16A34A",
       sound: false,
+      background: { image: null, video: null },
     });
-    expect(liveSettings({ live: { countdown: { on: "sim", minutes: 999, style: "glass", color: "x" } } }).countdown).toEqual({
+    expect(
+      liveSettings({ live: { countdown: { on: "sim", minutes: 999, style: "glass", color: "x" } } })
+        .countdown,
+    ).toEqual({
       on: false,
       minutes: 30,
       style: "minimal",
       color: "#E8440C",
       sound: true,
+      background: { image: null, video: null },
+    });
+    const id = "2f3b8f3e-1c2d-4e5f-8a9b-0c1d2e3f4a5b";
+    expect(
+      liveSettings({
+        live: {
+          countdown: {
+            on: true,
+            minutes: 5,
+            background: { image: "https://x.test/a.webp", video: id },
+          },
+        },
+      }).countdown?.background,
+    ).toEqual({
+      image: "https://x.test/a.webp",
+      video: id,
+    });
+    expect(
+      liveSettings({
+        live: {
+          countdown: {
+            on: true,
+            minutes: 5,
+            background: { image: "javascript:alert(1)", video: "x" },
+          },
+        },
+      }).countdown?.background,
+    ).toEqual({
+      image: null,
+      video: null,
     });
   });
 
   it("a escolha nova manda; sem ela, valem as colunas antigas", () => {
-    const legacy = { prelive_enabled: true, prelive_seconds: 300, prelive_template: "glass", prelive_sound: false };
-    expect(roomCountdown({ on: true, minutes: 3, style: "urgency", color: "#2563EB", sound: true }, legacy)).toEqual({
+    const legacy = {
+      prelive_enabled: true,
+      prelive_seconds: 300,
+      prelive_template: "glass",
+      prelive_sound: false,
+    };
+    const none = { image: null, video: null };
+    expect(
+      roomCountdown(
+        { on: true, minutes: 3, style: "urgency", color: "#2563EB", sound: true, background: none },
+        legacy,
+      ),
+    ).toEqual({
       seconds: 180,
       style: "urgency",
       color: "#2563EB",
       sound: true,
+      background: none,
     });
-    expect(roomCountdown({ on: false, minutes: 3, style: "urgency", color: "#2563EB", sound: true }, legacy).seconds).toBe(0);
-    expect(roomCountdown(null, legacy)).toMatchObject({ seconds: 300, style: "premium", sound: false });
+    expect(
+      roomCountdown(
+        {
+          on: false,
+          minutes: 3,
+          style: "urgency",
+          color: "#2563EB",
+          sound: true,
+          background: none,
+        },
+        legacy,
+      ).seconds,
+    ).toBe(0);
+    expect(roomCountdown(null, legacy)).toMatchObject({
+      seconds: 300,
+      style: "premium",
+      sound: false,
+    });
     expect(roomCountdown(null, { prelive_enabled: false, prelive_seconds: 300 }).seconds).toBe(0);
   });
 
   it("um webinar antigo com a contagem ligada abre no editor com ela ligada, igual à sala", () => {
-    const legacy = { prelive_enabled: true, prelive_seconds: 600, prelive_template: "glass", prelive_sound: false };
-    expect(liveSettings(null, legacy).countdown).toEqual({ on: true, minutes: 10, style: "premium", color: "#E8440C", sound: false });
+    const legacy = {
+      prelive_enabled: true,
+      prelive_seconds: 600,
+      prelive_template: "glass",
+      prelive_sound: false,
+    };
+    expect(liveSettings(null, legacy).countdown).toEqual({
+      on: true,
+      minutes: 10,
+      style: "premium",
+      color: "#E8440C",
+      sound: false,
+      background: { image: null, video: null },
+    });
     expect(liveSettings({ live: { desk: "vertical" } }, legacy).countdown?.on).toBe(true);
     // A escolha nova ganha às colunas antigas; desligada, as antigas não contam.
-    expect(liveSettings({ live: { countdown: { on: false, minutes: 3 } } }, legacy).countdown?.on).toBe(false);
-    expect(liveSettings(null, { prelive_enabled: false, prelive_seconds: 600 }).countdown).toBeNull();
+    expect(
+      liveSettings({ live: { countdown: { on: false, minutes: 3 } } }, legacy).countdown?.on,
+    ).toBe(false);
+    expect(
+      liveSettings(null, { prelive_enabled: false, prelive_seconds: 600 }).countdown,
+    ).toBeNull();
     expect(liveSettings(null, { prelive_enabled: true, prelive_seconds: 0 }).countdown).toBeNull();
     expect(liveSettings(null).countdown).toBeNull();
-    expect(roomCountdown(liveSettings(null, legacy).countdown, legacy).seconds).toBe(roomCountdown(null, legacy).seconds);
+    expect(roomCountdown(liveSettings(null, legacy).countdown, legacy).seconds).toBe(
+      roomCountdown(null, legacy).seconds,
+    );
   });
 });
 
@@ -417,22 +553,40 @@ describe("temporizador da aula", () => {
     expect(lessonTimerAt(undefined, 110)).toBeNull();
   });
   it("lê a escolha gravada; o que vier estragado desliga", () => {
-    expect(liveSettings(null).timer).toEqual({ on: false, start: 0, end: 0, model: "bar", color: null });
-    expect(liveSettings({ live: { timer: { on: true, start: 60, end: 600, model: "pill", color: "#16a34a" } } }).timer).toEqual({
-      on: true,
-      start: 60,
-      end: 600,
-      model: "pill",
-      color: "#16A34A",
-    });
-    expect(liveSettings({ live: { timer: { on: true, start: 600, end: 60, model: "x", color: "verde" } } }).timer).toEqual({
+    expect(liveSettings(null).timer).toEqual({
       on: false,
       start: 0,
       end: 0,
       model: "bar",
       color: null,
     });
-    expect(liveSettings({ live: { timer: { on: true, start: "a", end: 60 } } }).timer.on).toBe(false);
-    expect(liveSettings({ live: { timer: { on: true, start: -5, end: 60 } } }).timer.on).toBe(false);
+    expect(
+      liveSettings({
+        live: { timer: { on: true, start: 60, end: 600, model: "pill", color: "#16a34a" } },
+      }).timer,
+    ).toEqual({
+      on: true,
+      start: 60,
+      end: 600,
+      model: "pill",
+      color: "#16A34A",
+    });
+    expect(
+      liveSettings({
+        live: { timer: { on: true, start: 600, end: 60, model: "x", color: "verde" } },
+      }).timer,
+    ).toEqual({
+      on: false,
+      start: 0,
+      end: 0,
+      model: "bar",
+      color: null,
+    });
+    expect(liveSettings({ live: { timer: { on: true, start: "a", end: 60 } } }).timer.on).toBe(
+      false,
+    );
+    expect(liveSettings({ live: { timer: { on: true, start: -5, end: 60 } } }).timer.on).toBe(
+      false,
+    );
   });
 });

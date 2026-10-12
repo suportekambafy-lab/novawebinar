@@ -95,6 +95,7 @@ import {
   type AudienceFormat,
   type LiveSettings,
   type OfferSlot,
+  COUNTDOWN_OFF,
 } from "@/lib/room-logic";
 import { formatSessionStart, lifecycleLabel, sessionWindow, webinarLifecycle } from "@/lib/schedule";
 import { toStorageOffsets } from "@/lib/temporal/placement";
@@ -391,6 +392,8 @@ function EditWebinar() {
   /* ---------- Vídeo, transcrição e análise ---------- */
 
   const selectedVideo = videoSources.find((v) => v.id === form.video_source_id) ?? null;
+  // O vídeo de fundo da contagem antes de começar, para a pré-visualização.
+  const countdownVideo = videoSources.find((v) => v.id === form.live.countdown?.background.video) ?? null;
   const duration = selectedVideo?.duration_seconds || webinar?.duration_seconds || 0;
   const [transcript, setTranscript] = useState<TranscriptSegment[]>([]);
   const { data: savedTranscript } = useQuery({
@@ -951,7 +954,7 @@ function EditWebinar() {
   /* ---------- Imagens ---------- */
 
   const [uploadingImage, setUploadingImage] = useState(false);
-  const uploadImage = async (file: File, field: "host_avatar_url" | "share_image_url" | "cta_image_url" | "registration_cover_url") => {
+  const uploadImage = async (file: File, field: "host_avatar_url" | "share_image_url" | "cta_image_url" | "registration_cover_url" | "countdown_background") => {
     setUploadingImage(true);
     try {
       // Reduzida no navegador ao tamanho em que aparece: a foto da sala passa de ~900 KB a ~6 KB.
@@ -960,7 +963,7 @@ function EditWebinar() {
           ? IMAGE_PRESETS.avatar
           : field === "share_image_url"
             ? IMAGE_PRESETS.cover
-            : field === "registration_cover_url"
+            : field === "registration_cover_url" || field === "countdown_background"
               ? IMAGE_PRESETS.pageCover
               : IMAGE_PRESETS.offer;
       const small = await shrinkImage(file, preset);
@@ -975,7 +978,13 @@ function EditWebinar() {
         .from("webinar-covers")
         .createSignedUrl(path, 60 * 60 * 24 * 365 * 5);
       if (signError || !data) throw signError ?? new Error("Não foi possível preparar a imagem.");
-      set({ [field]: data.signedUrl });
+      if (field === "countdown_background") {
+        // O fundo da contagem fica em `chat_settings.live.countdown`: a imagem substitui o vídeo.
+        setForm((prev) => ({
+          ...prev,
+          live: { ...prev.live, countdown: { ...(prev.live.countdown ?? COUNTDOWN_OFF), background: { image: data.signedUrl, video: null } } },
+        }));
+      } else set({ [field]: data.signedUrl });
       toast.success("Imagem carregada. Guarde para aplicar.");
     } catch (error) {
       toast.error(friendlyError(error, "Não foi possível carregar a imagem."));
@@ -1583,6 +1592,7 @@ function EditWebinar() {
       videoShape={videoShape}
       entryShown={step === "video"}
       liveSettings={form.live}
+      countdownVideo={countdownVideo?.source_url ? { url: countdownVideo.source_url, provider: countdownVideo.provider } : null}
       theme={previewTheme}
       appearance={previewAppearance}
       onAppearance={setPreviewAppearance}
@@ -1997,6 +2007,7 @@ function EditWebinar() {
                     onFormat={(room_format) => set({ room_format })}
                     live={form.live}
                     onLive={(patch) => setForm((prev) => ({ ...prev, live: { ...prev.live, ...patch } }))}
+                    backgroundUpload={{ uploading: uploadingImage, onFile: (file) => void uploadImage(file, "countdown_background") }}
                   />
                 ) : step === "chat" ? (
                   <StepChat

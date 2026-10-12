@@ -145,7 +145,7 @@ async function buildRoom(webinar: RoomRow) {
   const source = webinar.video_sources;
   const live = liveSettings(webinar.chat_settings);
   // A assinatura do vídeo e o convite do grupo correm ao lado das seis leituras, em vez de esperar por elas.
-  const [parts, signedVideo, groupUrl, waitingBg] = await Promise.all([Promise.all([
+  const [parts, signedVideo, groupUrl, waitingBg, countdownBg] = await Promise.all([Promise.all([
     // Um webinar longo passa dos 1000 comentários; cortados, o chat calava-se a meio.
     fetchAll((from, to) =>
       supabaseAdmin
@@ -193,7 +193,9 @@ async function buildRoom(webinar: RoomRow) {
   ]), source?.storage_path ? signedVideoUrl(source.storage_path) : null,
     // Nunca rejeita: sem grupo no fluxo (ou com a leitura falhada) vem null e o botão não aparece.
     flowGroupInvite(webinar.organization_id, webinar.id),
-    waitingVideo(webinar.organization_id, webinar.waiting_room_enabled ? live.waiting.video : null)]);
+    waitingVideo(webinar.organization_id, webinar.waiting_room_enabled ? live.waiting.video : null),
+    // O vídeo de fundo da contagem antes de começar, também da Biblioteca e assinado da mesma forma.
+    waitingVideo(webinar.organization_id, live.countdown?.on ? live.countdown.background.video : null)]);
   // Uma sala sem comentários ou sem oferta por causa de uma leitura falhada
   // substituiria a sala boa de quem já está a assistir.
   if (parts.some((part) => part.error)) throw new Error(UNAVAILABLE);
@@ -257,6 +259,8 @@ async function buildRoom(webinar: RoomRow) {
       live,
       /** O vídeo de fundo da sala de espera, já assinado; null sem vídeo. */
       waiting_video: waitingBg,
+      /** O vídeo de fundo da contagem antes de começar, já assinado; null sem vídeo. */
+      countdown_video: countdownBg,
       host_verified: webinar.host_verified,
       entry_fields: webinar.entry_fields,
       entry_card_color: webinar.entry_card_color,

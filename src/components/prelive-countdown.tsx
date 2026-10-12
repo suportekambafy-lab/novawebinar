@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useDataSaver } from "@/lib/room-data-saver";
+import { VideoPlayer } from "@/components/video-player";
+
+/** O fundo escolhido para a contagem: uma imagem ou um vídeo (já assinado), por trás do relógio. */
+export type CountdownBackdrop = {
+  image: string | null;
+  video: { url: string; provider?: string | null | undefined } | null;
+};
+const NOOP = () => {};
 import { entryPalette, offerColor } from "@/lib/room-logic";
 import {
   countdownParts,
@@ -80,7 +89,6 @@ function useAmbientSound(active: boolean, remaining: number) {
       audio.src = "";
       audioRef.current = null;
     };
-
   }, [active]);
 
   // Fecho suave: a música desce aos poucos nos últimos segundos, até ao silêncio.
@@ -101,10 +109,7 @@ function useAmbientSound(active: boolean, remaining: number) {
       const current = audioRef.current;
       if (!current) return;
       const ratio = Math.min(1, (now - startedAt) / FADE_DURATION_MS);
-      const level =
-        ratio < 0.6
-          ? 1 - 0.42 * (ratio / 0.6)
-          : 0.58 * (1 - (ratio - 0.6) / 0.4) ** 2;
+      const level = ratio < 0.6 ? 1 - 0.42 * (ratio / 0.6) : 0.58 * (1 - (ratio - 0.6) / 0.4) ** 2;
       current.volume = Math.max(0, Math.min(1, from * level));
       if (ratio >= 1) {
         current.volume = 0;
@@ -117,7 +122,6 @@ function useAmbientSound(active: boolean, remaining: number) {
 
     return () => window.cancelAnimationFrame(frame);
   }, [fadeStarted]);
-
 }
 
 function clock(total: number) {
@@ -134,7 +138,8 @@ type ViewProps = {
 };
 
 /** O título: o escrito no editor antigo, ou a frase da sala; sem nenhum, só o selo do estilo. */
-const titleOf = (message: string, appearance: PreliveAppearance) => appearance.title.trim() || message.trim();
+const titleOf = (message: string, appearance: PreliveAppearance) =>
+  appearance.title.trim() || message.trim();
 
 /** O título e a frase por baixo; as letras medem o próprio relógio (cqmin), não o ecrã. */
 function Texts({ message, appearance }: { message: string; appearance: PreliveAppearance }) {
@@ -142,9 +147,15 @@ function Texts({ message, appearance }: { message: string; appearance: PreliveAp
   if (!title && !appearance.subtitle) return null;
   return (
     <div className="cd-texts grid max-w-[min(90cqw,34rem)] justify-items-center gap-1 text-center">
-      {title ? <p className="line-clamp-2 text-[length:clamp(13px,4.4cqmin,21px)] font-semibold leading-snug">{title}</p> : null}
+      {title ? (
+        <p className="line-clamp-2 text-[length:clamp(13px,4.4cqmin,21px)] font-semibold leading-snug">
+          {title}
+        </p>
+      ) : null}
       {appearance.subtitle ? (
-        <p className="line-clamp-2 text-[length:clamp(11.5px,3.4cqmin,15px)] leading-snug opacity-70">{appearance.subtitle}</p>
+        <p className="line-clamp-2 text-[length:clamp(11.5px,3.4cqmin,15px)] leading-snug opacity-70">
+          {appearance.subtitle}
+        </p>
       ) : null}
     </div>
   );
@@ -154,7 +165,24 @@ function Texts({ message, appearance }: { message: string; appearance: PreliveAp
  * O fundo da contagem: preto com um brilho da cor escolhida. Ocupa o lugar do vídeo (16:9) ou, no
  * Live, o palco inteiro (`fill`); ao alto, o relógio sobe para não ficar por baixo do chat.
  */
-function Shell({ children, color, fill, glow = true }: { children: ReactNode; color: string; fill?: boolean | undefined; glow?: boolean }) {
+function Shell({
+  children,
+  color,
+  fill,
+  glow = true,
+  backdrop,
+}: {
+  children: ReactNode;
+  color: string;
+  fill?: boolean | undefined;
+  glow?: boolean;
+  backdrop?: CountdownBackdrop | null | undefined;
+}) {
+  const saveData = useDataSaver();
+  // A poupar dados, o vídeo de fundo não descarrega; fica a imagem (se houver) ou a cor.
+  const video = backdrop?.video && !saveData ? backdrop.video : null;
+  const image = backdrop?.image ?? null;
+  const covered = Boolean(video || image);
   const vars = {
     "--primary": color,
     "--primary-foreground": entryPalette(null, color).buttonText,
@@ -168,25 +196,58 @@ function Shell({ children, color, fill, glow = true }: { children: ReactNode; co
       className={cn(
         "prelive-dark relative flex flex-col items-center justify-center overflow-hidden bg-room-bg px-4 text-room-text",
         fill ? "size-full" : "aspect-video w-full",
-        glow && "prelive-glow",
+        glow && !covered && "prelive-glow",
       )}
       style={vars}
     >
+      {video ? (
+        <div className="absolute inset-0" aria-hidden>
+          <VideoPlayer
+            url={video.url}
+            provider={video.provider ?? null}
+            controls={false}
+            onTime={NOOP}
+            loop
+            muted
+            quiet
+            className="h-full aspect-auto rounded-none"
+          />
+        </div>
+      ) : image ? (
+        <img
+          src={image}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute inset-0 size-full object-cover"
+        />
+      ) : null}
+      {/* Um véu escuro: o relógio lê-se por cima de qualquer imagem ou vídeo. */}
+      {covered ? <div className="absolute inset-0 bg-black/45" aria-hidden /> : null}
       {/* Num vídeo baixo (o Webinar no telemóvel) as frases saem: fica o relógio e cabe o aviso do som. */}
       <style>{"@container (max-height:300px){.cd-texts{display:none}}"}</style>
-      {children}
+      <div className="relative flex flex-col items-center">{children}</div>
     </div>
   );
 }
 
 /** Os números com o nome de cada unidade por baixo (min, seg). */
-function Units({ remaining, appearance, boxed }: { remaining: number; appearance: PreliveAppearance; boxed?: boolean }) {
+function Units({
+  remaining,
+  appearance,
+  boxed,
+}: {
+  remaining: number;
+  appearance: PreliveAppearance;
+  boxed?: boolean;
+}) {
   const parts = countdownParts(remaining, appearance);
   return (
     <div className="flex items-baseline gap-[2cqmin]">
       {parts.map((part, index) => (
         <div key={part.key} className="flex items-baseline gap-[2cqmin]">
-          {index > 0 && !boxed ? <span className="text-[length:13cqmin] font-black leading-none text-primary">:</span> : null}
+          {index > 0 && !boxed ? (
+            <span className="text-[length:13cqmin] font-black leading-none text-primary">:</span>
+          ) : null}
           <div className="grid justify-items-center gap-[1.4cqmin]">
             <span
               className={cn(
@@ -198,7 +259,9 @@ function Units({ remaining, appearance, boxed }: { remaining: number; appearance
             >
               {part.value}
             </span>
-            <span className="text-[length:clamp(9px,2.4cqmin,12px)] font-bold uppercase tracking-[0.22em] opacity-60">{part.label}</span>
+            <span className="text-[length:clamp(9px,2.4cqmin,12px)] font-bold uppercase tracking-[0.22em] opacity-60">
+              {part.label}
+            </span>
           </div>
         </div>
       ))}
@@ -215,7 +278,13 @@ function TemplateView({
   appearance,
   color,
   fill,
-}: ViewProps & { template: PreliveTemplateId; color: string; fill?: boolean | undefined }) {
+  backdrop,
+}: ViewProps & {
+  template: PreliveTemplateId;
+  color: string;
+  fill?: boolean | undefined;
+  backdrop?: CountdownBackdrop | null | undefined;
+}) {
   const progress = total > 0 ? Math.min(1, Math.max(0, 1 - remaining / total)) : 0;
   const gap = "gap-[3.6cqmin]";
   // Pouco texto: o selo («A começar») só aparece quando não há título.
@@ -224,7 +293,7 @@ function TemplateView({
   if (template === "premium") {
     // Blocos: um cartão por unidade, com um traço da cor escolhida em baixo.
     return (
-      <Shell color={color} fill={fill}>
+      <Shell color={color} fill={fill} backdrop={backdrop}>
         <div className={cn("flex flex-col items-center", gap)}>
           {chip ? (
             <span className="rounded-full bg-primary/15 px-3 py-1 text-[length:clamp(9.5px,2.6cqmin,12px)] font-bold uppercase tracking-[0.24em] text-[color-mix(in_srgb,var(--primary)_55%,white)] ring-1 ring-primary/35">
@@ -242,7 +311,7 @@ function TemplateView({
     // Grande: só os números, enormes, com os dois pontos na cor escolhida.
     const parts = countdownParts(remaining, appearance);
     return (
-      <Shell color={color} fill={fill} glow={false}>
+      <Shell color={color} fill={fill} glow={false} backdrop={backdrop}>
         <div className={cn("flex flex-col items-center", gap)}>
           <p className="flex items-baseline text-[length:min(26cqmin,170px)] font-black leading-none tabular-nums tracking-[-0.04em]">
             {parts.map((part, i) => (
@@ -261,7 +330,7 @@ function TemplateView({
   if (template === "urgency") {
     // Barra: o sinal vivo, a contagem e a barra que enche até à hora.
     return (
-      <Shell color={color} fill={fill}>
+      <Shell color={color} fill={fill} backdrop={backdrop}>
         <div className={cn("flex w-full flex-col items-center", gap)}>
           {chip ? (
             <span className="flex items-center gap-2 rounded-full bg-primary px-3 py-1 text-[length:clamp(9.5px,2.6cqmin,12px)] font-bold uppercase tracking-[0.2em] text-primary-foreground">
@@ -271,7 +340,10 @@ function TemplateView({
           ) : null}
           <Units remaining={remaining} appearance={appearance} />
           <div className="h-[clamp(4px,1.2cqmin,8px)] w-[min(64cqw,420px)] overflow-hidden rounded-full bg-white/12">
-            <div className="h-full rounded-full bg-primary transition-[width] duration-1000 ease-linear" style={{ width: `${progress * 100}%` }} />
+            <div
+              className="h-full rounded-full bg-primary transition-[width] duration-1000 ease-linear"
+              style={{ width: `${progress * 100}%` }}
+            />
           </div>
           <Texts message={message} appearance={appearance} />
         </div>
@@ -285,12 +357,22 @@ function TemplateView({
   const circumference = 2 * Math.PI * radius;
   const parts = countdownParts(remaining, appearance);
   return (
-    <Shell color={color} fill={fill}>
+    <Shell color={color} fill={fill} backdrop={backdrop}>
       <div className={cn("relative flex flex-col items-center", gap)}>
         <div className="relative size-[min(52cqmin,260px)]">
           <span className="pointer-events-none absolute inset-[-8%] rounded-full border border-primary/30 [animation:ping_3s_cubic-bezier(0,0,0.2,1)_infinite]" />
-          <svg viewBox={`0 0 ${size} ${size}`} className="relative size-full -rotate-90" aria-hidden>
-            <circle cx={size / 2} cy={size / 2} r={radius} className="fill-none stroke-white/15" strokeWidth={8} />
+          <svg
+            viewBox={`0 0 ${size} ${size}`}
+            className="relative size-full -rotate-90"
+            aria-hidden
+          >
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              className="fill-none stroke-white/15"
+              strokeWidth={8}
+            />
             <circle
               cx={size / 2}
               cy={size / 2}
@@ -303,11 +385,16 @@ function TemplateView({
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-[1.2cqmin]">
-            <Globe className="size-[min(5cqmin,30px)] text-primary/80 [animation:spin_14s_linear_infinite]" aria-hidden />
+            <Globe
+              className="size-[min(5cqmin,30px)] text-primary/80 [animation:spin_14s_linear_infinite]"
+              aria-hidden
+            />
             <p className="text-[length:min(11cqmin,64px)] font-black leading-none tabular-nums text-white drop-shadow">
               {parts.length <= 2 ? clock(remaining) : parts.map((part) => part.value).join(":")}
             </p>
-            <p className="text-[length:clamp(7px,2cqmin,11px)] font-bold uppercase tracking-[0.28em] text-white/60">para começar</p>
+            <p className="text-[length:clamp(7px,2cqmin,11px)] font-bold uppercase tracking-[0.28em] text-white/60">
+              para começar
+            </p>
           </div>
         </div>
         <Texts message={message} appearance={appearance} />
@@ -331,6 +418,7 @@ export function PreliveCountdown({
   appearance,
   color,
   fill,
+  background,
 }: {
   remaining: number;
   total: number;
@@ -343,6 +431,8 @@ export function PreliveCountdown({
   color?: string | null | undefined;
   /** No Live: ocupa o palco inteiro em vez de um 16:9. */
   fill?: boolean | undefined;
+  /** A imagem ou o vídeo de fundo escolhidos no editor; sem nenhum, a cor. */
+  background?: CountdownBackdrop | null | undefined;
 }) {
   useAmbientSound(soundEnabled && soundOn, remaining);
 
@@ -358,6 +448,7 @@ export function PreliveCountdown({
       appearance={look}
       color={offerColor(color)}
       fill={fill}
+      backdrop={background}
     />
   );
 }
@@ -379,8 +470,14 @@ export function CountdownThumb({ style, color }: { style: string; color: string 
     return () => observer.disconnect();
   }, []);
   return (
-    <span ref={box} className="pointer-events-none relative block aspect-video w-full overflow-hidden">
-      <span className="absolute left-0 top-0 block w-[320px] origin-top-left" style={{ transform: `scale(${scale})` }}>
+    <span
+      ref={box}
+      className="pointer-events-none relative block aspect-video w-full overflow-hidden"
+    >
+      <span
+        className="absolute left-0 top-0 block w-[320px] origin-top-left"
+        style={{ transform: `scale(${scale})` }}
+      >
         <TemplateView
           template={templateById(style).id}
           remaining={272}

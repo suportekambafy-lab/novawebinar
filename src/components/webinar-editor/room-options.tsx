@@ -1,5 +1,31 @@
-import { useEffect } from "react";
-import { Check, CirclePlay, Clock, Eye, EyeOff, Gauge, Moon, Palette, Play, Plus, Timer, UserPlus, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Check,
+  CirclePlay,
+  Clock,
+  Eye,
+  EyeOff,
+  Film,
+  Gauge,
+  ImageIcon,
+  Loader2,
+  Moon,
+  Palette,
+  Play,
+  Plus,
+  Timer,
+  Upload,
+  UserPlus,
+  X,
+} from "lucide-react";
+import {
+  PaneHeader,
+  PanelDialog,
+  PanelNavButton,
+  PanelNavGroup,
+  PanelTitle,
+} from "@/components/panel-modal";
+import { VideoThumb } from "@/components/video-thumb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -28,7 +54,7 @@ import {
 } from "@/lib/room-logic";
 import type { Appearance } from "@/components/room/room-parts";
 import { Note, Section, SwitchRow, Swatches, TimeWindow } from "./ui";
-import type { EditorClock } from "./steps/video";
+import { LibraryGrid, type EditorClock, type VideoSourceLite } from "./steps/video";
 
 /**
  * Depois de escolher o formato, a sala personaliza-se igual nos dois (Webinar e Live): a aparência,
@@ -42,6 +68,9 @@ export function RoomOptions({
   onAppearance,
   clock: c,
   transcript,
+  library,
+  providerLabel,
+  backgroundUpload,
 }: {
   live: LiveSettings;
   onLive: (patch: Partial<LiveSettings>) => void;
@@ -49,11 +78,17 @@ export function RoomOptions({
   onAppearance: (appearance: Appearance) => void;
   clock: EditorClock;
   transcript: readonly { at: number; text: string }[];
+  /** A Biblioteca, para o vídeo de fundo da contagem. */
+  library: readonly VideoSourceLite[];
+  providerLabel: (provider: string) => string;
+  /** A imagem de fundo da contagem. */
+  backgroundUpload: { uploading: boolean; onFile: (file: File) => void };
 }) {
   const hasLink = FOLLOW_NETWORKS.some((n) => live.links[n.id]);
   const taken = (m: FollowMoment) => live.moments.some((x) => m.start < x.end && x.start < m.end);
   const suggestions = suggestFollowMoments(transcript).filter((m) => !taken(m));
-  const addMoment = (m: FollowMoment) => onLive({ moments: [...live.moments, m].sort((a, b) => a.start - b.start) });
+  const addMoment = (m: FollowMoment) =>
+    onLive({ moments: [...live.moments, m].sort((a, b) => a.start - b.start) });
   const here = Math.round(c.t);
   // As redes à vista: as que já têm link (ou acabaram de ser acrescentadas); sem nenhuma, o Instagram.
   const added = FOLLOW_NETWORKS.filter((n) => n.id in live.links).map((n) => n.id);
@@ -73,7 +108,8 @@ export function RoomOptions({
   const setTimer = (patch: Partial<RoomTimer>) => {
     const next = { ...timer, ...patch };
     onLive({ timer: next });
-    if (next.on && (c.t < next.start || c.t > next.end)) c.seek(Math.round((next.start + next.end) / 2));
+    if (next.on && (c.t < next.start || c.t > next.end))
+      c.seek(Math.round((next.start + next.end) / 2));
   };
   return (
     <>
@@ -88,7 +124,14 @@ export function RoomOptions({
           ).map(([value, label]) => {
             const on = appearance === value;
             return (
-              <button key={value} type="button" role="radio" aria-checked={on} onClick={() => onAppearance(value)} className="group grid gap-2 text-left">
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                onClick={() => onAppearance(value)}
+                className="group grid gap-2 text-left"
+              >
                 <span
                   className={cn(
                     "relative block overflow-hidden rounded-xl ring-1 ring-black/10 transition",
@@ -102,13 +145,21 @@ export function RoomOptions({
                     </span>
                   ) : null}
                 </span>
-                <span className={cn("text-[13px]", on ? "font-semibold" : "font-medium text-muted-foreground")}>{label}</span>
+                <span
+                  className={cn(
+                    "text-[13px]",
+                    on ? "font-semibold" : "font-medium text-muted-foreground",
+                  )}
+                >
+                  {label}
+                </span>
               </button>
             );
           })}
         </div>
         <p className="text-[12.5px] text-muted-foreground">
-          «Automático» segue o telemóvel ou o computador de quem vê. Cada pessoa pode trocar no ⚙ do vídeo.
+          «Automático» segue o telemóvel ou o computador de quem vê. Cada pessoa pode trocar no ⚙ do
+          vídeo.
         </p>
       </Section>
 
@@ -122,7 +173,14 @@ export function RoomOptions({
           ).map(([value, label]) => {
             const on = live.entry === value;
             return (
-              <button key={value} type="button" role="radio" aria-checked={on} onClick={() => onLive({ entry: value })} className="group grid gap-2 text-left">
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                onClick={() => onLive({ entry: value })}
+                className="group grid gap-2 text-left"
+              >
                 <span
                   className={cn(
                     "relative grid aspect-video place-items-center overflow-hidden rounded-xl bg-[linear-gradient(160deg,#2a2f38,#121417)] ring-1 ring-black/10 transition",
@@ -136,7 +194,14 @@ export function RoomOptions({
                     </span>
                   ) : null}
                 </span>
-                <span className={cn("text-[13px]", on ? "font-semibold" : "font-medium text-muted-foreground")}>{label}</span>
+                <span
+                  className={cn(
+                    "text-[13px]",
+                    on ? "font-semibold" : "font-medium text-muted-foreground",
+                  )}
+                >
+                  {label}
+                </span>
               </button>
             );
           })}
@@ -144,9 +209,15 @@ export function RoomOptions({
       </Section>
 
       <Section icon={Palette} title="Cor do botão" help="corBotao">
-        <Swatches label="Botão de entrar e oferta" value={live.offerColor} onChange={(offerColor) => onLive({ offerColor })} options={OFFER_COLOR_SUGGESTIONS} />
+        <Swatches
+          label="Botão de entrar e oferta"
+          value={live.offerColor}
+          onChange={(offerColor) => onLive({ offerColor })}
+          options={OFFER_COLOR_SUGGESTIONS}
+        />
         <p className="text-[12.5px] text-muted-foreground">
-          O botão de entrar e, por omissão, a oferta usam esta cor; o texto ajusta-se sozinho. «Ao vivo» fica sempre vermelho.
+          O botão de entrar e, por omissão, a oferta usam esta cor; o texto ajusta-se sozinho. «Ao
+          vivo» fica sempre vermelho.
         </p>
       </Section>
 
@@ -161,11 +232,22 @@ export function RoomOptions({
         </div>
         {countdown.on ? (
           <>
-            <div className="grid grid-cols-2 gap-2.5" role="radiogroup" aria-label="Estilo da contagem">
+            <div
+              className="grid grid-cols-2 gap-2.5"
+              role="radiogroup"
+              aria-label="Estilo da contagem"
+            >
               {COUNTDOWN_STYLES.map(({ id, name }) => {
                 const on = countdown.style === id;
                 return (
-                  <button key={id} type="button" role="radio" aria-checked={on} onClick={() => setCountdown({ style: id })} className="group grid gap-2 text-left">
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setCountdown({ style: id })}
+                    className="group grid gap-2 text-left"
+                  >
                     <span
                       className={cn(
                         "relative block overflow-hidden rounded-xl ring-1 ring-black/10 transition",
@@ -179,15 +261,31 @@ export function RoomOptions({
                         </span>
                       ) : null}
                     </span>
-                    <span className={cn("text-[13px]", on ? "font-semibold" : "font-medium text-muted-foreground")}>{name}</span>
+                    <span
+                      className={cn(
+                        "text-[13px]",
+                        on ? "font-semibold" : "font-medium text-muted-foreground",
+                      )}
+                    >
+                      {name}
+                    </span>
                   </button>
                 );
               })}
             </div>
-            <Swatches label="Cor da contagem" value={countdown.color} onChange={(color) => setCountdown({ color })} options={OFFER_COLOR_SUGGESTIONS} />
+            <Swatches
+              label="Cor da contagem"
+              value={countdown.color}
+              onChange={(color) => setCountdown({ color })}
+              options={OFFER_COLOR_SUGGESTIONS}
+            />
             <div className="grid gap-1.5">
               <span className="text-[13px] font-medium">A sala abre antes da hora</span>
-              <div className="grid grid-cols-5 gap-1.5" role="radiogroup" aria-label="Minutos antes da hora">
+              <div
+                className="grid grid-cols-5 gap-1.5"
+                role="radiogroup"
+                aria-label="Minutos antes da hora"
+              >
                 {COUNTDOWN_MINUTES.map((m) => (
                   <button
                     key={m}
@@ -197,7 +295,9 @@ export function RoomOptions({
                     onClick={() => setCountdown({ minutes: m })}
                     className={cn(
                       "h-10 min-w-0 whitespace-nowrap rounded-lg px-1 text-[13.5px] font-semibold tabular-nums transition",
-                      countdown.minutes === m ? "bg-foreground text-background" : "bg-chip hover:bg-[var(--ds-gray-alpha-300)]",
+                      countdown.minutes === m
+                        ? "bg-foreground text-background"
+                        : "bg-chip hover:bg-[var(--ds-gray-alpha-300)]",
                     )}
                   >
                     {m} min
@@ -205,10 +305,26 @@ export function RoomOptions({
                 ))}
               </div>
             </div>
+            <CountdownBackgroundPicker
+              countdown={countdown}
+              onChange={(background) => setCountdown({ background })}
+              library={library}
+              providerLabel={providerLabel}
+              upload={backgroundUpload}
+            />
             <div className="rounded-xl border bg-white p-3">
-              <SwitchRow title="Música de fundo" checked={countdown.sound} onChange={(sound) => setCountdown({ sound }, false)} />
+              <SwitchRow
+                title="Música de fundo"
+                checked={countdown.sound}
+                onChange={(sound) => setCountdown({ sound }, false)}
+              />
             </div>
-            <Button variant="outline" size="sm" className="justify-self-start" onClick={() => peekCountdown(!peek)}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="justify-self-start"
+              onClick={() => peekCountdown(!peek)}
+            >
               {peek ? <EyeOff /> : <Eye />}
               {peek ? "Voltar ao vídeo" : "Ver na sala"}
             </Button>
@@ -223,7 +339,11 @@ export function RoomOptions({
             description="A % da aula por cima do vídeo, nos minutos em que apresenta."
             checked={timer.on}
             onChange={(on) =>
-              setTimer(on && !(timer.end > timer.start) ? { on, start: 0, end: Math.max(60, Math.round(c.duration)) } : { on })
+              setTimer(
+                on && !(timer.end > timer.start)
+                  ? { on, start: 0, end: Math.max(60, Math.round(c.duration)) }
+                  : { on },
+              )
             }
           />
         </div>
@@ -237,11 +357,22 @@ export function RoomOptions({
               onStart={(start) => setTimer({ start, end: Math.max(timer.end, start + 60) })}
               onEnd={(end) => setTimer({ end: Math.max(timer.start + 60, end) })}
             />
-            <div className="grid grid-cols-2 gap-2.5" role="radiogroup" aria-label="Modelo do temporizador">
+            <div
+              className="grid grid-cols-2 gap-2.5"
+              role="radiogroup"
+              aria-label="Modelo do temporizador"
+            >
               {TIMER_MODELS.map(({ id, name }) => {
                 const on = timer.model === id;
                 return (
-                  <button key={id} type="button" role="radio" aria-checked={on} onClick={() => setTimer({ model: id })} className="group grid gap-2 text-left">
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setTimer({ model: id })}
+                    className="group grid gap-2 text-left"
+                  >
                     <span
                       className={cn(
                         "relative block overflow-hidden rounded-xl ring-1 ring-black/10 transition",
@@ -255,12 +386,24 @@ export function RoomOptions({
                         </span>
                       ) : null}
                     </span>
-                    <span className={cn("text-[13px]", on ? "font-semibold" : "font-medium text-muted-foreground")}>{name}</span>
+                    <span
+                      className={cn(
+                        "text-[13px]",
+                        on ? "font-semibold" : "font-medium text-muted-foreground",
+                      )}
+                    >
+                      {name}
+                    </span>
                   </button>
                 );
               })}
             </div>
-            <Swatches label="Cor do temporizador" value={timer.color ?? live.offerColor} onChange={(color) => setTimer({ color })} options={OFFER_COLOR_SUGGESTIONS} />
+            <Swatches
+              label="Cor do temporizador"
+              value={timer.color ?? live.offerColor}
+              onChange={(color) => setTimer({ color })}
+              options={OFFER_COLOR_SUGGESTIONS}
+            />
           </>
         ) : null}
       </Section>
@@ -271,7 +414,10 @@ export function RoomOptions({
             const n = FOLLOW_NETWORKS.find((x) => x.id === id)!;
             return (
               <div key={id} className="flex items-center gap-2">
-                <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-chip [&_svg]:size-[18px]" title={n.name}>
+                <span
+                  className="grid size-9 shrink-0 place-items-center rounded-lg bg-chip [&_svg]:size-[18px]"
+                  title={n.name}
+                >
                   {NETWORK_ICONS[id]}
                 </span>
                 <Input
@@ -324,8 +470,8 @@ export function RoomOptions({
           </Popover>
         ) : null}
         <p className="text-[12.5px] leading-snug text-muted-foreground">
-          Quem toca em + Seguir, na foto ou no nome vê estas redes. No telemóvel cada uma abre na app; no computador, numa janela
-          pequena ao lado da sala.
+          Quem toca em + Seguir, na foto ou no nome vê estas redes. No telemóvel cada uma abre na
+          app; no computador, numa janela pequena ao lado da sala.
         </p>
       </Section>
 
@@ -337,13 +483,21 @@ export function RoomOptions({
           <ol className="grid gap-2">
             {live.moments.map((m, i) => {
               const patch = (next: FollowMoment) =>
-                onLive({ moments: live.moments.map((x, j) => (j === i ? next : x)).sort((a, b) => a.start - b.start) });
+                onLive({
+                  moments: live.moments
+                    .map((x, j) => (j === i ? next : x))
+                    .sort((a, b) => a.start - b.start),
+                });
               return (
                 <li key={`${m.start}-${i}`} className="grid gap-2 rounded-xl border bg-white p-3">
                   <div className="flex items-center gap-2">
-                    <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[#0072F5] font-mono text-[11px] font-semibold text-white">{i + 1}</span>
+                    <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[#0072F5] font-mono text-[11px] font-semibold text-white">
+                      {i + 1}
+                    </span>
                     <b className="text-[13px] font-semibold">Momento {i + 1}</b>
-                    <span className="text-[12px] text-muted-foreground">· {m.end - m.start} s à vista</span>
+                    <span className="text-[12px] text-muted-foreground">
+                      · {m.end - m.start} s à vista
+                    </span>
                     <button
                       type="button"
                       aria-label={`Tirar o momento ${i + 1}`}
@@ -360,7 +514,10 @@ export function RoomOptions({
                     max={Math.max(1, c.duration)}
                     onStart={(start) => {
                       // Mudar o início leva o fim com ele, mantendo o tempo à vista.
-                      patch({ start, end: Math.min(Math.max(c.duration, start + 5), start + (m.end - m.start)) });
+                      patch({
+                        start,
+                        end: Math.min(Math.max(c.duration, start + 5), start + (m.end - m.start)),
+                      });
                       c.seek(Math.max(0, start - 2));
                     }}
                     onEnd={(end) => patch({ start: m.start, end: Math.max(m.start + 5, end) })}
@@ -383,12 +540,16 @@ export function RoomOptions({
           </span>
           <span className="min-w-0">
             Adicionar momento aos <span className="font-mono">{clock(here)}</span>
-            <span className="block text-[12px] font-normal text-muted-foreground">Leve o vídeo ao minuto em que pede para seguir.</span>
+            <span className="block text-[12px] font-normal text-muted-foreground">
+              Leve o vídeo ao minuto em que pede para seguir.
+            </span>
           </span>
         </button>
         {suggestions.length ? (
           <div className="grid gap-1.5">
-            <span className="text-[12.5px] font-medium text-muted-foreground">Sugeridos pela transcrição (quando diz «sigam»):</span>
+            <span className="text-[12.5px] font-medium text-muted-foreground">
+              Sugeridos pela transcrição (quando diz «sigam»):
+            </span>
             <div className="flex flex-wrap gap-1.5">
               {suggestions.map((m) => (
                 <button
@@ -417,7 +578,9 @@ export function RoomOptions({
           />
         </div>
         {!hasLink && live.moments.length ? (
-          <p className="text-[12.5px] text-warning">Ponha pelo menos um link em Botão Seguir, senão o botão não aparece.</p>
+          <p className="text-[12.5px] text-warning">
+            Ponha pelo menos um link em Botão Seguir, senão o botão não aparece.
+          </p>
         ) : null}
       </Section>
     </>
@@ -427,8 +590,14 @@ export function RoomOptions({
 /** O botão de entrar em miniatura, ao centro de um vídeo: a pulsar, ou com a linha de informação. */
 export function EntryThumb({ look, color = "#E8440C" }: { look: EntryLook; color?: string }) {
   const dot = (size: string) => (
-    <span className={cn("relative grid shrink-0 place-items-center rounded-full", size)} style={{ background: color, color: entryPalette(null, color).buttonText }}>
-      <span className="absolute inset-0 animate-ping rounded-full opacity-50 motion-reduce:animate-none" style={{ background: color }} />
+    <span
+      className={cn("relative grid shrink-0 place-items-center rounded-full", size)}
+      style={{ background: color, color: entryPalette(null, color).buttonText }}
+    >
+      <span
+        className="absolute inset-0 animate-ping rounded-full opacity-50 motion-reduce:animate-none"
+        style={{ background: color }}
+      />
       <Play className="relative size-[45%] translate-x-[0.5px] fill-current" />
     </span>
   );
@@ -437,7 +606,9 @@ export function EntryThumb({ look, color = "#E8440C" }: { look: EntryLook; color
     <span className="flex items-center gap-1.5 rounded-full bg-black/60 py-1 pl-1 pr-2.5 text-white ring-1 ring-white/15">
       {dot("size-5")}
       <span className="leading-none">
-        <small className="block text-[6.5px] font-bold uppercase tracking-[0.14em] text-white/70">Aula ao vivo</small>
+        <small className="block text-[6.5px] font-bold uppercase tracking-[0.14em] text-white/70">
+          Aula ao vivo
+        </small>
         <b className="mt-0.5 block text-[9px] font-semibold">Assistir agora</b>
       </span>
     </span>
@@ -447,26 +618,212 @@ export function EntryThumb({ look, color = "#E8440C" }: { look: EntryLook; color
 /** A sala em miniatura no tema: o vídeo à esquerda e o painel à direita; «Automático» mostra os dois. */
 function ThemeThumb({ theme }: { theme: Appearance }) {
   const half = (dark: boolean) => (
-    <span className={cn("grid h-full grid-cols-[1fr_34%] gap-1 p-1.5", dark ? "bg-[#141414]" : "bg-white")}>
+    <span
+      className={cn(
+        "grid h-full grid-cols-[1fr_34%] gap-1 p-1.5",
+        dark ? "bg-[#141414]" : "bg-white",
+      )}
+    >
       <span className="grid content-start gap-1">
-        <span className={cn("block aspect-video rounded-[3px]", dark ? "bg-[#2E2E2E]" : "bg-[#E5E5E5]")}>
+        <span
+          className={cn("block aspect-video rounded-[3px]", dark ? "bg-[#2E2E2E]" : "bg-[#E5E5E5]")}
+        >
           <i className="m-1 block h-1.5 w-3.5 rounded-[2px] bg-[#E5243B]" />
         </span>
-        <i className={cn("block h-1.5 w-4/5 rounded-full", dark ? "bg-[#3A3A3A]" : "bg-[#D4D4D4]")} />
+        <i
+          className={cn("block h-1.5 w-4/5 rounded-full", dark ? "bg-[#3A3A3A]" : "bg-[#D4D4D4]")}
+        />
       </span>
-      <span className={cn("grid content-end gap-1 rounded-[3px] p-1", dark ? "bg-[#1F1F1F]" : "bg-white ring-1 ring-[#E5E5E5]")}>
+      <span
+        className={cn(
+          "grid content-end gap-1 rounded-[3px] p-1",
+          dark ? "bg-[#1F1F1F]" : "bg-white ring-1 ring-[#E5E5E5]",
+        )}
+      >
         {[0.9, 0.7, 0.8].map((w, i) => (
-          <i key={i} className={cn("block h-1 rounded-full", dark ? "bg-[#3A3A3A]" : "bg-[#E5E5E5]")} style={{ width: `${w * 100}%` }} />
+          <i
+            key={i}
+            className={cn("block h-1 rounded-full", dark ? "bg-[#3A3A3A]" : "bg-[#E5E5E5]")}
+            style={{ width: `${w * 100}%` }}
+          />
         ))}
-        <i className={cn("mt-0.5 block h-2 rounded-full", dark ? "bg-[#2E2E2E]" : "bg-[#F2F2F2] ring-1 ring-[#E5E5E5]")} />
+        <i
+          className={cn(
+            "mt-0.5 block h-2 rounded-full",
+            dark ? "bg-[#2E2E2E]" : "bg-[#F2F2F2] ring-1 ring-[#E5E5E5]",
+          )}
+        />
       </span>
     </span>
   );
-  if (theme !== "system") return <span className="block aspect-[16/10]">{half(theme === "dark")}</span>;
+  if (theme !== "system")
+    return <span className="block aspect-[16/10]">{half(theme === "dark")}</span>;
   return (
     <span className="relative block aspect-[16/10]">
       <span className="absolute inset-0">{half(true)}</span>
-      <span className="absolute inset-0 [clip-path:polygon(100%_0,100%_100%,0_100%)]">{half(false)}</span>
+      <span className="absolute inset-0 [clip-path:polygon(100%_0,100%_100%,0_100%)]">
+        {half(false)}
+      </span>
     </span>
+  );
+}
+
+/**
+ * O fundo da contagem: a cor (o preto com o brilho da cor escolhida), uma imagem carregada ou um vídeo da
+ * Biblioteca, sem som e em ciclo, por trás do relógio. Fica em `live.countdown.background`.
+ */
+function CountdownBackgroundPicker({
+  countdown,
+  onChange,
+  library,
+  providerLabel,
+  upload,
+}: {
+  countdown: RoomCountdown;
+  onChange: (background: RoomCountdown["background"]) => void;
+  library: readonly VideoSourceLite[];
+  providerLabel: (provider: string) => string;
+  upload: { uploading: boolean; onFile: (file: File) => void };
+}) {
+  const [picking, setPicking] = useState(false);
+  const file = useRef<HTMLInputElement>(null);
+  const { background } = countdown;
+  const chosen = background.video ? (library.find((v) => v.id === background.video) ?? null) : null;
+  const kind: "cor" | "imagem" | "video" = background.image
+    ? "imagem"
+    : background.video
+      ? "video"
+      : "cor";
+  const nav = <PanelNavButton icon={Film} label="Da Biblioteca" active onClick={() => {}} />;
+  const options: readonly { id: typeof kind; name: string }[] = [
+    { id: "cor", name: "Cor" },
+    { id: "imagem", name: "Imagem" },
+    { id: "video", name: "Vídeo" },
+  ];
+  return (
+    <div className="grid gap-2.5 rounded-xl border bg-white p-3">
+      <input
+        ref={file}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const picked = e.target.files?.[0];
+          if (picked) upload.onFile(picked);
+          e.target.value = "";
+        }}
+      />
+      <span className="text-[13px] font-medium">Fundo da contagem</span>
+      <div className="grid grid-cols-3 gap-1.5" role="radiogroup" aria-label="Fundo da contagem">
+        {options.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            role="radio"
+            aria-checked={kind === option.id}
+            onClick={() => {
+              if (option.id === "cor") onChange({ image: null, video: null });
+              else if (option.id === "imagem") file.current?.click();
+              else setPicking(true);
+            }}
+            className={cn(
+              "h-10 rounded-lg px-1 text-[13.5px] font-semibold transition",
+              kind === option.id
+                ? "bg-foreground text-background"
+                : "bg-chip hover:bg-[var(--ds-gray-alpha-300)]",
+            )}
+          >
+            {option.name}
+          </button>
+        ))}
+      </div>
+      {kind === "imagem" && background.image ? (
+        <div className="flex items-center gap-2.5">
+          <img
+            src={background.image}
+            alt=""
+            className="aspect-video w-[96px] shrink-0 rounded-md object-cover ring-1 ring-[var(--border-subtle)]"
+          />
+          <span className="min-w-0 flex-1 text-[12.5px] leading-snug text-muted-foreground">
+            Por trás do relógio, com um véu escuro para os números se lerem.
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={upload.uploading}
+            onClick={() => file.current?.click()}
+          >
+            {upload.uploading ? <Loader2 className="animate-spin" /> : <Upload />}
+            Trocar
+          </Button>
+        </div>
+      ) : kind === "video" ? (
+        <div className="flex items-center gap-2.5">
+          {chosen ? (
+            <VideoThumb
+              name={chosen.name}
+              thumbnailUrl={chosen.thumbnail_url}
+              sourceUrl={chosen.source_url}
+              overlay={false}
+              className="w-[60px] shrink-0 rounded-md"
+            />
+          ) : null}
+          <span className="min-w-0 flex-1 text-[12.5px] leading-snug text-muted-foreground">
+            {chosen ? (
+              <>
+                <span className="block truncate font-medium text-foreground">{chosen.name}</span>
+                Sem som e em ciclo, por trás do relógio.
+              </>
+            ) : (
+              "O vídeo escolhido já não está na Biblioteca."
+            )}
+          </span>
+          <Button variant="outline" size="sm" onClick={() => setPicking(true)}>
+            Trocar
+          </Button>
+        </div>
+      ) : upload.uploading ? (
+        <span className="inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
+          <Loader2 className="size-3.5 animate-spin" />A carregar a imagem…
+        </span>
+      ) : (
+        <span className="text-[12.5px] text-muted-foreground">
+          <ImageIcon className="mr-1 inline size-3.5" />
+          Uma imagem 16:9 ou um vídeo da Biblioteca substituem o fundo da cor.
+        </span>
+      )}
+      {picking ? (
+        <PanelDialog
+          title="Vídeo de fundo da contagem"
+          description="Um vídeo da Biblioteca por trás do relógio, sem som e em ciclo."
+          onClose={() => setPicking(false)}
+          sidebar={
+            <>
+              <PanelTitle>Vídeo de fundo</PanelTitle>
+              <PanelNavGroup>{nav}</PanelNavGroup>
+            </>
+          }
+          mobileNav={nav}
+        >
+          <PaneHeader
+            title="Da Biblioteca"
+            subtitle="Toca sem som e em ciclo por trás da contagem."
+          />
+          {library.length === 0 ? (
+            <Note icon={Film}>A Biblioteca ainda está vazia. Carregue um vídeo acima.</Note>
+          ) : (
+            <LibraryGrid
+              library={library}
+              current={background.video}
+              providerLabel={providerLabel}
+              onPick={(video) => {
+                onChange({ image: null, video });
+                setPicking(false);
+              }}
+            />
+          )}
+        </PanelDialog>
+      ) : null}
+    </div>
   );
 }

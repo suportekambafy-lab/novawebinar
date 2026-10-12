@@ -3,7 +3,7 @@ import { Volume2, VolumeX } from "lucide-react";
 import { formatSessionStart } from "@/lib/schedule";
 import { cn } from "@/lib/utils";
 import { useDataSaver } from "@/lib/room-data-saver";
-import { PreliveCountdown } from "@/components/prelive-countdown";
+import { PreliveCountdown, type CountdownBackdrop } from "@/components/prelive-countdown";
 import { VideoPlayer } from "@/components/video-player";
 import whatsappIcon from "@/assets/local/whatsapp-icon.webp";
 
@@ -26,6 +26,7 @@ export function WaitingScreen({
   onZero,
   highlight,
   video,
+  countdownBackground,
   showCountdown = true,
   groupUrl,
 }: {
@@ -43,6 +44,8 @@ export function WaitingScreen({
   highlight?: boolean | undefined;
   /** O vídeo de fundo (da Biblioteca); sem ele, o fundo da sala. */
   video?: { url: string; provider?: string | null | undefined } | null | undefined;
+  /** O fundo da própria contagem (imagem ou vídeo), quando a sala de espera não tem vídeo. */
+  countdownBackground?: CountdownBackdrop | null | undefined;
   /** A contagem por cima; desligada, ficam o título e a hora. */
   showCountdown?: boolean | undefined;
   /** O convite do grupo de WhatsApp do fluxo; com ele, o mesmo botão da contagem dentro da sala. */
@@ -82,7 +85,10 @@ export function WaitingScreen({
     // Com o vídeo de fundo, a parte de cima fica escura: na pré-visualização, o relógio do aparelho fica branco.
     // Contentor de tamanho (não só de largura): num ecrã baixo (telemóvel deitado) tudo cabe na altura, sem scroll.
     <main
-      className={cn("room-ambient relative flex h-dvh min-h-dvh items-center justify-center overflow-hidden px-4 py-4 [container-type:size]", themeClass)}
+      className={cn(
+        "room-ambient relative flex h-dvh min-h-dvh items-center justify-center overflow-hidden px-4 py-4 [container-type:size]",
+        themeClass,
+      )}
       data-status-dark={bg ? "" : undefined}
     >
       {bg ? (
@@ -105,8 +111,15 @@ export function WaitingScreen({
           <div className="absolute inset-0 bg-black/45" aria-hidden />
         </>
       ) : null}
-      <div className={cn("relative w-full max-w-2xl text-center", bg ? "text-white" : "text-room-text")}>
-        <h1 className="text-2xl font-black leading-tight @min-[640px]:text-3xl [@container(max-height:500px)]:text-xl">{title}</h1>
+      <div
+        className={cn(
+          "relative w-full max-w-2xl text-center",
+          bg ? "text-white" : "text-room-text",
+        )}
+      >
+        <h1 className="text-2xl font-black leading-tight @min-[640px]:text-3xl [@container(max-height:500px)]:text-xl">
+          {title}
+        </h1>
         <p className={cn("mt-2 text-sm", bg ? "text-white/75" : "text-room-subtle")}>
           <span
             className={
@@ -126,7 +139,9 @@ export function WaitingScreen({
               groupUrl ? "max-w-[calc((100cqh-8.5rem)*16/9)]" : "max-w-[calc((100cqh-5rem)*16/9)]",
               // Por cima do vídeo, o fundo do relógio fica meio transparente: vê-se o vídeo por trás. O `!` passa
               // à frente do `.prelive-dark` do styles.css (fora das camadas do Tailwind).
-              bg ? "ring-white/15 [&_.prelive-dark]:[--room-bg:rgb(0_0_0/0.4)]! [&_.prelive-dark]:backdrop-blur-sm" : "ring-room-line",
+              bg
+                ? "ring-white/15 [&_.prelive-dark]:[--room-bg:rgb(0_0_0/0.4)]! [&_.prelive-dark]:backdrop-blur-sm"
+                : "ring-room-line",
             )}
           >
             <PreliveCountdown
@@ -137,7 +152,12 @@ export function WaitingScreen({
               soundEnabled={false}
               template={style}
               color={color}
-              appearance={{ subtitle: "", showDays: remaining >= 86400, showHours: remaining >= 3600 }}
+              appearance={{
+                subtitle: "",
+                showDays: remaining >= 86400,
+                showHours: remaining >= 3600,
+              }}
+              background={bg ? null : countdownBackground}
             />
           </div>
         ) : null}
@@ -160,7 +180,11 @@ export function WaitingScreen({
           aria-pressed={sound}
           className="absolute bottom-[max(2.25rem,env(safe-area-inset-bottom))] right-[max(1rem,env(safe-area-inset-right))] inline-flex h-9 items-center gap-1.5 rounded-full bg-black/55 px-3.5 text-[13px] font-semibold text-white ring-1 ring-white/20 backdrop-blur-sm transition hover:bg-black/70"
         >
-          {sound ? <Volume2 className="size-4" aria-hidden /> : <VolumeX className="size-4" aria-hidden />}
+          {sound ? (
+            <Volume2 className="size-4" aria-hidden />
+          ) : (
+            <VolumeX className="size-4" aria-hidden />
+          )}
           {sound ? "Som ligado" : "Ativar som"}
         </button>
       ) : null}
