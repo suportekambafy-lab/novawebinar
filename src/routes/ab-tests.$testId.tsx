@@ -177,12 +177,18 @@ function AbTestPage() {
               <p className="mt-2 text-sm text-muted-foreground">Ainda sem acontecimentos.</p>
             ) : (
               <ul className="mt-3 space-y-2 text-sm">
-                {history.map((h) => (
-                  <li key={h.id} className="flex items-baseline justify-between gap-3">
-                    <span>{HISTORY_LABEL[h.action] ?? h.action}</span>
-                    <span className="shrink-0 text-muted-foreground tabular-nums">{formatDateTime(h.created_at)}</span>
-                  </li>
-                ))}
+                {history.map((h) => {
+                  const reason = typeof h.details === "object" && h.details !== null && typeof (h.details as { reason?: unknown }).reason === "string" ? (h.details as { reason: string }).reason : null;
+                  return (
+                    <li key={h.id}>
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span>{HISTORY_LABEL[h.action] ?? h.action}</span>
+                        <span className="shrink-0 text-muted-foreground tabular-nums">{formatDateTime(h.created_at)}</span>
+                      </div>
+                      {reason ? <p className="text-[13px] text-muted-foreground">{reason}</p> : null}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>
@@ -297,6 +303,7 @@ function SettingsCard({ test, busy, onSave }: { test: AbTestRow; busy: boolean; 
   const [days, setDays] = useState(String(test.minimum_duration_days ?? 3));
   const [confidence, setConfidence] = useState(String(test.confidence_threshold ?? 95));
   const [mode, setMode] = useState<"deterministic" | "legacy">(test.assignment_mode === "legacy" ? "legacy" : "deterministic");
+  const [afterDays, setAfterDays] = useState(String(test.auto_optimize_after_days ?? 7));
 
   const save = async () => {
     const parsed = updateAbTestInput.safeParse({
@@ -399,13 +406,38 @@ function SettingsCard({ test, busy, onSave }: { test: AbTestRow; busy: boolean; 
         </dl>
       )}
       {status !== "archived" && status !== "completed" ? (
-        <div className="mt-4 flex items-start justify-between gap-3 border-t border-[var(--border-subtle)] pt-4">
-          <div>
-            <p className="text-sm font-medium">Aplicar a vencedora sozinho</p>
-            <p className="text-[13px] text-muted-foreground">Quando o resultado ficar consistente, a melhor variante passa a receber todo o tráfego e o teste conclui.</p>
+        <>
+          <div className="mt-4 flex items-start justify-between gap-3 border-t border-[var(--border-subtle)] pt-4">
+            <div>
+              <p className="text-sm font-medium">Optimizar o tráfego sozinho</p>
+              <p className="text-[13px] text-muted-foreground">
+                Nos primeiros dias divide como está. Depois, uma vez por dia, move até 10 pontos para a variante que vai à frente no objectivo, até 90%, nunca
+                deixando a outra abaixo de 10%. A razão de cada passo fica no histórico.
+              </p>
+              {test.auto_optimize ? (
+                <p className="mt-1 text-[13px] text-muted-foreground">
+                  {test.optimized_at ? `Última passagem: ${formatDateTime(test.optimized_at)}.` : "Ainda sem passagens."}
+                </p>
+              ) : null}
+            </div>
+            <Switch checked={Boolean(test.auto_optimize)} disabled={busy} onCheckedChange={(on) => void onSave({ autoOptimize: on })} aria-label="Optimizar o tráfego sozinho" />
           </div>
-          <Switch checked={Boolean(test.auto_winner)} disabled={busy} onCheckedChange={(on) => void onSave({ autoWinner: on })} aria-label="Aplicar a vencedora sozinho" />
-        </div>
+          {test.auto_optimize ? (
+            <div className="mt-3 flex items-end gap-2">
+              <NumberField id="ab-edit-after-days" label="Começar a optimizar ao fim de (dias)" value={afterDays} onChange={setAfterDays} />
+              <Button variant="outline" size="sm" disabled={busy || Number(afterDays) === (test.auto_optimize_after_days ?? 7)} onClick={() => void onSave({ autoOptimizeAfterDays: Math.max(0, Math.min(90, Math.round(Number(afterDays) || 0))) })}>
+                Guardar
+              </Button>
+            </div>
+          ) : null}
+          <div className="mt-4 flex items-start justify-between gap-3 border-t border-[var(--border-subtle)] pt-4">
+            <div>
+              <p className="text-sm font-medium">Aplicar a vencedora sozinho</p>
+              <p className="text-[13px] text-muted-foreground">Quando o resultado ficar consistente, a melhor variante passa a receber todo o tráfego e o teste conclui.</p>
+            </div>
+            <Switch checked={Boolean(test.auto_winner)} disabled={busy} onCheckedChange={(on) => void onSave({ autoWinner: on })} aria-label="Aplicar a vencedora sozinho" />
+          </div>
+        </>
       ) : null}
     </section>
   );

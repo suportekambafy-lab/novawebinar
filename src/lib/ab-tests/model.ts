@@ -91,6 +91,9 @@ export const updateAbTestInput = z
     confidenceThreshold: z.number().min(50).max(99.9).optional(),
     assignmentMode: z.enum(["legacy", "deterministic"]).optional(),
     autoWinner: z.boolean().optional(),
+    /** Optimizar o tráfego sozinho a partir de N dias (ver optimize.ts). */
+    autoOptimize: z.boolean().optional(),
+    autoOptimizeAfterDays: z.number().int().min(0).max(90).optional(),
     /** As fatias, por id de variante; têm de somar 100. */
     traffic: z.array(z.object({ variantId: z.string().uuid(), trafficPercentage: z.number().int().min(0).max(100) })).min(2).optional(),
   })
@@ -125,6 +128,9 @@ export type AbTestRow = {
   applied_variant_id: string | null;
   assignment_mode: string | null;
   auto_winner: boolean | null;
+  auto_optimize: boolean | null;
+  auto_optimize_after_days: number | null;
+  optimized_at: string | null;
   confidence_threshold: number | null;
   minimum_visitors: number | null;
   minimum_conversions: number | null;
@@ -156,6 +162,7 @@ export const HISTORY_LABEL: Record<string, string> = {
   updated: "Definições alteradas",
   traffic_changed: "Divisão do tráfego alterada",
   auto_winner_applied: "Vencedora aplicada automaticamente",
+  auto_checked: "Tráfego verificado, sem mudança",
 };
 
 export const statusOf = (value: string | null | undefined): AbTestStatus =>

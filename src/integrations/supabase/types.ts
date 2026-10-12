@@ -305,6 +305,7 @@ export type Database = {
           applied_variant_id: string | null
           assignment_mode: string | null
           auto_optimize: boolean | null
+          auto_optimize_after_days: number
           auto_winner: boolean | null
           confidence_threshold: number | null
           created_at: string
@@ -316,6 +317,7 @@ export type Database = {
           minimum_visitors: number | null
           name: string
           objective: string
+          optimized_at: string | null
           organization_id: string
           parent_test_id: string | null
           product_name: string | null
@@ -330,6 +332,7 @@ export type Database = {
           applied_variant_id?: string | null
           assignment_mode?: string | null
           auto_optimize?: boolean | null
+          auto_optimize_after_days?: number
           auto_winner?: boolean | null
           confidence_threshold?: number | null
           created_at?: string
@@ -341,6 +344,7 @@ export type Database = {
           minimum_visitors?: number | null
           name: string
           objective?: string
+          optimized_at?: string | null
           organization_id: string
           parent_test_id?: string | null
           product_name?: string | null
@@ -355,6 +359,7 @@ export type Database = {
           applied_variant_id?: string | null
           assignment_mode?: string | null
           auto_optimize?: boolean | null
+          auto_optimize_after_days?: number
           auto_winner?: boolean | null
           confidence_threshold?: number | null
           created_at?: string
@@ -366,6 +371,7 @@ export type Database = {
           minimum_visitors?: number | null
           name?: string
           objective?: string
+          optimized_at?: string | null
           organization_id?: string
           parent_test_id?: string | null
           product_name?: string | null

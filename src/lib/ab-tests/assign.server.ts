@@ -6,6 +6,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { optimizationDue, optimizeTestIfDue, type OptimizableTest } from "./optimize.server";
 import { bucketOf, pickVariant } from "./split";
 
 export { bucketOf, pickVariant };
@@ -27,12 +28,8 @@ export async function visitorId(): Promise<string> {
   }
 }
 
-export type ActiveTest = {
-  id: string;
-  organization_id: string;
-  status: string;
+export type ActiveTest = OptimizableTest & {
   assignment_mode: string | null;
-  applied_variant_id: string | null;
   variants: { id: string; label: string; webinar_id: string | null; traffic_percentage: number; position: number }[];
 };
 
@@ -40,11 +37,13 @@ export type ActiveTest = {
 export async function findTestBySlug(slug: string): Promise<ActiveTest | null> {
   const { data, error } = await supabaseAdmin
     .from("ab_tests")
-    .select("id, organization_id, status, assignment_mode, applied_variant_id")
+    .select("id, organization_id, status, assignment_mode, applied_variant_id, objective, auto_optimize, auto_optimize_after_days, optimized_at, started_at")
     .eq("slug", slug)
     .in("status", ["active", "paused", "completed"])
     .maybeSingle();
   if (error || !data) return null;
+  // A passagem diária da optimização do tráfego, quando o endereço é aberto e está na hora (uma vez por dia).
+  if (optimizationDue(data)) await optimizeTestIfDue(data);
   const { data: rows } = await supabaseAdmin
     .from("ab_test_variants")
     .select("id, label, webinar_id, traffic_percentage, position")

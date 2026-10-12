@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { createAbTestInput, statusOf, updateAbTestInput, variantLabel, type AbTestHistoryRow, type AbTestRow, type AbTestVariantRow } from "./model";
+import { optimizeTestIfDue } from "./optimize.server";
 import { evaluate, parseMetrics, type Evaluation, type Objective, type TestMetrics } from "./stats";
 
 /**
@@ -166,6 +167,8 @@ export const listAbTests = createServerFn({ method: "POST" })
     if (error) throw new Error("Não foi possível ler os testes.");
     const rows = (tests ?? []) as AbTestRow[];
     if (rows.length === 0) return [];
+    // A passagem diária da optimização, se estiver na hora (muda só as fatias; as métricas ficam iguais).
+    const optimized = await Promise.all(rows.map((t) => optimizeTestIfDue(t)));
     const variants = await loadVariants(rows.map((t) => t.id));
     const metrics = await Promise.all(rows.map((t) => metricsOf(t.id).catch(() => parseMetrics(null))));
     const out: AbTestSummary[] = [];
@@ -174,7 +177,8 @@ export const listAbTests = createServerFn({ method: "POST" })
       const own = variants.filter((v) => v.ab_test_id === test.id);
       const ev = evaluation(test, m);
       const applied = await maybeAutoApply(test, own, ev);
-      out.push({ test: applied ? await loadTest(test.id) : test, variants: applied ? await loadVariants([test.id]) : own, metrics: m, evaluation: ev });
+      const fresh = applied || optimized[i];
+      out.push({ test: fresh ? await loadTest(test.id) : test, variants: applied ? await loadVariants([test.id]) : own, metrics: m, evaluation: ev });
     }
     return out;
   });
@@ -189,6 +193,7 @@ export const getAbTest = createServerFn({ method: "POST" })
     let test = await loadTest(data.testId);
     await memberRole(context.supabase, test.organization_id, context.userId);
     const db = await admin();
+    if (await optimizeTestIfDue(test)) test = await loadTest(test.id);
     let variants = await loadVariants([test.id]);
     const metrics = await metricsOf(test.id);
     const ev = evaluation(test, metrics);
@@ -320,6 +325,8 @@ export const updateAbTest = createServerFn({ method: "POST" })
     if (data.confidenceThreshold !== undefined) patch.confidence_threshold = data.confidenceThreshold;
     if (data.assignmentMode !== undefined) patch.assignment_mode = data.assignmentMode;
     if (data.autoWinner !== undefined) patch.auto_winner = data.autoWinner;
+    if (data.autoOptimize !== undefined) patch.auto_optimize = data.autoOptimize;
+    if (data.autoOptimizeAfterDays !== undefined) patch.auto_optimize_after_days = data.autoOptimizeAfterDays;
     if (Object.keys(patch).length) {
       const { error } = await db.from("ab_tests").update(patch).eq("id", test.id);
       if (error) throw new Error("Não foi possível guardar as definições.");
