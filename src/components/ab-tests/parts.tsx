@@ -170,3 +170,79 @@ export function ComparisonTable({ variants, currency = "EUR" }: { variants: Vari
     </div>
   );
 }
+
+/**
+ * A divisão do tráfego: a fatia prevista de cada variante e a observada (quantos visitantes calharam em cada
+ * uma). Com poucos visitantes as duas afastam-se; é normal.
+ */
+export function DistributionCard({ variants, slug, origin }: { variants: VariantMetrics[]; slug: string; origin: string }) {
+  const total = variants.reduce((sum, v) => sum + v.visitors, 0);
+  return (
+    <section className="rounded-card bg-card p-5 sm:p-6">
+      <h2 className="font-semibold">Divisão do tráfego</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        A mesma pessoa, no mesmo navegador, vê sempre a mesma variante: é assim que o teste mede com rigor. Para ver as outras use os
+        links de pré-visualização, que não contam como visitas.
+      </p>
+      <ul className="mt-4 space-y-3">
+        {variants.map((v) => {
+          const observed = total > 0 ? v.visitors / total : 0;
+          return (
+            <li key={v.id}>
+              <div className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="inline-flex items-center gap-1.5 font-medium">
+                  <VariantDot position={v.position} /> Variante {v.label}
+                  {v.webinarTitle ? <span className="truncate text-muted-foreground">· {v.webinarTitle}</span> : null}
+                </span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  prevista {v.traffic}% · observada {total > 0 ? pct(observed, 0) : "—"} ({v.visitors})
+                </span>
+              </div>
+              <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-chip" aria-hidden>
+                <div className="h-full rounded-full" style={{ width: `${Math.round(observed * 100)}%`, background: variantColor(v.position) }} />
+              </div>
+              <a
+                href={`${origin}/w/${slug}?variante=${encodeURIComponent(v.label)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-block text-[13px] text-primary hover:underline"
+              >
+                Pré-visualizar a variante {v.label}
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+      {total > 0 && total < 50 ? (
+        <p className="mt-3 text-[13px] text-muted-foreground">Com {total} visitantes a divisão ainda oscila; aproxima-se da prevista com algumas dezenas.</p>
+      ) : null}
+    </section>
+  );
+}
+
+/** Visitantes novos por dia e por variante, nos últimos 14 dias. */
+export function DailyChart({ days, variants }: { days: { day: string; counts: Record<string, number> }[]; variants: VariantMetrics[] }) {
+  const data = days.map((d) => ({ label: d.day.slice(8, 10) + "/" + d.day.slice(5, 7), ...d.counts }));
+  const empty = days.every((d) => Object.values(d.counts).every((n) => n === 0));
+  if (empty) return <p className="rounded-md bg-chip/60 p-4 text-sm text-muted-foreground">Ainda não houve visitantes nos últimos 14 dias.</p>;
+  return (
+    <div className="h-56 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+          <CartesianGrid stroke="var(--border)" strokeOpacity={0.6} vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" tickLine={false} axisLine={false} minTickGap={20} />
+          <YAxis tick={{ fontSize: 11 }} stroke="var(--muted-foreground)" tickLine={false} axisLine={false} width={32} allowDecimals={false} />
+          <Tooltip
+            cursor={{ stroke: "var(--muted-foreground)", strokeWidth: 1, strokeOpacity: 0.4 }}
+            contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--popover)", color: "var(--popover-foreground)", fontSize: 12 }}
+            formatter={(value: number, name: string) => [`${value} visitantes`, `Variante ${name}`]}
+          />
+          <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} formatter={(value: string) => `Variante ${value}`} />
+          {variants.map((v) => (
+            <Line key={v.id} type="monotone" dataKey={v.label} stroke={variantColor(v.position)} strokeWidth={2} dot={false} activeDot={{ r: 4, strokeWidth: 2, stroke: "var(--popover)" }} isAnimationActive={false} />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}

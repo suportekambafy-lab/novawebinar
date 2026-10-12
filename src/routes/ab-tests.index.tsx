@@ -87,14 +87,17 @@ function AbTestsPage() {
                         <p className="truncate text-[13px] text-muted-foreground">/w/{test.slug} · {objective.label}</p>
                       </div>
                       <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[13px] tabular-nums">
-                        {metrics.variants.map((v) => (
-                          <li key={v.id} className="inline-flex items-center gap-1.5">
-                            <VariantDot position={v.position} />
-                            <span className="text-muted-foreground">{v.label}</span>
-                            <b className="font-semibold">{formatMeasure(measureOf(v, test.objective as Objective))}</b>
-                            <span className="text-muted-foreground">({v.visitors})</span>
-                          </li>
-                        ))}
+                        {metrics.variants.map((v) => {
+                          const total = metrics.variants.reduce((sum, x) => sum + x.visitors, 0);
+                          return (
+                            <li key={v.id} className="inline-flex items-center gap-1.5" title={`${v.visitors} visitantes · ${total > 0 ? pct(v.visitors / total, 0) : "—"} do tráfego (prevista ${v.traffic}%)`}>
+                              <VariantDot position={v.position} />
+                              <span className="text-muted-foreground">{v.label}</span>
+                              <b className="font-semibold">{formatMeasure(measureOf(v, test.objective as Objective))}</b>
+                              <span className="text-muted-foreground">({v.visitors}{total > 0 ? ` · ${pct(v.visitors / total, 0)}` : ""})</span>
+                            </li>
+                          );
+                        })}
                       </ul>
                       <p className="text-[13px] text-muted-foreground">
                         {VERDICT_LABEL[evaluation.verdict]}

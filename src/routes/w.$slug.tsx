@@ -41,7 +41,14 @@ import {
 function roomUtm(search: Record<string, unknown>) {
   const pick = (key: "utm_source" | "utm_medium" | "utm_campaign" | "utm_content") =>
     typeof search[key] === "string" && search[key] ? { [key]: String(search[key]).slice(0, 120) } : {};
-  return { ...pick("utm_source"), ...pick("utm_medium"), ...pick("utm_campaign"), ...pick("utm_content") };
+  return {
+    ...pick("utm_source"),
+    ...pick("utm_medium"),
+    ...pick("utm_campaign"),
+    ...pick("utm_content"),
+    // Pré-visualização de uma variante de um teste A/B: só para o organizador ver as duas.
+    ...(typeof search["variante"] === "string" && search["variante"] ? { variante: String(search["variante"]).slice(0, 2) } : {}),
+  };
 }
 
 export const Route = createFileRoute("/w/$slug")({
@@ -55,6 +62,8 @@ export const Route = createFileRoute("/w/$slug")({
     email: typeof search["email"] === "string" ? search["email"].slice(0, 160) : undefined,
     // Link de equipa: «1» com sessão iniciada na organização, ou o código do link copiado na Vista ao vivo.
     equipa: typeof search["equipa"] === "string" && search["equipa"] ? search["equipa"].slice(0, 200) : undefined,
+    // Pré-visualização de uma variante de um teste A/B («A», «B»…).
+    variante: typeof search["variante"] === "string" && search["variante"] ? search["variante"].slice(0, 2) : undefined,
     // Origem do lead: fica no endereço até à inscrição.
     ...Object.fromEntries(
       ["utm_source", "utm_medium", "utm_campaign", "utm_content", "fbclid", "gclid"]

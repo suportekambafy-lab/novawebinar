@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { createAbTestInput, statusOf, variantLabel, type AbTestHistoryRow, type AbTestRow, type AbTestVariantRow } from "./model";
+import { createAbTestInput, statusOf, updateAbTestInput, variantLabel, type AbTestHistoryRow, type AbTestRow, type AbTestVariantRow } from "./model";
 import { evaluate, parseMetrics, type Evaluation, type Objective, type TestMetrics } from "./stats";
 
 /**
@@ -85,6 +85,58 @@ async function history(testId: string, organizationId: string, actorId: string |
   await db.from("ab_test_history").insert({ ab_test_id: testId, organization_id: organizationId, actor_id: actorId, action, details: details as Json });
 }
 
+/** Aplica a vencedora: o endereço passa a entregar sempre essa variante, o tráfego vai todo para ela, o teste conclui. */
+async function applyWinnerRow(test: AbTestRow, variants: AbTestVariantRow[], winner: AbTestVariantRow, actorId: string | null, action: "winner_applied" | "auto_winner_applied") {
+  const db = await admin();
+  const now = new Date().toISOString();
+  const { error } = await db
+    .from("ab_tests")
+    .update({ applied_variant_id: winner.id, status: "completed", ended_at: test.ended_at ?? now })
+    .eq("id", test.id);
+  if (error) throw new Error("Não foi possível aplicar a vencedora.");
+  await Promise.all(variants.map((v) => db.from("ab_test_variants").update({ traffic_percentage: v.id === winner.id ? 100 : 0 }).eq("id", v.id)));
+  await history(test.id, test.organization_id, actorId, action, { variant: winner.label, webinar_id: winner.webinar_id });
+}
+
+/**
+ * Com «aplicar a vencedora sozinho» ligado: assim que um teste ativo chega a «resultado consistente», a
+ * melhor variante fica aplicada. Corre quando alguém abre o painel ou a lista; não precisa de relógio.
+ */
+async function maybeAutoApply(test: AbTestRow, variants: AbTestVariantRow[], ev: Evaluation): Promise<boolean> {
+  if (!test.auto_winner || statusOf(test.status) !== "active" || ev.verdict !== "consistent" || !ev.best) return false;
+  const winner = variants.find((v) => v.id === ev.best!.id);
+  if (!winner) return false;
+  await applyWinnerRow(test, variants, winner, null, "auto_winner_applied");
+  return true;
+}
+
+/** Visitantes por dia e por variante nos últimos 14 dias (para o gráfico do painel). */
+async function dailyOf(testId: string, variants: AbTestVariantRow[]) {
+  const db = await admin();
+  const since = new Date(Date.now() - 14 * 86_400_000);
+  since.setHours(0, 0, 0, 0);
+  const { data } = await db
+    .from("ab_test_assignments")
+    .select("variant_id, assigned_at")
+    .eq("ab_test_id", testId)
+    .gte("assigned_at", since.toISOString())
+    .order("assigned_at")
+    .limit(20_000);
+  const days: { day: string; counts: Record<string, number> }[] = [];
+  for (let i = 0; i < 15; i += 1) {
+    const d = new Date(since.getTime() + i * 86_400_000);
+    days.push({ day: d.toISOString().slice(0, 10), counts: Object.fromEntries(variants.map((v) => [v.label, 0])) });
+  }
+  const byDay = new Map(days.map((d) => [d.day, d]));
+  const labelOf = new Map(variants.map((v) => [v.id, v.label]));
+  for (const row of data ?? []) {
+    const entry = byDay.get(row.assigned_at.slice(0, 10));
+    const label = labelOf.get(row.variant_id);
+    if (entry && label) entry.counts[label] = (entry.counts[label] ?? 0) + 1;
+  }
+  return days;
+}
+
 /** Um endereço só pode ser de um teste ou de um webinar: é por ele que a sala pública resolve. */
 async function slugTaken(slug: string, exceptTestId?: string) {
   const db = await admin();
@@ -116,28 +168,39 @@ export const listAbTests = createServerFn({ method: "POST" })
     if (rows.length === 0) return [];
     const variants = await loadVariants(rows.map((t) => t.id));
     const metrics = await Promise.all(rows.map((t) => metricsOf(t.id).catch(() => parseMetrics(null))));
-    return rows.map((test, i) => {
+    const out: AbTestSummary[] = [];
+    for (const [i, test] of rows.entries()) {
       const m = metrics[i]!;
-      return { test, variants: variants.filter((v) => v.ab_test_id === test.id), metrics: m, evaluation: evaluation(test, m) };
-    });
+      const own = variants.filter((v) => v.ab_test_id === test.id);
+      const ev = evaluation(test, m);
+      const applied = await maybeAutoApply(test, own, ev);
+      out.push({ test: applied ? await loadTest(test.id) : test, variants: applied ? await loadVariants([test.id]) : own, metrics: m, evaluation: ev });
+    }
+    return out;
   });
 
-export type AbTestDetail = AbTestSummary & { history: AbTestHistoryRow[] };
+export type AbTestDetail = AbTestSummary & { history: AbTestHistoryRow[]; daily: { day: string; counts: Record<string, number> }[] };
 
 /** Um teste com tudo: variantes e webinars, histórico, métricas e avaliação. */
 export const getAbTest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => z.object({ testId: uuid }).parse(data))
   .handler(async ({ data, context }): Promise<AbTestDetail> => {
-    const test = await loadTest(data.testId);
+    let test = await loadTest(data.testId);
     await memberRole(context.supabase, test.organization_id, context.userId);
     const db = await admin();
-    const [variants, metrics, log] = await Promise.all([
-      loadVariants([test.id]),
-      metricsOf(test.id),
+    let variants = await loadVariants([test.id]);
+    const metrics = await metricsOf(test.id);
+    const ev = evaluation(test, metrics);
+    if (await maybeAutoApply(test, variants, ev)) {
+      test = await loadTest(test.id);
+      variants = await loadVariants([test.id]);
+    }
+    const [log, daily] = await Promise.all([
       db.from("ab_test_history").select("id, action, actor_id, details, created_at").eq("ab_test_id", test.id).order("created_at", { ascending: false }).limit(50),
+      dailyOf(test.id, variants),
     ]);
-    return { test, variants, metrics, evaluation: evaluation(test, metrics), history: (log.data ?? []) as AbTestHistoryRow[] };
+    return { test, variants, metrics, evaluation: ev, history: (log.data ?? []) as AbTestHistoryRow[], daily };
   });
 
 /** Cria um teste: endereço livre, dois ou mais webinars da organização, tráfego a somar 100%. */
@@ -234,16 +297,43 @@ export const applyWinner = createServerFn({ method: "POST" })
     const variants = await loadVariants([test.id]);
     const winner = variants.find((v) => v.id === data.variantId);
     if (!winner) throw new Error("Essa variante não é deste teste.");
+    await applyWinnerRow(test, variants, winner, context.userId, "winner_applied");
+    return { ok: true };
+  });
+
+/** Muda as definições de um teste e, se vier, a divisão do tráfego (também com o teste a correr). */
+export const updateAbTest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => z.object({ testId: uuid }).and(updateAbTestInput).parse(data))
+  .handler(async ({ data, context }) => {
+    const test = await loadTest(data.testId);
+    await memberRole(context.supabase, test.organization_id, context.userId, true);
+    if (statusOf(test.status) === "archived") throw new Error("Um teste arquivado não se altera.");
     const db = await admin();
-    const now = new Date().toISOString();
-    const { error } = await db
-      .from("ab_tests")
-      .update({ applied_variant_id: winner.id, status: "completed", ended_at: test.ended_at ?? now })
-      .eq("id", test.id);
-    if (error) throw new Error("Não foi possível aplicar a vencedora.");
-    // O tráfego passa todo para ela: fica claro na lista o que o endereço entrega.
-    await Promise.all(variants.map((v) => db.from("ab_test_variants").update({ traffic_percentage: v.id === winner.id ? 100 : 0 }).eq("id", v.id)));
-    await history(test.id, test.organization_id, context.userId, "winner_applied", { variant: winner.label, webinar_id: winner.webinar_id });
+    const patch: Database["public"]["Tables"]["ab_tests"]["Update"] = {};
+    if (data.name !== undefined) patch.name = data.name;
+    if (data.objective !== undefined) patch.objective = data.objective;
+    if (data.productName !== undefined) patch.product_name = data.productName;
+    if (data.minimumVisitors !== undefined) patch.minimum_visitors = data.minimumVisitors;
+    if (data.minimumConversions !== undefined) patch.minimum_conversions = data.minimumConversions;
+    if (data.minimumDurationDays !== undefined) patch.minimum_duration_days = data.minimumDurationDays;
+    if (data.confidenceThreshold !== undefined) patch.confidence_threshold = data.confidenceThreshold;
+    if (data.assignmentMode !== undefined) patch.assignment_mode = data.assignmentMode;
+    if (data.autoWinner !== undefined) patch.auto_winner = data.autoWinner;
+    if (Object.keys(patch).length) {
+      const { error } = await db.from("ab_tests").update(patch).eq("id", test.id);
+      if (error) throw new Error("Não foi possível guardar as definições.");
+      await history(test.id, test.organization_id, context.userId, "updated", Object.fromEntries(Object.entries(patch).map(([k, v]) => [k, v === null || typeof v === "object" ? String(v) : (v as string | number | boolean)])) as Record<string, string | number | null>);
+    }
+    if (data.traffic) {
+      if (test.applied_variant_id) throw new Error("Com vencedora aplicada, o tráfego é todo dela.");
+      const variants = await loadVariants([test.id]);
+      const ids = new Set(variants.map((v) => v.id));
+      if (data.traffic.length !== variants.length || data.traffic.some((t) => !ids.has(t.variantId)))
+        throw new Error("As fatias têm de cobrir todas as variantes deste teste.");
+      await Promise.all(data.traffic.map((t) => db.from("ab_test_variants").update({ traffic_percentage: t.trafficPercentage }).eq("id", t.variantId)));
+      await history(test.id, test.organization_id, context.userId, "traffic_changed", Object.fromEntries(data.traffic.map((t) => [variants.find((v) => v.id === t.variantId)?.label ?? t.variantId, t.trafficPercentage])));
+    }
     return { ok: true };
   });
 

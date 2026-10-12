@@ -13,6 +13,8 @@ const slugSchema = z.object({
   utm_medium: z.string().trim().max(120).optional(),
   utm_campaign: z.string().trim().max(120).optional(),
   utm_content: z.string().trim().max(120).optional(),
+  /** Pré-visualização de uma variante de um teste A/B («A», «B»…), sem contar como visita. */
+  variante: z.string().trim().max(2).optional(),
 });
 
 const joinSchema = z.object({
@@ -126,7 +128,7 @@ export const getPublicRoom = createServerFn({ method: "GET" })
       utmMedium: data.utm_medium,
       utmCampaign: data.utm_campaign,
       utmContent: data.utm_content,
-    });
+    }, data.variante);
   });
 
 /** Deduz dispositivo e localização a partir do pedido quando o navegador não os envia. */

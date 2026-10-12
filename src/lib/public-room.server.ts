@@ -88,21 +88,21 @@ const ROOM_SELECT =
  * A sala de um endereço. Primeiro um webinar com esse slug; senão um teste A/B com esse endereço, que
  * entrega a variante desta pessoa (ver ab-tests/assign.server) sem o endereço mudar.
  */
-export async function loadPublicRoom(slug: string, meta: import("@/lib/ab-tests/assign.server").AssignmentMeta = {}) {
+export async function loadPublicRoom(slug: string, meta: import("@/lib/ab-tests/assign.server").AssignmentMeta = {}, preview?: string | null) {
   const bySlug = await supabaseAdmin.from("webinars").select(ROOM_SELECT).eq("slug", slug).maybeSingle();
   // Falha de leitura não é "não existe": quem chama mantém a sala que já tem.
   if (bySlug.error) throw new Error(UNAVAILABLE);
   let webinar = bySlug.data;
-  let abTest: { id: string; variantId: string } | null = null;
+  let abTest: { id: string; variantId: string; preview: boolean } | null = null;
   if (!webinar) {
     const { resolveTestSlug } = await import("@/lib/ab-tests/assign.server");
-    const resolved = await resolveTestSlug(slug, meta);
+    const resolved = await resolveTestSlug(slug, meta, preview);
     if (!resolved) return null;
     const byId = await supabaseAdmin.from("webinars").select(ROOM_SELECT).eq("id", resolved.webinarId).maybeSingle();
     if (byId.error) throw new Error(UNAVAILABLE);
     if (!byId.data) return null;
     webinar = byId.data;
-    abTest = { id: resolved.testId, variantId: resolved.variantId };
+    abTest = { id: resolved.testId, variantId: resolved.variantId, preview: resolved.preview };
   }
 
   const source = webinar.video_sources;

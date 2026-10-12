@@ -79,6 +79,29 @@ export const createAbTestInput = z
 
 export type CreateAbTestInput = z.input<typeof createAbTestInput>;
 
+/** O que se pode mudar num teste já criado: nome, objectivo, critérios e as fatias do tráfego. */
+export const updateAbTestInput = z
+  .object({
+    name: z.string().trim().min(2, "Dê um nome ao teste.").max(120).optional(),
+    objective: z.enum(objectiveIds).optional(),
+    productName: z.string().trim().max(120).optional(),
+    minimumVisitors: z.number().int().min(1).max(1_000_000).optional(),
+    minimumConversions: z.number().int().min(0).max(1_000_000).optional(),
+    minimumDurationDays: z.number().int().min(0).max(365).optional(),
+    confidenceThreshold: z.number().min(50).max(99.9).optional(),
+    assignmentMode: z.enum(["legacy", "deterministic"]).optional(),
+    autoWinner: z.boolean().optional(),
+    /** As fatias, por id de variante; têm de somar 100. */
+    traffic: z.array(z.object({ variantId: z.string().uuid(), trafficPercentage: z.number().int().min(0).max(100) })).min(2).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.traffic) return;
+    const total = value.traffic.reduce((sum, v) => sum + v.trafficPercentage, 0);
+    if (total !== 100) ctx.addIssue({ code: "custom", path: ["traffic"], message: `A divisão do tráfego soma ${total}%; tem de somar 100%.` });
+  });
+
+export type UpdateAbTestInput = z.input<typeof updateAbTestInput>;
+
 export type AbTestVariantRow = {
   id: string;
   ab_test_id: string;
@@ -101,6 +124,7 @@ export type AbTestRow = {
   product_name: string | null;
   applied_variant_id: string | null;
   assignment_mode: string | null;
+  auto_winner: boolean | null;
   confidence_threshold: number | null;
   minimum_visitors: number | null;
   minimum_conversions: number | null;
@@ -129,6 +153,9 @@ export const HISTORY_LABEL: Record<string, string> = {
   winner_applied: "Vencedora aplicada",
   duplicated: "Duplicado de outro teste",
   auto_rebalanced: "Tráfego reequilibrado",
+  updated: "Definições alteradas",
+  traffic_changed: "Divisão do tráfego alterada",
+  auto_winner_applied: "Vencedora aplicada automaticamente",
 };
 
 export const statusOf = (value: string | null | undefined): AbTestStatus =>

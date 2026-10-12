@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { applyWinner, createAbTest, duplicateAbTest, getAbTest, listAbTests, updateAbTestStatus } from "./ab-tests.functions";
-import type { CreateAbTestInput } from "./model";
+import { applyWinner, createAbTest, duplicateAbTest, getAbTest, listAbTests, updateAbTest, updateAbTestStatus } from "./ab-tests.functions";
+import type { CreateAbTestInput, UpdateAbTestInput } from "./model";
 
 /** Os testes da organização, com métricas; actualizam-se de minuto a minuto enquanto a página está aberta. */
 export function useAbTests(organizationId: string | undefined) {
@@ -51,6 +51,7 @@ export function useAbTestActions() {
   const status = useServerFn(updateAbTestStatus);
   const winner = useServerFn(applyWinner);
   const duplicate = useServerFn(duplicateAbTest);
+  const update = useServerFn(updateAbTest);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["ab-tests"] }).then(() => queryClient.invalidateQueries({ queryKey: ["ab-test"] }));
   return {
     create: useMutation({
@@ -67,6 +68,10 @@ export function useAbTestActions() {
     }),
     duplicate: useMutation({
       mutationFn: (input: { testId: string }) => duplicate({ data: input }),
+      onSuccess: refresh,
+    }),
+    update: useMutation({
+      mutationFn: (input: UpdateAbTestInput & { testId: string }) => update({ data: input }),
       onSuccess: refresh,
     }),
   };

@@ -4,8 +4,11 @@
  * (`nw_visitor`); a mesma pessoa vê sempre a mesma variante. Ao entrar na sala, a participação e o e-mail
  * ficam ligados à atribuição; uma compra com o mesmo e-mail conta para a variante.
  */
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { bucketOf, pickVariant } from "./split";
+
+export { bucketOf, pickVariant };
 
 export const VISITOR_COOKIE = "nw_visitor";
 const YEAR = 60 * 60 * 24 * 365;
@@ -30,7 +33,7 @@ export type ActiveTest = {
   status: string;
   assignment_mode: string | null;
   applied_variant_id: string | null;
-  variants: { id: string; webinar_id: string | null; traffic_percentage: number; position: number }[];
+  variants: { id: string; label: string; webinar_id: string | null; traffic_percentage: number; position: number }[];
 };
 
 /** O teste com este endereço, se existe e já saiu do rascunho; arquivado não abre. */
@@ -44,29 +47,12 @@ export async function findTestBySlug(slug: string): Promise<ActiveTest | null> {
   if (error || !data) return null;
   const { data: rows } = await supabaseAdmin
     .from("ab_test_variants")
-    .select("id, webinar_id, traffic_percentage, position")
+    .select("id, label, webinar_id, traffic_percentage, position")
     .eq("ab_test_id", data.id)
     .order("position");
   const variants = (rows ?? []).filter((v) => v.webinar_id);
   if (variants.length === 0) return null;
   return { ...data, variants };
-}
-
-/** 0 a 99, sempre o mesmo para a mesma pessoa no mesmo teste: a variante não muda entre visitas. */
-export function bucketOf(visitor: string, testId: string): number {
-  const hash = createHash("sha256").update(`${testId}:${visitor}`).digest();
-  return hash.readUInt32BE(0) % 100;
-}
-
-/** A variante que a fatia de tráfego dá a este número de 0 a 99. */
-export function pickVariant<T extends { traffic_percentage: number }>(variants: readonly T[], bucket: number): T {
-  let edge = 0;
-  for (const variant of variants) {
-    edge += variant.traffic_percentage;
-    if (bucket < edge) return variant;
-  }
-  // Fatias que não somam 100: o resto vai para a última com tráfego, senão para a primeira.
-  return [...variants].reverse().find((v) => v.traffic_percentage > 0) ?? variants[0]!;
 }
 
 export type AssignmentMeta = {
@@ -80,22 +66,28 @@ export type AssignmentMeta = {
   utmTerm?: string | null | undefined;
 };
 
-export type Resolved = { testId: string; variantId: string; webinarId: string; visitor: string };
+export type Resolved = { testId: string; variantId: string; webinarId: string; visitor: string; preview: boolean };
 
 /**
  * Para um endereço de teste: a variante desta pessoa (a de sempre, ou uma nova pelo tráfego) e o webinar
  * dela. Com vencedora aplicada, é sempre ela. Em pausa ou concluído sem vencedora, quem já tinha variante
  * mantém-na e quem chega de novo vê a primeira (o controlo), sem ficar registado.
+ * Com `preview` («A», «B»…), mostra essa variante sem atribuir nada: é para o organizador ver as duas.
  */
-export async function resolveTestSlug(slug: string, meta: AssignmentMeta = {}): Promise<Resolved | null> {
+export async function resolveTestSlug(slug: string, meta: AssignmentMeta = {}, preview?: string | null): Promise<Resolved | null> {
   const test = await findTestBySlug(slug);
   if (!test) return null;
   const visitor = await visitorId();
   const control = test.variants[0]!;
 
+  if (preview) {
+    const wanted = test.variants.find((v) => v.label.toUpperCase() === preview.trim().toUpperCase()) ?? control;
+    return { testId: test.id, variantId: wanted.id, webinarId: wanted.webinar_id!, visitor, preview: true };
+  }
+
   if (test.applied_variant_id) {
     const winner = test.variants.find((v) => v.id === test.applied_variant_id) ?? control;
-    return { testId: test.id, variantId: winner.id, webinarId: winner.webinar_id!, visitor };
+    return { testId: test.id, variantId: winner.id, webinarId: winner.webinar_id!, visitor, preview: false };
   }
 
   const { data: existing } = await supabaseAdmin
@@ -106,10 +98,10 @@ export async function resolveTestSlug(slug: string, meta: AssignmentMeta = {}): 
     .maybeSingle();
   if (existing) {
     const variant = test.variants.find((v) => v.id === existing.variant_id) ?? control;
-    return { testId: test.id, variantId: variant.id, webinarId: variant.webinar_id!, visitor };
+    return { testId: test.id, variantId: variant.id, webinarId: variant.webinar_id!, visitor, preview: false };
   }
 
-  if (test.status !== "active") return { testId: test.id, variantId: control.id, webinarId: control.webinar_id!, visitor };
+  if (test.status !== "active") return { testId: test.id, variantId: control.id, webinarId: control.webinar_id!, visitor, preview: false };
 
   const bucket = test.assignment_mode === "legacy" ? Math.floor(Math.random() * 100) : bucketOf(visitor, test.id);
   const chosen = pickVariant(test.variants, bucket);
@@ -135,7 +127,7 @@ export async function resolveTestSlug(slug: string, meta: AssignmentMeta = {}): 
       ? (result as { variant_id: string }).variant_id
       : chosen.id;
   const variant = test.variants.find((v) => v.id === assignedId) ?? chosen;
-  return { testId: test.id, variantId: variant.id, webinarId: variant.webinar_id!, visitor };
+  return { testId: test.id, variantId: variant.id, webinarId: variant.webinar_id!, visitor, preview: false };
 }
 
 /**
