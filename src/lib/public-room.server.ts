@@ -150,7 +150,7 @@ async function buildRoom(webinar: RoomRow) {
     fetchAll((from, to) =>
       supabaseAdmin
         .from("scheduled_comments")
-        .select("id, author_name, avatar_url, message, offset_seconds, created_at", {
+        .select("id, author_name, avatar_url, message, offset_seconds, offset_ms, created_at", {
           count: "exact",
         })
         .eq("webinar_id", webinar.id)
@@ -313,7 +313,11 @@ async function buildRoom(webinar: RoomRow) {
       group_url: groupUrl,
       video_provider: source?.provider ?? null,
     },
-    comments: comments ?? [],
+    // O instante exacto vem dos milissegundos quando existem: o chat acompanha a fala, não o segundo inteiro.
+    comments: (comments ?? []).map(({ offset_ms, ...comment }) => ({
+      ...comment,
+      offset_seconds: typeof offset_ms === "number" ? offset_ms / 1000 : comment.offset_seconds,
+    })),
     audience: { mode: audience?.mode ?? "real", curve: audience?.curve ?? [], format: audience?.format ?? null },
     socialProof: socialProof ?? null,
     simulatedPurchases: simulated ?? [],

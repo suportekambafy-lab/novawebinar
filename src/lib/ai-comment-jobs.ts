@@ -10,11 +10,12 @@ import {
 } from "@/lib/ai-comments.functions";
 import type { EngagementObjective, WebinarAnalysis } from "@/lib/engagement-analysis";
 import { friendlyError } from "@/lib/friendly-error";
-import {
-  pollWordTranscription,
-  startWordTranscription,
-} from "@/lib/temporal/transcribe.functions";
+import { pollWordTranscription, startWordTranscription } from "@/lib/temporal/transcribe.functions";
 import type { CommentCausality } from "@/lib/temporal/types";
+import { classifyTranscriptBlocks } from "@/lib/chat-engine/classify.functions";
+import { finalizeCommentsTimeline } from "@/lib/chat-engine/finalize.functions";
+import type { FinalizeReport } from "@/lib/chat-engine/finalize.server";
+import type { BlockType, Dependency, InteractionType } from "@/lib/chat-engine/types";
 
 export type DraftComment = {
   at: number;
@@ -36,6 +37,18 @@ export type DraftComment = {
   validationAction?: string | null;
   validationRule?: string | null;
   transcriptVersionId?: string | null;
+  /** Motor do chat: o bloco de fala de onde a mensagem nasce e a sua dependência. */
+  slot?: string | null;
+  dependency?: Dependency;
+  blockId?: string | null;
+  blockType?: BlockType | null;
+  interaction?: InteractionType | null;
+  windowStartMs?: number | null;
+  windowEndMs?: number | null;
+  confidence?: number;
+  needsReview?: boolean;
+  profileId?: string | null;
+  replyTo?: string | null;
 };
 export type TranscriptSegment = { at: number; text: string };
 
@@ -50,6 +63,14 @@ export type WindowComment = {
   anchor: number | null;
   reason?: string;
   slot?: string | null;
+  dependency?: Dependency;
+  blockId?: string | null;
+  blockType?: BlockType | null;
+  interaction?: InteractionType | null;
+  windowStartMs?: number | null;
+  windowEndMs?: number | null;
+  confidence?: number;
+  profileId?: string | null;
 };
 
 /** O que já foi feito, para que uma nova tentativa continue em vez de repetir. */
@@ -59,7 +80,6 @@ export type AiJobPartial = {
   doneWindows: string[];
   totalWindows: number;
 };
-
 
 export type AiSettings = {
   /** Que português e que nomes: ver chatVariant em chat-variants. */
@@ -97,7 +117,7 @@ export const defaultAiSettings: AiSettings = {
 export const AI_JOB_STAGES = [
   "A analisar o vídeo",
   "A transcrever",
-  "A compreender o webinar e a traçar a estratégia",
+  "A ler a fala em blocos e a traçar a estratégia",
   "A criar as interações e a rever a cronologia",
   "Concluído",
 ] as const;
@@ -123,8 +143,9 @@ export type AiJob = {
   partial?: AiJobPartial | null;
   /** O editor já abriu a revisão deste resultado: não volta a saltar para o Chat ao abrir. */
   seen?: boolean;
+  /** O que a validação final fez: quantos ficaram, quantos foram movidos ou eliminados, e porquê. */
+  validation?: Omit<FinalizeReport, "issues"> | null;
 };
-
 
 const STORE_KEY = "novawebinar:ai-jobs";
 
@@ -270,9 +291,7 @@ export function startAiJob(input: {
     JSON.stringify(previous.range ?? null) === JSON.stringify(input.range ?? null) &&
     JSON.stringify(previous.settings) === JSON.stringify(input.settings);
   const resume: AiJobPartial | null =
-    sameRun && previous?.partial && previous.partial.collected.length > 0
-      ? previous.partial
-      : null;
+    sameRun && previous?.partial && previous.partial.collected.length > 0 ? previous.partial : null;
 
   jobs.set(webinarId, {
     webinarId,
@@ -292,7 +311,6 @@ export function startAiJob(input: {
     ...(resume ? { partial: resume, analysis: resume.analysis ?? null } : { partial: null }),
   });
   emit();
-
 
   void (async () => {
     try {
@@ -380,7 +398,29 @@ export function startAiJob(input: {
         });
         return;
       }
-      patch(webinarId, { stage: 2 });
+      patch(webinarId, {
+        stage: 2,
+        note: "A ler a fala em blocos: perguntas, pedidos, leituras do chat, oferta",
+      });
+      // A fala fica classificada em blocos uma vez (regras e IA) e guardada na
+      // transcrição: é daí que nascem as oportunidades de cada trecho.
+      try {
+        const classified = await classifyTranscriptBlocks({ data: { webinarId } });
+        if (classified.total > 0) {
+          const asks =
+            (classified.byType.QUESTION_TO_AUDIENCE ?? 0) +
+            (classified.byType.COMMENT_REQUEST ?? 0) +
+            (classified.byType.FEEDBACK_REQUEST ?? 0) +
+            (classified.byType.POLL ?? 0);
+          const reads =
+            (classified.byType.CHAT_READING ?? 0) + (classified.byType.CHAT_RESPONSE ?? 0);
+          patch(webinarId, {
+            note: `${classified.total} blocos de fala: ${asks} pedidos ao público, ${reads} leituras do chat.`,
+          });
+        }
+      } catch {
+        // Sem classificação por IA as regras continuam a valer na geração.
+      }
 
       // Modo Inteligente: antes de escrever uma única mensagem, a IA lê o
       // webinar inteiro e monta o mapa, as personas e a estratégia.
@@ -528,7 +568,6 @@ export function startAiJob(input: {
           savePartial();
         }
 
-
         if (collected.length === 0) {
           throw new Error(
             lastWindowError
@@ -558,6 +597,7 @@ export function startAiJob(input: {
           const atMs = comment.atMs ?? origin?.atMs ?? null;
           const anchor = comment.anchor ?? origin?.anchor ?? null;
           const reason = comment.reason ?? origin?.reason ?? "";
+          const slot = (comment as { slot?: string | null }).slot ?? origin?.slot ?? null;
           return {
             at: comment.at,
             ...(atMs != null ? { atMs } : {}),
@@ -568,6 +608,15 @@ export function startAiJob(input: {
             anchor,
             ...(reason ? { reason } : {}),
             ...(personaNames.has(comment.author) ? { persona: comment.author } : {}),
+            slot,
+            ...(origin?.dependency ? { dependency: origin.dependency } : {}),
+            ...(origin?.blockId ? { blockId: origin.blockId } : {}),
+            ...(origin?.blockType ? { blockType: origin.blockType } : {}),
+            ...(origin?.interaction ? { interaction: origin.interaction } : {}),
+            ...(origin?.windowStartMs != null ? { windowStartMs: origin.windowStartMs } : {}),
+            ...(origin?.windowEndMs != null ? { windowEndMs: origin.windowEndMs } : {}),
+            ...(origin?.confidence != null ? { confidence: origin.confidence } : {}),
+            ...(origin?.profileId ? { profileId: origin.profileId } : {}),
           };
         };
 
@@ -590,10 +639,74 @@ export function startAiJob(input: {
           // gerados por ordem, em vez de perder tudo.
           finalComments.sort((a, b) => a.at - b.at);
         }
+        // Passagem final: cada mensagem ligada ao seu bloco de fala, dez
+        // verificações de cronologia, causa, confiança e o que foi corrigido.
+        patch(webinarId, { stage: 3, note: "A validar a cronologia contra a fala" });
+        let validation: AiJob["validation"] = null;
+        try {
+          const perMinute =
+            input.settings.frequency > 0
+              ? 60 / input.settings.frequency
+              : ({ low: 2.2, medium: 5, high: 10, "very-high": 16 }[input.settings.level] ?? 5);
+          const finalized = await finalizeCommentsTimeline({
+            data: {
+              webinarId,
+              comments: finalComments.map((c) => ({
+                at: c.at,
+                atMs: c.atMs ?? null,
+                author: c.author,
+                message: c.message,
+                moment: c.moment,
+                kind: c.kind ?? null,
+                anchor: c.anchor ?? null,
+                slot: c.slot ?? null,
+                dependency: c.dependency ?? null,
+                reason: c.reason ?? null,
+                ...(c.persona ? { persona: c.persona } : {}),
+              })),
+              participants: Math.max(3, Math.min(5000, input.settings.participants)),
+              perMinute: Math.max(1, Math.min(120, perMinute)),
+            },
+          });
+          if (finalized.report) {
+            const { issues: _issues, ...summary } = finalized.report;
+            validation = summary;
+            finalComments = finalized.comments.map((c) => ({
+              at: c.at,
+              atMs: c.atMs,
+              author: c.author,
+              message: c.message,
+              moment: c.moment ?? "geral",
+              kind: (c.kind ?? "espontaneo") as NonNullable<DraftComment["kind"]>,
+              ...(c.persona ? { persona: c.persona } : {}),
+              anchor: c.anchor ?? null,
+              ...(c.reason ? { reason: c.reason } : {}),
+              causality: c.causality,
+              validationAction: c.validationAction,
+              validationRule: c.validationRule,
+              transcriptVersionId: c.transcriptVersionId,
+              slot: c.slot ?? null,
+              dependency: c.dependency,
+              blockId: c.blockId,
+              blockType: c.blockType,
+              interaction: c.interaction,
+              windowStartMs: c.windowStartMs,
+              windowEndMs: c.windowEndMs,
+              confidence: c.confidence,
+              needsReview: c.needsReview,
+              ...(c.replyTo ? { replyTo: c.replyTo } : {}),
+            }));
+          }
+        } catch {
+          // Sem a passagem final, os comentários seguem como a geração os deixou.
+        }
         const notes = [
           failedWindows > 0 ? `${failedWindows} trecho(s) ficaram por gerar.` : "",
           droppedByAudit > 0
             ? `${droppedByAudit} comentário(s) ficaram de fora por não haver espaço até ao fim do vídeo.`
+            : "",
+          validation
+            ? `Validação: ${validation.kept} mensagens em ${validation.slots} oportunidades de ${validation.blocks} blocos; ${validation.moved} movidas, ${validation.corrected} corrigidas, ${validation.removed} eliminadas.`
             : "",
         ].filter(Boolean);
         patch(webinarId, {
@@ -601,6 +714,7 @@ export function startAiJob(input: {
           status: "ready",
           drafts: finalComments,
           partial: null,
+          validation,
           note: notes.join(" "),
         });
       }

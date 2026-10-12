@@ -6,6 +6,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { SemanticBlock } from "@/lib/chat-engine/types";
 import type {
   NormalizedSentence,
   NormalizedWord,
@@ -25,6 +26,8 @@ export type TranscriptInspection = {
   sentences: NormalizedSentence[];
   moments: TemporalSemanticMoment[];
   events: PresenterEvent[];
+  /** Blocos de fala classificados pelo motor do chat. */
+  blocks: SemanticBlock[];
   report: string | null;
   createdAt: string;
 };
@@ -54,6 +57,7 @@ export const getTranscriptInspection = createServerFn({ method: "POST" })
       sentences: (row.sentences ?? []) as NormalizedSentence[],
       moments: (row.moments ?? []) as TemporalSemanticMoment[],
       events: (row.events ?? []) as PresenterEvent[],
+      blocks: (Array.isArray(row.blocks) ? row.blocks : []) as SemanticBlock[],
       report: row.report ? JSON.stringify(row.report) : null,
       createdAt: row.created_at,
     };

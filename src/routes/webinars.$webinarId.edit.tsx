@@ -34,6 +34,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AppShell, useShellMenu } from "@/components/app-shell";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { AiCommentsDialog } from "@/components/ai-comments-dialog";
+import { planRegeneration } from "@/lib/chat-engine/merge";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
@@ -1167,15 +1168,18 @@ function EditWebinar() {
   const insertComments = async (drafts: (ChatDraft & Partial<DraftComment>)[], replaceGenerated: boolean) => {
     if (!organizationId) throw new Error("Não foi possível identificar o seu espaço de trabalho.");
     if (replaceGenerated) {
+      // Regenerar não destrói o que foi feito à mão: ficam os escritos e os editados à mão.
       const { error } = await supabase
         .from("scheduled_comments")
         .delete()
         .eq("webinar_id", webinarId)
-        .neq("comment_type", "manual");
+        .neq("comment_type", "manual")
+        .eq("manually_edited", false);
       if (error) throw error;
     }
+    // Os milissegundos do motor mandam: o chat acompanha a fala, não o segundo inteiro.
     const valid = drafts
-      .map((d) => ({ d, ...toStorageOffsets({ at: d.at, atMs: d.at * 1000 }) }))
+      .map((d) => ({ d, ...toStorageOffsets({ at: d.at, atMs: typeof d.atMs === "number" ? d.atMs : d.at * 1000 }) }))
       .filter(({ offset_seconds }) => duration <= 0 || offset_seconds <= duration);
     if (valid.length === 0) throw new Error("Nenhum comentário cabe dentro da duração do vídeo.");
     const { error } = await supabase.from("scheduled_comments").insert(
@@ -1200,6 +1204,14 @@ function EditWebinar() {
         validation_action: d.validationAction ?? null,
         validation_rule: d.validationRule ?? null,
         transcript_version_id: d.transcriptVersionId ?? null,
+        slot_id: d.slot ?? null,
+        block_id: d.blockId ?? null,
+        block_type: d.blockType ?? null,
+        dependency: d.dependency ?? null,
+        interaction_type: d.interaction ?? null,
+        window_start_ms: d.windowStartMs ?? null,
+        window_end_ms: d.windowEndMs ?? null,
+        profile_id: d.profileId ?? null,
       })),
     );
     if (error) throw error;
@@ -1207,20 +1219,44 @@ function EditWebinar() {
     return valid.length;
   };
 
-  const realism = (drafts: (ChatDraft & Partial<DraftComment>)[]) =>
-    applyChatRealism(drafts, chatRules, {
-      durationSeconds: duration,
-      pitchSeconds: pitchSeconds ?? suggestedPitch,
-      questions: questions.map((q) => q.at),
-      audienceAt: audienceNorm,
-      product,
-    }) as (ChatDraft & Partial<DraftComment>)[];
+  const realism = (drafts: (ChatDraft & Partial<DraftComment>)[]) => {
+    // As mensagens ligadas a um bloco de fala já têm o instante certo: as regras não as mexem.
+    // As perguntas que o motor já respondeu não recebem as respostas genéricas das regras.
+    const answered = drafts.filter((d) => d.dependency === "AFTER").map((d) => d.at);
+    const openQuestions = questions.filter((q) => !answered.some((at) => at >= q.at && at - q.at <= 40)).map((q) => q.at);
+    return applyChatRealism(
+      drafts.map((d) => (d.dependency ? { ...d, fixed: true } : d)),
+      chatRules,
+      {
+        durationSeconds: duration,
+        pitchSeconds: pitchSeconds ?? suggestedPitch,
+        questions: openQuestions,
+        audienceAt: audienceNorm,
+        product,
+      },
+    ) as (ChatDraft & Partial<DraftComment>)[];
+  };
 
   const insertGenerated = async (drafts: DraftComment[]) => {
-    const ready = realism(drafts);
+    // Os comentários escritos ou editados à mão ficam; os novos não ocupam a oportunidade deles.
+    const existing = comments.map((c) => ({
+      id: c.id,
+      at: c.offset_seconds,
+      author: c.author_name,
+      message: c.message,
+      type: c.comment_type ?? null,
+      slotId: c.slot_id ?? null,
+      edited: Boolean(c.manually_edited),
+    }));
+    const plan = planRegeneration(
+      existing,
+      drafts.map((d) => ({ ...d, slotId: d.slot ?? null })),
+    );
+    const ready = realism(plan.inserts);
     const n = await insertComments(ready, true);
     const people = new Set(ready.map((d) => d.author)).size;
-    toast.success(`${n} comentários de ${people} pessoas, no tom ${{ natural: "Natural", vendas: "Vendas", formal: "Formal" }[chatRules.tone]}.`);
+    const kept = plan.keep.length > 0 ? ` ${plan.keep.length} escritos ou editados à mão ficaram.` : "";
+    toast.success(`${n} comentários de ${people} pessoas, no tom ${{ natural: "Natural", vendas: "Vendas", formal: "Formal" }[chatRules.tone]}.${kept}`);
   };
 
   const importSheet = async (file: File) => {
@@ -1253,9 +1289,11 @@ function EditWebinar() {
   };
 
   const editComment = async (id: string, patch: { at: number; author: string; message: string }) => {
+    // Editado à mão: o instante muda nos dois relógios e regenerar não o apaga.
+    const offset_seconds = Math.max(0, Math.round(patch.at));
     const { error } = await supabase
       .from("scheduled_comments")
-      .update({ offset_seconds: Math.max(0, Math.round(patch.at)), author_name: patch.author, message: patch.message })
+      .update({ offset_seconds, offset_ms: offset_seconds * 1000, author_name: patch.author, message: patch.message, manually_edited: true })
       .eq("id", id);
     if (error) {
       toast.error(friendlyError(error));
@@ -1976,6 +2014,9 @@ function EditWebinar() {
                       author: c.author_name,
                       message: c.message,
                       type: c.comment_type ?? null,
+                      dependency: c.dependency ?? null,
+                      blockType: c.block_type ?? null,
+                      edited: Boolean(c.manually_edited),
                     }))}
                     clock={editorClock}
                     speechAt={speechAt}

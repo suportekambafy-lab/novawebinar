@@ -46,8 +46,24 @@ import {
 } from "@/lib/temporal/placement";
 import { AIError, chatJson } from "@/lib/ai/gateway.server";
 import { s, schema } from "@/lib/ai/schema";
-import { isChatVariant, variantText } from "@/lib/chat-variants";
-
+import { isChatVariant, variantCountries, variantText } from "@/lib/chat-variants";
+import { ensureVersionBlocks } from "@/lib/chat-engine/classify.server";
+import { describeSlots, planInteractions } from "@/lib/chat-engine/plan";
+import {
+  buildProfiles,
+  describeProfiles,
+  profileByName,
+  styleMessage,
+  type Profile,
+} from "@/lib/chat-engine/profiles";
+import { kindFor, placeSlot } from "@/lib/chat-engine/timing";
+import type {
+  BlockType,
+  Dependency,
+  InteractionSlot,
+  InteractionType,
+  SemanticBlock,
+} from "@/lib/chat-engine/types";
 
 /**
  * Geração de comentários de engajamento com IA.
@@ -89,7 +105,15 @@ export const CHAT_COMMENTS = schema("chat_comments", {
       at: s.integer(),
       author: s.string(),
       message: s.string(),
-      moment: s.string(["chegada", "pergunta", "prova-social", "emocao", "explicacao", "oferta", "humor"]),
+      moment: s.string([
+        "chegada",
+        "pergunta",
+        "prova-social",
+        "emocao",
+        "explicacao",
+        "oferta",
+        "humor",
+      ]),
       kind: s.string(["provoca", "reage", "responde", "espontaneo"]),
       anchor: s.integer(),
       slot: s.string(),
@@ -415,26 +439,26 @@ async function measureDuration(url: string): Promise<number> {
  * geração parava a meio.
  */
 export async function probeWebinarVideoImpl(supabase: any, data: any) {
-    const { url, duration } = await loadVideoRef(supabase, data.webinarId);
-    if (!url) return { ok: false as const, duration, reason: "Este webinar ainda não tem vídeo." };
+  const { url, duration } = await loadVideoRef(supabase, data.webinarId);
+  if (!url) return { ok: false as const, duration, reason: "Este webinar ainda não tem vídeo." };
 
-    try {
-      const measured = await measureDuration(url);
-      if (measured > 0 && measured !== duration) {
-        await supabase
-          .from("webinars")
-          .update({ duration_seconds: measured })
-          .eq("id", data.webinarId);
-      }
-      return { ok: true as const, duration: measured || duration, reason: "" };
-    } catch (error) {
-      return {
-        ok: false as const,
-        duration,
-        reason: error instanceof Error ? error.message : "Não foi possível medir o vídeo.",
-      };
+  try {
+    const measured = await measureDuration(url);
+    if (measured > 0 && measured !== duration) {
+      await supabase
+        .from("webinars")
+        .update({ duration_seconds: measured })
+        .eq("id", data.webinarId);
     }
+    return { ok: true as const, duration: measured || duration, reason: "" };
+  } catch (error) {
+    return {
+      ok: false as const,
+      duration,
+      reason: error instanceof Error ? error.message : "Não foi possível medir o vídeo.",
+    };
   }
+}
 
 const levelPerMinute: Record<string, number> = {
   low: 1.2,
@@ -487,8 +511,63 @@ type Comment = {
   reason?: string;
   /** Oportunidade (janela válida) de onde esta mensagem nasceu. */
   slot?: string | null;
+  /** Campos do motor do chat (blocos de fala): quando existem, o instante já é o certo. */
+  dependency?: Dependency;
+  blockId?: string | null;
+  blockType?: BlockType | null;
+  interaction?: InteractionType | null;
+  windowStartMs?: number | null;
+  windowEndMs?: number | null;
+  confidence?: number;
+  profileId?: string | null;
 };
 
+/** O motor do chat para um trecho: oportunidades ligadas aos blocos de fala e as pessoas que escrevem. */
+type Engine = { slots: InteractionSlot[]; blocks: SemanticBlock[]; profiles: Profile[] };
+
+function hashSeed(text: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i += 1) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+/**
+ * As oportunidades deste trecho, a partir dos blocos de fala guardados na
+ * versão da transcrição (feitos agora só com regras, se ainda não existirem).
+ */
+async function engineForRange(
+  webinarId: string,
+  from: number,
+  to: number,
+  settings: Settings,
+  webinar: WebinarInfo,
+): Promise<Engine | null> {
+  try {
+    const engine = await import("@/lib/temporal/engine.server");
+    const version = await engine.latestReadyVersion(webinarId);
+    if (!version || version.precision !== "word" || version.sentences.length === 0) return null;
+    const { blocks } = await ensureVersionBlocks(version, { ai: false });
+    if (blocks.length === 0) return null;
+    const slots = planInteractions(blocks, {
+      fromMs: from * 1000,
+      toMs: to * 1000,
+      participants: settings.participants,
+      perMinute: perMinuteOf(settings),
+      offerStartMs:
+        webinar.cta_text && webinar.cta_start_seconds != null
+          ? webinar.cta_start_seconds * 1000
+          : null,
+    });
+    const profiles = buildProfiles(
+      Math.min(400, settings.participants),
+      variantCountries(settings.variant),
+      hashSeed(webinarId),
+    );
+    return { slots, blocks, profiles };
+  } catch {
+    return null;
+  }
+}
 
 type WebinarInfo = {
   public_title: string;
@@ -536,6 +615,7 @@ const fullCommentSchema = z
     reason: z.string().optional(),
     slot: z.string().nullable().optional(),
     persona: z.string().optional(),
+    dependency: z.enum(["BEFORE", "AFTER", "INDEPENDENT"]).optional(),
   })
   .passthrough();
 
@@ -633,10 +713,7 @@ function intelBrief(intel: Intel | undefined, from: number, to: number): string[
     "",
     objectiveLine[intel.objective],
     ...(outline.length
-      ? [
-          "PERCURSO COMPLETO DO WEBINAR (contexto global — do início ao fim):",
-          ...outline,
-        ]
+      ? ["PERCURSO COMPLETO DO WEBINAR (contexto global — do início ao fim):", ...outline]
       : []),
     ...(allPrompts.length
       ? [
@@ -664,12 +741,12 @@ function intelBrief(intel: Intel | undefined, from: number, to: number): string[
           }),
           "Pode acrescentar poucos nomes novos para dar variedade, mas a maioria das mensagens vem destas pessoas.",
           "RITMO PRÓPRIO: uma pessoa observadora quase só aparece quando tem uma dúvida; uma moderada comenta de vez em quando; uma participativa envolve-se em chamadas e conversas. Ninguém escreve muitas vezes seguidas em poucos minutos — respeite o descanso entre mensagens da mesma pessoa.",
-          "NÍVEL DE CONHECIMENTO muda a leitura do mesmo conteúdo: o iniciante faz perguntas de base (\"preciso de muito dinheiro para começar?\"), o intermédio compara com o que já tentou, o experiente faz perguntas técnicas ou aponta nuances.",
+          'NÍVEL DE CONHECIMENTO muda a leitura do mesmo conteúdo: o iniciante faz perguntas de base ("preciso de muito dinheiro para começar?"), o intermédio compara com o que já tentou, o experiente faz perguntas técnicas ou aponta nuances.',
           "EVOLUÇÃO: cada pessoa tem um estado que muda ao longo do webinar (cética → curiosa → interessada; confusa → esclarecida; entusiasmada → hesitante no preço). Mensagens da mesma pessoa em momentos diferentes devem refletir essa evolução.",
-          "MEMÓRIA DO QUE JÁ FOI EXPLICADO: ninguém pergunta aos 35 minutos exatamente aquilo que o apresentador esclareceu aos 15 — salvo se for plausível não ter percebido, e aí a pergunta mostra isso (\"desculpa, fiquei na dúvida outra vez\").",
-          "CHEGADAS TARDIAS: quem entra depois do início pode dizer \"cheguei agora, perdi muita coisa?\" ou \"começou há muito?\" — com moderação, e nunca antes do seu segundo de entrada.",
-          "IMPERFEIÇÃO HUMANA: nem toda a mensagem parece escrita com cuidado. Algumas têm minúsculas, abreviações e construções informais próprias da variante (\"simmm\", \"entendi agr\", \"mt bom\"), conforme a pessoa. Sem exagerar e sem erros caricatos.",
-          "Construa um ou dois fios curtos de conversa entre elas (pergunta → resposta de concordância tipo \"também queria saber\" → seguimento), ligados ao que está a acontecer. Duas ou três mensagens chegam; não transforme o chat num fórum.",
+          'MEMÓRIA DO QUE JÁ FOI EXPLICADO: ninguém pergunta aos 35 minutos exatamente aquilo que o apresentador esclareceu aos 15 — salvo se for plausível não ter percebido, e aí a pergunta mostra isso ("desculpa, fiquei na dúvida outra vez").',
+          'CHEGADAS TARDIAS: quem entra depois do início pode dizer "cheguei agora, perdi muita coisa?" ou "começou há muito?" — com moderação, e nunca antes do seu segundo de entrada.',
+          'IMPERFEIÇÃO HUMANA: nem toda a mensagem parece escrita com cuidado. Algumas têm minúsculas, abreviações e construções informais próprias da variante ("simmm", "entendi agr", "mt bom"), conforme a pessoa. Sem exagerar e sem erros caricatos.',
+          'Construa um ou dois fios curtos de conversa entre elas (pergunta → resposta de concordância tipo "também queria saber" → seguimento), ligados ao que está a acontecer. Duas ou três mensagens chegam; não transforme o chat num fórum.',
           "Nem toda a pergunta tem resposta de outra pessoa e nem toda a chamada tem dezenas de respostas. Algumas mensagens ficam simplesmente ali.",
         ].join("\n")
       : "",
@@ -750,7 +827,7 @@ type JourneyPhase =
 
 const PHASE_BEHAVIOUR: Record<JourneyPhase, string> = {
   chegada:
-    'CHEGADA. As pessoas acabaram de entrar e ainda ninguém explicou nada. Só cabem cumprimentos, sinais de presença e perguntas sobre o som ou a imagem, curtos e cada um à maneira da pessoa. Nada de opiniões sobre o conteúdo, nada de perguntas técnicas, nada de dizer de onde são (isso só acontece se o apresentador pedir).',
+    "CHEGADA. As pessoas acabaram de entrar e ainda ninguém explicou nada. Só cabem cumprimentos, sinais de presença e perguntas sobre o som ou a imagem, curtos e cada um à maneira da pessoa. Nada de opiniões sobre o conteúdo, nada de perguntas técnicas, nada de dizer de onde são (isso só acontece se o apresentador pedir).",
   abertura:
     "EXPECTATIVA E APRESENTAÇÃO. Continuam a chegar pessoas e começa a expectativa ligada ao tema real deste webinar: o que esperam levar de hoje, porque se inscreveram, o que já tentaram antes. Frases simples e pessoais, sem jargão e sem elogiar o que ainda não viram.",
   conexao:
@@ -763,8 +840,7 @@ const PHASE_BEHAVIOUR: Record<JourneyPhase, string> = {
     "OFERTA. Curiosidade sobre o que está incluído, como funciona, quanto tempo demora, se serve para quem está a começar. Perguntas, não publicidade.",
   objecoes:
     "PREÇO E OBJEÇÕES. Perguntas de preço, parcelamento, garantia, tempo disponível, se funciona no meu país. Algumas pessoas demonstram que a resposta do apresentador resolveu a dúvida. Tudo em linguagem normal, sem parecer argumentário de vendas.",
-  cta:
-    "DECISÃO E CTA. Maior intenção e perguntas práticas de quem está a decidir. NUNCA inventar compras feitas, pagamentos, prints, testemunhos ou resultados como se fossem reais.",
+  cta: "DECISÃO E CTA. Maior intenção e perguntas práticas de quem está a decidir. NUNCA inventar compras feitas, pagamentos, prints, testemunhos ou resultados como se fossem reais.",
   encerramento:
     "ENCERRAMENTO. Agradecimentos, despedidas, últimas dúvidas rápidas, pedidos de replay. O ritmo cai.",
 };
@@ -782,10 +858,8 @@ function phaseAt(ctx: GenContext, seconds: number): JourneyPhase {
   const kind = (segment?.kind ?? "").toLowerCase();
   if (kind.includes("abert") || kind.includes("boas")) return "abertura";
   if (kind.includes("histor") || kind.includes("conex")) return "conexao";
-  if (kind.includes("prova") || kind.includes("caso") || kind.includes("demonstr"))
-    return "prova";
-  if (kind.includes("preco") || kind.includes("preço") || kind.includes("objec"))
-    return "objecoes";
+  if (kind.includes("prova") || kind.includes("caso") || kind.includes("demonstr")) return "prova";
+  if (kind.includes("preco") || kind.includes("preço") || kind.includes("objec")) return "objecoes";
   if (kind.includes("cta") || kind.includes("inscri") || kind.includes("fecho")) return "cta";
   if (kind.includes("oferta")) return "oferta";
   if (kind.includes("encerr") || kind.includes("despedida")) return "encerramento";
@@ -863,8 +937,8 @@ function momentsBrief(ctx: GenContext, from: number, to: number): string[] {
       (m) =>
         `- ${m.from}-${m.to}s · ${m.topic} · ${m.summary} · novidade ${m.novelty}/100 · reações naturais entre ${m.to + 3}s e ${m.reactionUntil}s`,
     ),
-    "NOVIDADE manda na intensidade: um momento verdadeiramente novo ou importante merece mais \"não sabia disso\", \"agora percebi\", \"isso muda muita coisa\"; conteúdo trivial quase não merece reação.",
-    "DIVERSIDADE DE REAÇÃO: um momento forte não move a sala inteira na mesma direção. A mesma explicação pode convencer uma pessoa, deixar outra com dúvidas e não dizer nada a uma terceira. Nunca faça todos \"ficarem convencidos\" ao mesmo tempo.",
+    'NOVIDADE manda na intensidade: um momento verdadeiramente novo ou importante merece mais "não sabia disso", "agora percebi", "isso muda muita coisa"; conteúdo trivial quase não merece reação.',
+    'DIVERSIDADE DE REAÇÃO: um momento forte não move a sala inteira na mesma direção. A mesma explicação pode convencer uma pessoa, deixar outra com dúvidas e não dizer nada a uma terceira. Nunca faça todos "ficarem convencidos" ao mesmo tempo.',
   ];
 }
 
@@ -907,14 +981,12 @@ function reactionBrief(ctx: GenContext, from: number, to: number): string[] {
     "",
     "REAÇÃO AO CONTEÚDO (o segundo grande motor do chat, a par dos cumprimentos e das respostas ao apresentador):",
     "Procure neste trecho as afirmações, explicações, revelações, exemplos, erros comuns e histórias com potencial real de provocar reação. Só aí nascem reações.",
-    "Cada reação tem de nascer de uma ideia concreta que acabou de ser dita e tem de se perceber, pela mensagem, que a pessoa estava mesmo a acompanhar. Prefira sempre a reação específica à frase genérica: em vez de \"Muito bom\", algo como \"Essa parte da margem eu não sabia\" ou \"Então dá para começar sem experiência?\" — mas só se isso tiver mesmo sido explicado.",
+    'Cada reação tem de nascer de uma ideia concreta que acabou de ser dita e tem de se perceber, pela mensagem, que a pessoa estava mesmo a acompanhar. Prefira sempre a reação específica à frase genérica: em vez de "Muito bom", algo como "Essa parte da margem eu não sabia" ou "Então dá para começar sem experiência?" — mas só se isso tiver mesmo sido explicado.',
     "A intensidade acompanha o que foi dito: uma explicação básica pede no máximo um sinal de que se percebeu; algo surpreendente, espanto; algo complexo bem explicado, alívio por ter percebido; uma história pessoal, identificação; um erro comum, reconhecimento com humor; uma oportunidade, uma mudança de perspetiva. Cada pessoa di-lo com as suas palavras, na variante pedida.",
-    "Pessoas diferentes reagem de maneiras diferentes ao mesmo momento: entusiasmo, descoberta, identificação, curiosidade (uma pergunta), reflexão, ação (\"já anotei\"). Nunca ponha cinco pessoas a escrever variações de \"Muito bom 🔥\" ao mesmo tempo; no máximo uma mensagem curta de elogio por momento, e mesmo essa só se houver motivo.",
+    'Pessoas diferentes reagem de maneiras diferentes ao mesmo momento: entusiasmo, descoberta, identificação, curiosidade (uma pergunta), reflexão, ação ("já anotei"). Nunca ponha cinco pessoas a escrever variações de "Muito bom 🔥" ao mesmo tempo; no máximo uma mensagem curta de elogio por momento, e mesmo essa só se houver motivo.',
     "TEMPO DA REAÇÃO: ninguém reage enquanto a ideia ainda está a ser dita. Conte a partir do momento em que a frase fecha e espalhe as reações de forma irregular a seguir (por exemplo, 3s, 6s, 12s depois), nunca todas juntas e nunca antes.",
   ];
 }
-
-
 
 /**
  * Estado da audiência no início da janela: o que o motor pesa antes de
@@ -952,7 +1024,9 @@ function audienceStateBrief(
     segment
       ? `- assunto atual: ${segment.summary} · energia ${segment.engagement}/100 · risco de abandono ${segment.dropRisk}`
       : "- assunto atual: seguir a transcrição deste trecho",
-    recent.length ? `- histórico recente do chat:\n  ${recent.join("\n  ")}` : "- o chat está calado",
+    recent.length
+      ? `- histórico recente do chat:\n  ${recent.join("\n  ")}`
+      : "- o chat está calado",
     lastAt >= 0
       ? `- tempo desde a última mensagem: ${Math.max(0, from - lastAt)}s`
       : "- ainda não houve mensagens nesta sessão",
@@ -1057,6 +1131,97 @@ function memoryBrief(
   ];
 }
 
+/**
+ * Coloca as mensagens de uma janela nas oportunidades do motor: o tempo das
+ * dependentes é do sistema (antes da leitura, depois da fala), o autor das
+ * lidas é o nome que o apresentador diz, e cada pessoa escreve ao seu estilo.
+ */
+function placeWithEngine(raw: Comment[], engine: Engine, from: number, to: number): Comment[] {
+  const slotById = new Map(engine.slots.map((slot) => [slot.id, slot] as const));
+  const groups = new Map<string, Comment[]>();
+  const free: Comment[] = [];
+  for (const comment of raw) {
+    const slot = comment.slot ? slotById.get(comment.slot) : null;
+    if (!slot) {
+      free.push({
+        ...comment,
+        slot: null,
+        kind: "espontaneo",
+        anchor: null,
+        dependency: "INDEPENDENT",
+      });
+      continue;
+    }
+    groups.set(slot.id, [...(groups.get(slot.id) ?? []), comment]);
+  }
+  const out: Comment[] = [];
+  const expects = (slot: InteractionSlot) =>
+    slot.blockType === "QUESTION_TO_AUDIENCE" ||
+    slot.blockType === "COMMENT_REQUEST" ||
+    slot.blockType === "FEEDBACK_REQUEST" ||
+    slot.blockType === "POLL";
+  for (const [slotId, list] of groups) {
+    const slot = slotById.get(slotId)!;
+    let group = list.slice(0, slot.maxComments);
+    if (slot.dependency === "BEFORE") {
+      // A mensagem lida é de quem o apresentador diz, pela ordem em que ele lê.
+      const names = slot.referenced.filter((r) => r.kind === "name").map((r) => r.name!);
+      if (names.length > 0) {
+        const unused = [...names];
+        group = group.map((comment) => {
+          const index = unused.findIndex(
+            (n) =>
+              n.split(" ")[0]!.toLocaleLowerCase("pt") ===
+              comment.author.split(" ")[0]!.toLocaleLowerCase("pt"),
+          );
+          if (index >= 0) {
+            unused.splice(index, 1);
+            return comment;
+          }
+          const name = unused.shift();
+          return name ? { ...comment, author: name } : comment;
+        });
+      }
+    }
+    const times = placeSlot(slot, group.length, hashSeed(`${slotId}:${from}`));
+    group.forEach((comment, index) => {
+      const atMs = Math.max(
+        from * 1000,
+        Math.min(to * 1000 + 999, times[index] ?? slot.windowStartMs),
+      );
+      out.push({
+        ...comment,
+        at: Math.round(atMs / 1000),
+        atMs,
+        kind: kindFor(slot.dependency, expects(slot)),
+        anchor: Math.round(
+          (slot.dependency === "BEFORE" ? slot.blockStartMs : slot.blockEndMs) / 1000,
+        ),
+        dependency: slot.dependency,
+        blockId: slot.blockId,
+        blockType: slot.blockType,
+        interaction: slot.interaction,
+        windowStartMs: slot.windowStartMs,
+        windowEndMs: slot.windowEndMs,
+        confidence: slot.confidence,
+        reason: comment.reason || slot.reason,
+      });
+    });
+  }
+  return [...out, ...free]
+    .map((comment, index) => {
+      const profile = profileByName(engine.profiles, comment.author);
+      return profile
+        ? {
+            ...comment,
+            profileId: profile.id,
+            message: styleMessage(profile, comment.message, index),
+          }
+        : comment;
+    })
+    .sort((a, b) => (a.atMs ?? a.at * 1000) - (b.atMs ?? b.at * 1000));
+}
+
 async function askWindow(
   ctx: GenContext,
   from: number,
@@ -1065,9 +1230,20 @@ async function askWindow(
   already: { at: number; author: string; message: string }[],
   intel?: Intel,
   slots?: Opportunity[],
+  engine?: Engine | null,
 ): Promise<Comment[]> {
-
   const { webinar, settings, duration } = ctx;
+  // Com o motor dos blocos, o número de mensagens é o das oportunidades, não um alvo cego.
+  const engineSlots = engine?.slots ?? [];
+  if (engineSlots.length > 0) {
+    howMany = Math.max(
+      1,
+      Math.min(
+        250,
+        engineSlots.reduce((sum, slot) => sum + slot.maxComments, 0),
+      ),
+    );
+  }
   // Contexto com o mapa do webinar, para a jornada e o estado da audiência.
   const view: GenContext = intel ? { ...ctx, intel } : ctx;
   // A janela recebe a transcrição literal do seu intervalo (com margem), já
@@ -1106,7 +1282,9 @@ async function askWindow(
     "",
     `Escreva até ${howMany} comentários de chat de espectadores, com tom ${tone}.`,
     variantText(settings.variant),
-    `Use cerca de ${settings.participants} pessoas diferentes, com nome e apelido plausíveis do país de cada pessoa e repetições naturais de quem fala mais.`,
+    engineSlots.length > 0
+      ? `As pessoas do chat são as da lista PESSOAS DO CHAT abaixo (use exactamente esses nomes em "author"), com repetições naturais de quem fala mais.`
+      : `Use cerca de ${settings.participants} pessoas diferentes, com nome e apelido plausíveis do país de cada pessoa e repetições naturais de quem fala mais.`,
     `Emojis ${emojiLabel[settings.emojis]}.`,
     settings.densityByMoment
       ? "Densidade variável: concentre muitas reações nas perguntas diretas, provas sociais, histórias, momentos emocionais e na oferta; deixe as partes técnicas quase silenciosas."
@@ -1136,20 +1314,33 @@ async function askWindow(
     ...memoryBrief(intel, already),
     "Só escreva uma mensagem quando existir uma razão convincente para alguém a escrever naquele segundo. Se não houver, escreva menos do que o pedido — o silêncio faz parte de um chat real. Qualidade acima de quantidade.",
     "",
-    slots && slots.length > 0
+    engineSlots.length > 0
       ? [
-          "Oportunidades deste trecho. O webinar é que cria as ocasiões para alguém escrever; cada mensagem ligada ao apresentador indica em \"slot\" a ocasião de onde nasce, escolhida desta lista:",
-          describeOpportunities(slots),
-          'Regras dos slots: escreva no máximo o número de mensagens indicado em cada slot; use "kind":"responde" nos slots de resposta e "kind":"reage" nos slots de reação; escreva apenas conteúdo compatível com o que foi pedido ou dito nesse slot; não invente slots.',
-          'O instante exato é escolhido pelo sistema dentro da janela do slot — indique na mesma um "at" dentro dessa janela, mas nunca fora dela.',
-          'Pode haver mensagens sem slot ("slot" vazio), espontâneas, mas no máximo um quarto das mensagens deste trecho e nunca a comentar algo que ainda não foi dito.',
+          'OPORTUNIDADES deste trecho. O webinar é que cria as ocasiões para alguém escrever: cada mensagem indica em "slot" o id da oportunidade de onde nasce. Regras:',
+          '- ANTES: o apresentador vai ler ou responder a esta mensagem em voz alta. Escreva exactamente as mensagens OBRIGATÓRIAS indicadas, com o nome que o apresentador diz em "author" e o conteúdo que ele resume (a mesma pergunta, a mesma cidade). O sistema coloca-a antes de ele a ler.',
+          "- DEPOIS: resposta ou reacção à fala acabada de dizer. Escreva até ao número indicado, no formato pedido (sim ou não, um número, um emoji, a cidade, a palavra pedida, resposta curta ou longa). A primeira resposta é curta e imediata; as seguintes variam em tamanho, tom e pontuação. Nunca duas iguais.",
+          "- LIVRE: comentários soltos, poucos, só sobre o que já foi dito até esse instante.",
+          '- Não escreva mensagens sem slot, não invente slots e não passe o máximo de cada um. O instante exacto é o sistema que escolhe: indique "at" dentro da janela do slot.',
+          '- Pode responder a outra pessoa começando por "@Nome", no máximo uma vez por slot e só a alguém que já escreveu antes nesse slot.',
+          "- Cada pessoa escreve ao seu estilo (ver PESSOAS DO CHAT): frases curtas ou longas, com ou sem emojis, abreviado de telemóvel, às vezes com gralhas. Nada de linguagem de anúncio.",
+          describeSlots(engineSlots),
+          "",
+          "PESSOAS DO CHAT (nomes e estilo; os nomes OBRIGATÓRIOS das mensagens ANTES podem não estar nesta lista):",
+          describeProfiles(engine!.profiles, 60),
         ].join("\n")
-      : "",
+      : slots && slots.length > 0
+        ? [
+            'Oportunidades deste trecho. O webinar é que cria as ocasiões para alguém escrever; cada mensagem ligada ao apresentador indica em "slot" a ocasião de onde nasce, escolhida desta lista:',
+            describeOpportunities(slots),
+            'Regras dos slots: escreva no máximo o número de mensagens indicado em cada slot; use "kind":"responde" nos slots de resposta e "kind":"reage" nos slots de reação; escreva apenas conteúdo compatível com o que foi pedido ou dito nesse slot; não invente slots.',
+            'O instante exato é escolhido pelo sistema dentro da janela do slot — indique na mesma um "at" dentro dessa janela, mas nunca fora dela.',
+            'Pode haver mensagens sem slot ("slot" vazio), espontâneas, mas no máximo um quarto das mensagens deste trecho e nunca a comentar algo que ainda não foi dito.',
+          ].join("\n")
+        : "",
     "",
     'Cada mensagem tem de trazer também "reason": uma frase curta, em português, que explique porque é que esta pessoa escreve exatamente isto neste segundo (ex.: "reage ao número de 3.000€ que o apresentador acabou de mostrar"). Mensagens espontâneas também têm de ter "reason" (ex.: "acabou de entrar na sala e cumprimenta"), mesmo sem fala relacionada.',
     'Em cada mensagem, "at" é o segundo inteiro, "anchor" o segundo da fala relacionada (-1 sem fala relacionada) e "slot" o id do slot (vazio sem slot).',
     `Todos os "at" têm de estar entre ${from} e ${to}, por ordem crescente, sem dois iguais e espalhados pelo intervalo.`,
-
   ]
     .filter(Boolean)
     .join("\n");
@@ -1181,7 +1372,7 @@ async function askWindow(
   // Instantes já usados por slot, para não empilhar mensagens no mesmo segundo.
   const scheduled = new Map<string, number[]>();
 
-  return (parsed.comments ?? [])
+  const raw = (parsed.comments ?? [])
     .map((item, index) => {
       const kindRaw = String(item.kind ?? "")
         .trim()
@@ -1195,7 +1386,7 @@ async function askWindow(
         .trim()
         .slice(0, 300);
       const slotId = String(item.slot ?? "").trim();
-      const slot = slotId ? byId.get(slotId) ?? null : null;
+      const slot = slotId ? (byId.get(slotId) ?? null) : null;
 
       let at = Math.max(from, Math.min(to, Math.round(Number(item.at) || 0)));
       let atMs = at * 1000;
@@ -1231,15 +1422,17 @@ async function askWindow(
             : Number.isFinite(anchorRaw) && anchorRaw >= 0
               ? Math.round(anchorRaw)
               : null,
-        slot: slot?.id ?? null,
+        slot: slot?.id ?? (slotId || null),
         reason: String(item.reason ?? "")
           .trim()
           .slice(0, 300),
-      };
+      } as Comment;
     })
     .filter((item) => item.author && item.message);
-}
 
+  if (engineSlots.length === 0) return raw;
+  return placeWithEngine(raw, engine!, from, to);
+}
 
 /**
  * Correção determinística da cronologia, pela relação causal que a própria
@@ -1254,10 +1447,25 @@ export function fixCausality(
   const ctaStart = ctx.webinar.cta_start_seconds ?? null;
   const bounds = { start: ctx.start, end: ctx.end };
   // Primeiro tira tudo o que antecipa uma causa que ainda não aconteceu.
+  // As mensagens do motor dos blocos já têm o instante certo: passam intactas.
   const list: Comment[] = [];
-  for (const comment of stripAnticipations(ctx, input)) {
+  const fromEngine = input.filter((comment) => comment.dependency);
+  const loose = input.filter((comment) => !comment.dependency);
+  for (const comment of [...fromEngine, ...stripAnticipations(ctx, loose)]) {
     // `at` e `atMs` passam a dizer o mesmo antes de qualquer ajuste.
     syncOffsets(comment);
+    if (comment.dependency) {
+      if (comment.at > ctx.end) {
+        report.dropped.push({
+          comment,
+          reason: "depois_do_fim",
+          detail: `${comment.at}s é depois do fim do vídeo (${ctx.end}s)`,
+        });
+        continue;
+      }
+      list.push(comment);
+      continue;
+    }
     const anchor = comment.anchor;
     // Quando a causa só permite um instante depois do fim do vídeo, o
     // comentário não tem lugar válido: fica registado como descartado.
@@ -1305,7 +1513,8 @@ export function fixCausality(
   const spread = enforceIntentDiversity(dropPraiseClusters(list));
   // Sem dois comentários no mesmo segundo, para a cascata respirar, mas
   // nunca depois do fim do vídeo: quem não cabe é descartado e reportado.
-  return placeInTimeline(spread, bounds, 2, report);
+  // Com o motor dos blocos a cascata é mais apertada (um segundo).
+  return placeInTimeline(spread, bounds, fromEngine.length > 0 ? 1 : 2, report);
 }
 
 /** Elogios genéricos tipo "muito bom 🔥": no máximo um por momento. */
@@ -1316,6 +1525,10 @@ function dropPraiseClusters(list: Comment[]): Comment[] {
   const kept: Comment[] = [];
   let lastPraise = -999;
   for (const comment of list) {
+    if (comment.dependency) {
+      kept.push(comment);
+      continue;
+    }
     const generic = GENERIC_PRAISE.test(comment.message.trim());
     if (generic) {
       if (comment.at - lastPraise < 40) continue;
@@ -1334,21 +1547,30 @@ function dropPraiseClusters(list: Comment[]): Comment[] {
  * ------------------------------------------------------------------ */
 
 type CommentIntent =
-  | "elogio"
-  | "descoberta"
-  | "identificacao"
-  | "duvida"
-  | "objecao"
-  | "intencao"
-  | "outro";
+  "elogio" | "descoberta" | "identificacao" | "duvida" | "objecao" | "intencao" | "outro";
 
 const INTENT_HINTS: [RegExp, CommentIntent][] = [
-  [/\b(n[aã]o sabia|desconhecia|faz sentido|agora (percebi|entendi)|finalmente percebi|mudou (tudo|muita coisa)|nunca tinha (visto|olhado|pensado))\b/i, "descoberta"],
-  [/\b(eu tamb[eé]m|comigo (foi|é)|passei (por )?isso|identifico|a minha hist[óo]ria|igual a mim|também eu)\b/i, "identificacao"],
-  [/\b(caro|pre[çc]o|parcel|presta[çc]|garantia|funciona (mesmo|para)|será que|ser[áa] (que|assim)|e se|vale a pena\??)\b/i, "objecao"],
-  [/\b(quero|vou (entrar|aderir|comprar|fazer)|inscrev|comprei|fiz a inscrição|estou dentro|bora l[áa])\b/i, "intencao"],
+  [
+    /\b(n[aã]o sabia|desconhecia|faz sentido|agora (percebi|entendi)|finalmente percebi|mudou (tudo|muita coisa)|nunca tinha (visto|olhado|pensado))\b/i,
+    "descoberta",
+  ],
+  [
+    /\b(eu tamb[eé]m|comigo (foi|é)|passei (por )?isso|identifico|a minha hist[óo]ria|igual a mim|também eu)\b/i,
+    "identificacao",
+  ],
+  [
+    /\b(caro|pre[çc]o|parcel|presta[çc]|garantia|funciona (mesmo|para)|será que|ser[áa] (que|assim)|e se|vale a pena\??)\b/i,
+    "objecao",
+  ],
+  [
+    /\b(quero|vou (entrar|aderir|comprar|fazer)|inscrev|comprei|fiz a inscrição|estou dentro|bora l[áa])\b/i,
+    "intencao",
+  ],
   [/\?$/, "duvida"],
-  [/\b(bom|top|excelente|[óo]timo|perfeito|adorei|amei|incrível|incrivel|sensacional|parab[ée]ns|brutal|forte|demais|massa)\b|[👏🔥💯🙌❤]/u, "elogio"],
+  [
+    /\b(bom|top|excelente|[óo]timo|perfeito|adorei|amei|incrível|incrivel|sensacional|parab[ée]ns|brutal|forte|demais|massa)\b|[👏🔥💯🙌❤]/u,
+    "elogio",
+  ],
 ];
 
 function intentOf(message: string): CommentIntent {
@@ -1375,7 +1597,7 @@ function enforceIntentDiversity(list: Comment[]): Comment[] {
   const counts = new Map<string, number>();
   const kept: Comment[] = [];
   for (const comment of list) {
-    if (comment.kind === "responde" || comment.kind === "provoca") {
+    if (comment.kind === "responde" || comment.kind === "provoca" || comment.dependency) {
       kept.push(comment);
       continue;
     }
@@ -1393,7 +1615,6 @@ function enforceIntentDiversity(list: Comment[]): Comment[] {
   }
   return kept;
 }
-
 
 /** Segunda leitura da timeline pela IA, à procura de inconsistências temporais. */
 async function auditTimeline(
@@ -1450,7 +1671,12 @@ async function auditTimeline(
         fixes?: { index?: unknown; at?: unknown }[];
       };
       // Só o instante muda; `at` e `atMs` seguem juntos e dentro do vídeo.
-      applyAuditFixes(list, parsed.fixes ?? [], { start: ctx.start, end: ctx.end });
+      // As mensagens ligadas a um bloco de fala já têm o instante certo: a revisão não lhes mexe.
+      const fixes = (parsed.fixes ?? []).filter((fix) => {
+        const target = list[Number(fix.index)];
+        return !(target && target.dependency && target.dependency !== "INDEPENDENT");
+      });
+      applyAuditFixes(list, fixes, { start: ctx.start, end: ctx.end });
     }
   } catch {
     // Uma revisão falhada não pode deitar fora o chat inteiro.
@@ -1495,8 +1721,14 @@ const personaSchema = z.object({
   style: z.string().trim().max(60).catch("participativa").default("participativa"),
   profile: z.string().trim().max(200).catch("").default(""),
   emojis: z.enum(["poucos", "alguns", "muitos"]).catch("alguns"),
-  knowledge: z.enum(["iniciante", "intermedio", "experiente"]).catch("iniciante").default("iniciante"),
-  rhythm: z.enum(["observadora", "moderada", "participativa"]).catch("moderada").default("moderada"),
+  knowledge: z
+    .enum(["iniciante", "intermedio", "experiente"])
+    .catch("iniciante")
+    .default("iniciante"),
+  rhythm: z
+    .enum(["observadora", "moderada", "participativa"])
+    .catch("moderada")
+    .default("moderada"),
   arrivalAt: z.coerce.number().int().min(0).catch(0).default(0),
 });
 
@@ -1721,7 +1953,10 @@ function normaliseAnalysis(
           topic: m.topic || "geral",
           summary: m.summary,
           novelty: clampScore(m.novelty),
-          reactionUntil: Math.min(duration, Math.max(to + 10, Math.round(m.reactionUntil) || to + 60)),
+          reactionUntil: Math.min(
+            duration,
+            Math.max(to + 10, Math.round(m.reactionUntil) || to + 60),
+          ),
         };
       })
       .sort((a, b) => a.from - b.from),
@@ -1758,116 +1993,116 @@ function normaliseAnalysis(
  * sem ter de repetir a análise.
  */
 export async function analyseWebinarStructureImpl(supabase: any, data: any) {
-    const webinar = await loadWebinar(supabase, data.webinarId);
-    const duration = computeDuration(webinar, data.transcript);
+  const webinar = await loadWebinar(supabase, data.webinarId);
+  const duration = computeDuration(webinar, data.transcript);
 
-    // A transcrição inteira não cabe no pedido: amostramos ao longo de todo o
-    // vídeo e encurtamos cada momento, mantendo o percurso completo.
-    // Mapa global: a IA lê o webinar inteiro, do segundo 0 ao fim. Se a
-    // transcrição for muito longa, juntamos momentos vizinhos em vez de
-    // descartar falas — nenhuma parte do webinar fica por conhecer.
-    const condensed = condenseTranscript(data.transcript, 220, 420);
-    const lines = condensed.map((s) => `${s.at}s: ${s.text}`).join("\n");
+  // A transcrição inteira não cabe no pedido: amostramos ao longo de todo o
+  // vídeo e encurtamos cada momento, mantendo o percurso completo.
+  // Mapa global: a IA lê o webinar inteiro, do segundo 0 ao fim. Se a
+  // transcrição for muito longa, juntamos momentos vizinhos em vez de
+  // descartar falas — nenhuma parte do webinar fica por conhecer.
+  const condensed = condenseTranscript(data.transcript, 220, 420);
+  const lines = condensed.map((s) => `${s.at}s: ${s.text}`).join("\n");
 
-    const howManyPersonas = Math.max(5, Math.min(14, Math.round(data.participants / 4)));
+  const howManyPersonas = Math.max(5, Math.min(14, Math.round(data.participants / 4)));
 
-    const prompt = [
-      `Webinar: "${webinar.public_title}".`,
-      webinar.description ? `Descrição: ${webinar.description}` : "",
-      webinar.cta_text
-        ? `Oferta "${webinar.cta_text}"${webinar.cta_price_now ? ` por ${webinar.cta_price_now}` : ""} apresentada ao segundo ${webinar.cta_start_seconds ?? 0}.`
-        : "",
-      `Duração total: ${duration} segundos.`,
-      "",
-      lines
-        ? `Transcrição (segundo aproximado → fala):\n${lines}`
-        : "Não há transcrição. Baseie-se no título, descrição e oferta para estimar o percurso provável da apresentação.",
-      "",
-      "Analise este webinar como diretor de engajamento. Divida-o em 8 a 24 trechos com significado próprio (abertura, chegada, conteúdo, história, explicação técnica, demonstração, prova social, estudo de caso, objeção, transição para a oferta, oferta, preço, bónus, garantia, urgência, cta, encerramento). Os trechos têm de cobrir o webinar do segundo 0 ao segundo final, sem buracos nem sobreposições.",
-      "Para cada trecho dê notas de 0 a 100: engagement (potencial de interação), emotion (intensidade emocional), density (densidade de informação), purchaseIntent (intenção de compra), objection (probabilidade de objeção). Classifique dropRisk em baixo, moderado, alto ou critico, tendo em conta explicações longas, excesso técnico, tempo sem interação, mudanças lentas de assunto, silêncio, repetição, histórias longas, transição para o pitch, apresentação do preço e o momento logo a seguir ao CTA.",
-      "Em prompts, liste TODAS as chamadas diretas à audiência: perguntas feitas ao público (\"de onde é que estão a falar?\", \"quem aqui já participou num leilão?\", \"vocês perceberam esta parte?\"), pedidos de palavra no chat (\"escreve EU\", \"põe SIM\"), pedidos de levantar a mão, enquetes e convites a manifestar interesse. Para cada uma: at (o segundo em que o pedido termina), ask (o pedido nas palavras dele), expects (cidade, sim-nao, palavra-chave, experiencia, duvida, interesse, numero ou livre), keyword (a palavra exata pedida, se houver) e intensity de 0 a 100 conforme o pedido seja explícito e insistente. Não invente pedidos que não existem na transcrição.",
-      'Marque readsChat a verdadeiro quando o apresentador lê, cita ou responde ao chat ("estou a ver-vos aqui", "vi alguém perguntar", "quem perguntou isto", "tem muita gente a dizer"). Em hostQuestion escreva a pergunta direta que ele faz ao público, quando existir; caso contrário deixe vazio.',
-      "Em moments, liste de 8 a 30 momentos semânticos: ideias completas com início e fim (uma ideia pode começar aos 620s e só fechar aos 648s). Para cada um: from, to (segundo em que a ideia fecha), topic (rótulo curto do tema, para memória das personas), summary, novelty de 0 a 100 (100 = revelação que muda tudo; 10 = conteúdo trivial) e reactionUntil (até que segundo faz sentido alguém reagir — normalmente to + 20 a 90).",
-      "Em audienceState, estime o estado COLETIVO da audiência a cada 3 a 8 minutos (e nos pontos de viragem: prova forte, revelação de preço, garantia, CTA). São estimativas do modelo, não factos: estimatedAttention, estimatedConfusion, estimatedExcitement, estimatedTrust, estimatedPurchaseIntent, estimatedObjection e chatEnergy, todos de 0 a 100. Faça-os evoluir com a narrativa: explicação complexa sobe a confusão; exemplo claro baixa-a e sobe a confiança; prova forte sobe a confiança; preço sobe a objeção; garantia baixa-a.",
-      `Crie ${howManyPersonas} personas de participantes simulados desta sessão: nome e apelido plausíveis do país de cada pessoa, traço dominante (entusiasta, racional, cética, reservada, participativa), um perfil curto e coerente (país, cidade, experiência, situação) e o uso de emojis. ${variantText(data.variant)} Dê a cada uma: knowledge (iniciante, intermedio ou experiente — muda a forma como lê o conteúdo), rhythm (observadora, moderada ou participativa — quase todas observadoras ou moderadas) e arrivalAt (segundo em que entra na sala: a maioria 0, algumas chegam a meio). Nunca as apresente como clientes reais nem compradores.`,
-      "Em insights, aponte 5 a 12 momentos concretos para o apresentador melhorar o webinar, em linguagem simples e direta (trecho longo sem mudança de ritmo, pergunta com bom potencial, história com alta retenção, oferta que começa de forma abrupta, boa oportunidade de CTA).",
-      "Em rescue, liste os trechos com previsão de baixa retenção e sugestões concretas (pergunta ao público, comentário contextual, enquete, antecipar uma promessa, CTA secundário, encurtar o trecho no próximo webinar). Não resolva tudo com mais comentários.",
-      "Em score, pontue de 0 a 100: overall, retention, engagement, clarity, pace, offer, cta, mais um resumo de duas frases.",
-      "Escreva tudo em português de Portugal.",
-    ]
-      .filter(Boolean)
-      .join("\n");
+  const prompt = [
+    `Webinar: "${webinar.public_title}".`,
+    webinar.description ? `Descrição: ${webinar.description}` : "",
+    webinar.cta_text
+      ? `Oferta "${webinar.cta_text}"${webinar.cta_price_now ? ` por ${webinar.cta_price_now}` : ""} apresentada ao segundo ${webinar.cta_start_seconds ?? 0}.`
+      : "",
+    `Duração total: ${duration} segundos.`,
+    "",
+    lines
+      ? `Transcrição (segundo aproximado → fala):\n${lines}`
+      : "Não há transcrição. Baseie-se no título, descrição e oferta para estimar o percurso provável da apresentação.",
+    "",
+    "Analise este webinar como diretor de engajamento. Divida-o em 8 a 24 trechos com significado próprio (abertura, chegada, conteúdo, história, explicação técnica, demonstração, prova social, estudo de caso, objeção, transição para a oferta, oferta, preço, bónus, garantia, urgência, cta, encerramento). Os trechos têm de cobrir o webinar do segundo 0 ao segundo final, sem buracos nem sobreposições.",
+    "Para cada trecho dê notas de 0 a 100: engagement (potencial de interação), emotion (intensidade emocional), density (densidade de informação), purchaseIntent (intenção de compra), objection (probabilidade de objeção). Classifique dropRisk em baixo, moderado, alto ou critico, tendo em conta explicações longas, excesso técnico, tempo sem interação, mudanças lentas de assunto, silêncio, repetição, histórias longas, transição para o pitch, apresentação do preço e o momento logo a seguir ao CTA.",
+    'Em prompts, liste TODAS as chamadas diretas à audiência: perguntas feitas ao público ("de onde é que estão a falar?", "quem aqui já participou num leilão?", "vocês perceberam esta parte?"), pedidos de palavra no chat ("escreve EU", "põe SIM"), pedidos de levantar a mão, enquetes e convites a manifestar interesse. Para cada uma: at (o segundo em que o pedido termina), ask (o pedido nas palavras dele), expects (cidade, sim-nao, palavra-chave, experiencia, duvida, interesse, numero ou livre), keyword (a palavra exata pedida, se houver) e intensity de 0 a 100 conforme o pedido seja explícito e insistente. Não invente pedidos que não existem na transcrição.',
+    'Marque readsChat a verdadeiro quando o apresentador lê, cita ou responde ao chat ("estou a ver-vos aqui", "vi alguém perguntar", "quem perguntou isto", "tem muita gente a dizer"). Em hostQuestion escreva a pergunta direta que ele faz ao público, quando existir; caso contrário deixe vazio.',
+    "Em moments, liste de 8 a 30 momentos semânticos: ideias completas com início e fim (uma ideia pode começar aos 620s e só fechar aos 648s). Para cada um: from, to (segundo em que a ideia fecha), topic (rótulo curto do tema, para memória das personas), summary, novelty de 0 a 100 (100 = revelação que muda tudo; 10 = conteúdo trivial) e reactionUntil (até que segundo faz sentido alguém reagir — normalmente to + 20 a 90).",
+    "Em audienceState, estime o estado COLETIVO da audiência a cada 3 a 8 minutos (e nos pontos de viragem: prova forte, revelação de preço, garantia, CTA). São estimativas do modelo, não factos: estimatedAttention, estimatedConfusion, estimatedExcitement, estimatedTrust, estimatedPurchaseIntent, estimatedObjection e chatEnergy, todos de 0 a 100. Faça-os evoluir com a narrativa: explicação complexa sobe a confusão; exemplo claro baixa-a e sobe a confiança; prova forte sobe a confiança; preço sobe a objeção; garantia baixa-a.",
+    `Crie ${howManyPersonas} personas de participantes simulados desta sessão: nome e apelido plausíveis do país de cada pessoa, traço dominante (entusiasta, racional, cética, reservada, participativa), um perfil curto e coerente (país, cidade, experiência, situação) e o uso de emojis. ${variantText(data.variant)} Dê a cada uma: knowledge (iniciante, intermedio ou experiente — muda a forma como lê o conteúdo), rhythm (observadora, moderada ou participativa — quase todas observadoras ou moderadas) e arrivalAt (segundo em que entra na sala: a maioria 0, algumas chegam a meio). Nunca as apresente como clientes reais nem compradores.`,
+    "Em insights, aponte 5 a 12 momentos concretos para o apresentador melhorar o webinar, em linguagem simples e direta (trecho longo sem mudança de ritmo, pergunta com bom potencial, história com alta retenção, oferta que começa de forma abrupta, boa oportunidade de CTA).",
+    "Em rescue, liste os trechos com previsão de baixa retenção e sugestões concretas (pergunta ao público, comentário contextual, enquete, antecipar uma promessa, CTA secundário, encurtar o trecho no próximo webinar). Não resolva tudo com mais comentários.",
+    "Em score, pontue de 0 a 100: overall, retention, engagement, clarity, pace, offer, cta, mais um resumo de duas frases.",
+    "Escreva tudo em português de Portugal.",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
-    const result = await chatJson({
-      task: "analysis",
-      system:
-        "És diretor de engajamento de webinars. Analisas o percurso da apresentação, antecipas onde se perde atenção e preparas a estratégia de interação.",
-      user: prompt,
-      schema: WEBINAR_ANALYSIS,
-    });
+  const result = await chatJson({
+    task: "analysis",
+    system:
+      "És diretor de engajamento de webinars. Analisas o percurso da apresentação, antecipas onde se perde atenção e preparas a estratégia de interação.",
+    user: prompt,
+    schema: WEBINAR_ANALYSIS,
+  });
 
-    if (!result.ok) throw new AIError(result);
+  if (!result.ok) throw new AIError(result);
 
-    const parsed = analysisPayloadSchema.parse({
-      ...(result.json as object),
-      objective: data.objective,
-      durationSeconds: duration,
-    });
+  const parsed = analysisPayloadSchema.parse({
+    ...(result.json as object),
+    objective: data.objective,
+    durationSeconds: duration,
+  });
 
-    const analysis = normaliseAnalysis(
-      parsed,
-      data.objective,
-      duration,
-      webinar.cta_text ? (webinar.cta_start_seconds ?? 0) : null,
-    );
+  const analysis = normaliseAnalysis(
+    parsed,
+    data.objective,
+    duration,
+    webinar.cta_text ? (webinar.cta_start_seconds ?? 0) : null,
+  );
 
-    // Segunda leitura, sobre a transcrição literal completa: garante que
-    // nenhuma pergunta ao público se perde e que o segundo é o real.
-    try {
-      const scanned = await scanAudiencePrompts(data.transcript, webinar.public_title);
-      if (scanned.length > 0) {
-        const merged = [...analysis.prompts];
-        for (const prompt of scanned) {
-          const index = merged.findIndex((p) => Math.abs(p.at - prompt.at) < 8);
-          if (index >= 0) merged[index] = prompt;
-          else merged.push(prompt);
-        }
-        merged.sort((a, b) => a.at - b.at);
-        analysis.prompts = merged;
+  // Segunda leitura, sobre a transcrição literal completa: garante que
+  // nenhuma pergunta ao público se perde e que o segundo é o real.
+  try {
+    const scanned = await scanAudiencePrompts(data.transcript, webinar.public_title);
+    if (scanned.length > 0) {
+      const merged = [...analysis.prompts];
+      for (const prompt of scanned) {
+        const index = merged.findIndex((p) => Math.abs(p.at - prompt.at) < 8);
+        if (index >= 0) merged[index] = prompt;
+        else merged.push(prompt);
       }
-    } catch {
-      // Sem esta passagem ficam as chamadas do mapa global.
+      merged.sort((a, b) => a.at - b.at);
+      analysis.prompts = merged;
     }
-
-    // Guardar é um extra: se falhar, a geração continua com a análise em mãos.
-    const { data: member } = await supabase
-      .from("webinars")
-      .select("organization_id")
-      .eq("id", data.webinarId)
-      .maybeSingle();
-    if (member?.organization_id) {
-      await supabase.from("webinar_analysis").upsert(
-        {
-          webinar_id: data.webinarId,
-          organization_id: member.organization_id,
-          objective: analysis.objective,
-          duration_seconds: analysis.durationSeconds,
-          segments: analysis.segments,
-          personas: analysis.personas,
-          prompts: analysis.prompts,
-          moments: analysis.moments ?? [],
-          audience_state: analysis.audienceState ?? [],
-          insights: analysis.insights,
-          rescue: analysis.rescue,
-          score: analysis.score,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "webinar_id" },
-      );
-    }
-
-    return { analysis };
+  } catch {
+    // Sem esta passagem ficam as chamadas do mapa global.
   }
+
+  // Guardar é um extra: se falhar, a geração continua com a análise em mãos.
+  const { data: member } = await supabase
+    .from("webinars")
+    .select("organization_id")
+    .eq("id", data.webinarId)
+    .maybeSingle();
+  if (member?.organization_id) {
+    await supabase.from("webinar_analysis").upsert(
+      {
+        webinar_id: data.webinarId,
+        organization_id: member.organization_id,
+        objective: analysis.objective,
+        duration_seconds: analysis.durationSeconds,
+        segments: analysis.segments,
+        personas: analysis.personas,
+        prompts: analysis.prompts,
+        moments: analysis.moments ?? [],
+        audience_state: analysis.audienceState ?? [],
+        insights: analysis.insights,
+        rescue: analysis.rescue,
+        score: analysis.score,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "webinar_id" },
+    );
+  }
+
+  return { analysis };
+}
 
 export const analyseWebinarStructure = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -1887,7 +2122,9 @@ export const analyseWebinarStructure = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data, context }) =>
-    billed(context.supabase, data.webinarId, "webinar_analysis", () => analyseWebinarStructureImpl(context.supabase, data)),
+    billed(context.supabase, data.webinarId, "webinar_analysis", () =>
+      analyseWebinarStructureImpl(context.supabase, data),
+    ),
   );
 
 const intelSchema = z
@@ -1903,73 +2140,71 @@ const intelSchema = z
 
 /** Fase 1 — quantas janelas de tempo gerar e quantos comentários em cada uma. */
 export async function planCommentWindowsImpl(supabase: any, data: any) {
-    const webinar = await loadWebinar(supabase, data.webinarId);
-    const duration = computeDuration(webinar, data.transcript);
-    const { start, end } = computeBounds(data.range, duration);
-    const perMinute = perMinuteOf(data.settings);
+  const webinar = await loadWebinar(supabase, data.webinarId);
+  const duration = computeDuration(webinar, data.transcript);
+  const { start, end } = computeBounds(data.range, duration);
+  const perMinute = perMinuteOf(data.settings);
 
-    const PER_WINDOW = 35;
-    const windowSeconds = Math.max(180, Math.min(900, Math.round((PER_WINDOW / perMinute) * 60)));
-    // Um alvo alto pede mais trechos: cada chamada à IA escreve no máximo
-    // umas dezenas de mensagens sem perder qualidade.
-    const wanted = Number(data.settings?.targetTotal ?? 0);
-    const byTarget = wanted > 0 ? Math.ceil(wanted / 45) : 0;
-    const total = Math.max(
-      1,
-      Math.min(60, Math.max(Math.ceil((end - start) / windowSeconds), byTarget)),
-    );
-    const step = (end - start) / total;
+  const PER_WINDOW = 35;
+  const windowSeconds = Math.max(180, Math.min(900, Math.round((PER_WINDOW / perMinute) * 60)));
+  // Um alvo alto pede mais trechos: cada chamada à IA escreve no máximo
+  // umas dezenas de mensagens sem perder qualidade.
+  const wanted = Number(data.settings?.targetTotal ?? 0);
+  const byTarget = wanted > 0 ? Math.ceil(wanted / 45) : 0;
+  const total = Math.max(
+    1,
+    Math.min(60, Math.max(Math.ceil((end - start) / windowSeconds), byTarget)),
+  );
+  const step = (end - start) / total;
 
-    const segments = (data.intel?.segments ?? []) as AnalysisSegment[];
-    const prompts = (data.intel?.prompts ?? []) as AudiencePrompt[];
-    const objective = (data.intel?.objective ?? "balanced") as EngagementObjective;
+  const segments = (data.intel?.segments ?? []) as AnalysisSegment[];
+  const prompts = (data.intel?.prompts ?? []) as AudiencePrompt[];
+  const objective = (data.intel?.objective ?? "balanced") as EngagementObjective;
 
-    /** Densidade adaptativa: cada janela pesa os trechos que a compõem. */
-    const adaptiveCount = (from: number, to: number) => {
-      const inside = segments.filter((s) => s.to >= from && s.from <= to);
-      if (inside.length === 0) return Math.round(((to - from) / 60) * perMinute);
-      let messages = 0;
-      for (const segment of inside) {
-        const overlap = Math.max(0, Math.min(to, segment.to) - Math.max(from, segment.from));
-        if (overlap <= 0) continue;
-        messages += (overlap / 60) * densityForSegment(segment, objective, perMinute);
-      }
-      return Math.round(messages);
-    };
-
-    const windows = Array.from({ length: total }, (_, index) => {
-      const from = Math.round(start + index * step);
-      const to = index === total - 1 ? end : Math.round(start + (index + 1) * step) - 1;
-      const raw = data.intel
-        ? adaptiveCount(from, to)
-        : Math.round(((to - from) / 60) * perMinute);
-      // Arranque: os primeiros minutos nunca começam fracos.
-      const base = Math.round(raw * openingSurgeFactor(from, to));
-      // Cada chamada direta do apresentador traz o seu próprio pico de respostas.
-      const extra = promptsBetween(prompts, from, to).reduce(
-        (sum, prompt) => sum + answersForPrompt(prompt, data.settings.participants),
-        0,
-      );
-      // Piso do arranque: a sala enche sempre nos primeiros minutos.
-      const openingFloor =
-        from < 360 ? Math.round((Math.min(to, 360) - from) / 60 * Math.max(8, perMinute * 2)) : 0;
-      const howMany = Math.min(250, Math.max(2, openingFloor, base + extra));
-      return { from, to, howMany };
-    });
-
-    // Quantidade pedida pelo organizador: mantemos a distribuição pelos
-    // momentos, mas ajustamos o volume total ao alvo escolhido.
-    const target = Number(data.settings.targetTotal ?? 0);
-    if (target > 0) {
-      const sum = windows.reduce((acc, w) => acc + w.howMany, 0) || 1;
-      const factor = target / sum;
-      for (const window of windows) {
-        window.howMany = Math.min(250, Math.max(2, Math.round(window.howMany * factor)));
-      }
+  /** Densidade adaptativa: cada janela pesa os trechos que a compõem. */
+  const adaptiveCount = (from: number, to: number) => {
+    const inside = segments.filter((s) => s.to >= from && s.from <= to);
+    if (inside.length === 0) return Math.round(((to - from) / 60) * perMinute);
+    let messages = 0;
+    for (const segment of inside) {
+      const overlap = Math.max(0, Math.min(to, segment.to) - Math.max(from, segment.from));
+      if (overlap <= 0) continue;
+      messages += (overlap / 60) * densityForSegment(segment, objective, perMinute);
     }
+    return Math.round(messages);
+  };
 
-    return { duration, start, end, windows };
+  const windows = Array.from({ length: total }, (_, index) => {
+    const from = Math.round(start + index * step);
+    const to = index === total - 1 ? end : Math.round(start + (index + 1) * step) - 1;
+    const raw = data.intel ? adaptiveCount(from, to) : Math.round(((to - from) / 60) * perMinute);
+    // Arranque: os primeiros minutos nunca começam fracos.
+    const base = Math.round(raw * openingSurgeFactor(from, to));
+    // Cada chamada direta do apresentador traz o seu próprio pico de respostas.
+    const extra = promptsBetween(prompts, from, to).reduce(
+      (sum, prompt) => sum + answersForPrompt(prompt, data.settings.participants),
+      0,
+    );
+    // Piso do arranque: a sala enche sempre nos primeiros minutos.
+    const openingFloor =
+      from < 360 ? Math.round(((Math.min(to, 360) - from) / 60) * Math.max(8, perMinute * 2)) : 0;
+    const howMany = Math.min(250, Math.max(2, openingFloor, base + extra));
+    return { from, to, howMany };
+  });
+
+  // Quantidade pedida pelo organizador: mantemos a distribuição pelos
+  // momentos, mas ajustamos o volume total ao alvo escolhido.
+  const target = Number(data.settings.targetTotal ?? 0);
+  if (target > 0) {
+    const sum = windows.reduce((acc, w) => acc + w.howMany, 0) || 1;
+    const factor = target / sum;
+    for (const window of windows) {
+      window.howMany = Math.min(250, Math.max(2, Math.round(window.howMany * factor)));
+    }
   }
+
+  return { duration, start, end, windows };
+}
 
 export const planCommentWindows = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -1988,62 +2223,69 @@ export const planCommentWindows = createServerFn({ method: "POST" })
 
 /** Fase 2 — gera os comentários de uma única janela de tempo. */
 export async function generateCommentsWindowImpl(supabase: any, data: any) {
-    const webinar = await loadWebinar(supabase, data.webinarId);
-    const duration = computeDuration(webinar, data.transcript);
-     const intel = data.intel
-       ? {
-           objective: data.intel.objective as EngagementObjective,
-           segments: data.intel.segments as AnalysisSegment[],
-           personas: data.intel.personas as AnalysisPersona[],
-           prompts: (data.intel.prompts ?? []) as unknown as AudiencePrompt[],
-           moments: (data.intel.moments ?? []) as SemanticMoment[],
-           audienceState: (data.intel.audienceState ?? []) as AudienceStatePoint[],
-         }
-       : undefined;
-    const ctx: GenContext = {
-      webinar,
-      settings: data.settings,
-      transcript: data.transcript,
-      duration,
-      start: data.bounds.start,
-      end: boundedEnd(data.bounds, duration),
-      intel,
-    };
-    // Oportunidades a partir dos tempos reais por palavra: sem elas, as
-    // mensagens não teriam a que fala pertencem nem quando podem aparecer.
-    let slots = (data.slots ?? []) as Opportunity[];
-    if (slots.length === 0) {
-      try {
-        const engine = await import("@/lib/temporal/engine.server");
-        const version = await engine.latestReadyVersion(data.webinarId);
-        if (version && version.precision === "word" && version.sentences.length > 0) {
-          const moments =
-            version.moments.length > 0 ? version.moments : momentsFromSentences(version.sentences);
-          slots = buildOpportunities({
-            fromSeconds: data.window.from,
-            toSeconds: data.window.to,
-            events: version.events ?? [],
-            moments,
-            participants: Number(data.settings.participants ?? 40),
-          });
-        }
-      } catch {
-        // Sem oportunidades a IA continua a gerar, mas com menos precisão.
+  const webinar = await loadWebinar(supabase, data.webinarId);
+  const duration = computeDuration(webinar, data.transcript);
+  const intel = data.intel
+    ? {
+        objective: data.intel.objective as EngagementObjective,
+        segments: data.intel.segments as AnalysisSegment[],
+        personas: data.intel.personas as AnalysisPersona[],
+        prompts: (data.intel.prompts ?? []) as unknown as AudiencePrompt[],
+        moments: (data.intel.moments ?? []) as SemanticMoment[],
+        audienceState: (data.intel.audienceState ?? []) as AudienceStatePoint[],
       }
+    : undefined;
+  const ctx: GenContext = {
+    webinar,
+    settings: data.settings,
+    transcript: data.transcript,
+    duration,
+    start: data.bounds.start,
+    end: boundedEnd(data.bounds, duration),
+    intel,
+  };
+  // Oportunidades a partir dos tempos reais por palavra: sem elas, as
+  // mensagens não teriam a que fala pertencem nem quando podem aparecer.
+  let slots = (data.slots ?? []) as Opportunity[];
+  if (slots.length === 0) {
+    try {
+      const engine = await import("@/lib/temporal/engine.server");
+      const version = await engine.latestReadyVersion(data.webinarId);
+      if (version && version.precision === "word" && version.sentences.length > 0) {
+        const moments =
+          version.moments.length > 0 ? version.moments : momentsFromSentences(version.sentences);
+        slots = buildOpportunities({
+          fromSeconds: data.window.from,
+          toSeconds: data.window.to,
+          events: version.events ?? [],
+          moments,
+          participants: Number(data.settings.participants ?? 40),
+        });
+      }
+    } catch {
+      // Sem oportunidades a IA continua a gerar, mas com menos precisão.
     }
-
-    const comments = await askWindow(
-      ctx,
-      data.window.from,
-      data.window.to,
-      data.window.howMany,
-      data.existing,
-      intel,
-      slots,
-    );
-    return { comments };
   }
 
+  const engine = await engineForRange(
+    data.webinarId,
+    data.window.from,
+    data.window.to,
+    data.settings,
+    webinar,
+  );
+  const comments = await askWindow(
+    ctx,
+    data.window.from,
+    data.window.to,
+    data.window.howMany,
+    data.existing,
+    intel,
+    slots,
+    engine,
+  );
+  return { comments };
+}
 
 export const generateCommentsWindow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -2062,56 +2304,57 @@ export const generateCommentsWindow = createServerFn({ method: "POST" })
         existing: existingSchema,
         intel: intelSchema,
         slots: z.array(z.any()).optional(),
-
       })
       .parse(data),
   )
   .handler(async ({ data, context }) =>
-    billed(context.supabase, data.webinarId, "chat_generation", () => generateCommentsWindowImpl(context.supabase, data)),
+    billed(context.supabase, data.webinarId, "chat_generation", () =>
+      generateCommentsWindowImpl(context.supabase, data),
+    ),
   );
 
 /** Fase 3 — revisão final da cronologia da timeline completa. */
 export async function auditCommentsTimelineImpl(supabase: any, data: any) {
-    const webinar = await loadWebinar(supabase, data.webinarId);
-    const duration = computeDuration(webinar, data.transcript);
-    // A revisão final também usa o mapa guardado, para apanhar antecipações.
-    const { data: saved } = await supabase
-      .from("webinar_analysis")
-      .select("objective, segments, personas, prompts, moments, audience_state")
-      .eq("webinar_id", data.webinarId)
-      .maybeSingle();
-    const ctx: GenContext = {
-      webinar,
-      settings: settingsSchema.parse({}),
-      transcript: data.transcript,
-      duration,
-      start: data.bounds.start,
-      end: boundedEnd(data.bounds, duration),
-      intel: saved
-        ? {
-            objective: (saved.objective as EngagementObjective) ?? "balanced",
-            segments: (saved.segments ?? []) as AnalysisSegment[],
-             personas: (saved.personas ?? []) as AnalysisPersona[],
-             prompts: (saved.prompts ?? []) as AudiencePrompt[],
-             moments: (saved.moments ?? []) as SemanticMoment[],
-             audienceState: (saved.audience_state ?? []) as AudienceStatePoint[],
-           }
-        : undefined,
-    };
-    const report: PlacementReport<Comment> = { dropped: [] };
-    const finalList = await auditTimeline(ctx, data.comments as Comment[], report);
-    // Devolve os comentários inteiros: a revisão só mexeu no instante.
-    return {
-      comments: finalList,
-      dropped: report.dropped.map(({ comment, reason, detail }) => ({
-        at: comment.at,
-        author: comment.author,
-        message: comment.message,
-        reason,
-        detail,
-      })),
-    };
-  }
+  const webinar = await loadWebinar(supabase, data.webinarId);
+  const duration = computeDuration(webinar, data.transcript);
+  // A revisão final também usa o mapa guardado, para apanhar antecipações.
+  const { data: saved } = await supabase
+    .from("webinar_analysis")
+    .select("objective, segments, personas, prompts, moments, audience_state")
+    .eq("webinar_id", data.webinarId)
+    .maybeSingle();
+  const ctx: GenContext = {
+    webinar,
+    settings: settingsSchema.parse({}),
+    transcript: data.transcript,
+    duration,
+    start: data.bounds.start,
+    end: boundedEnd(data.bounds, duration),
+    intel: saved
+      ? {
+          objective: (saved.objective as EngagementObjective) ?? "balanced",
+          segments: (saved.segments ?? []) as AnalysisSegment[],
+          personas: (saved.personas ?? []) as AnalysisPersona[],
+          prompts: (saved.prompts ?? []) as AudiencePrompt[],
+          moments: (saved.moments ?? []) as SemanticMoment[],
+          audienceState: (saved.audience_state ?? []) as AudienceStatePoint[],
+        }
+      : undefined,
+  };
+  const report: PlacementReport<Comment> = { dropped: [] };
+  const finalList = await auditTimeline(ctx, data.comments as Comment[], report);
+  // Devolve os comentários inteiros: a revisão só mexeu no instante.
+  return {
+    comments: finalList,
+    dropped: report.dropped.map(({ comment, reason, detail }) => ({
+      at: comment.at,
+      author: comment.author,
+      message: comment.message,
+      reason,
+      detail,
+    })),
+  };
+}
 
 export const auditCommentsTimeline = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -2126,7 +2369,9 @@ export const auditCommentsTimeline = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data, context }) =>
-    billed(context.supabase, data.webinarId, "chat_generation", () => auditCommentsTimelineImpl(context.supabase, data)),
+    billed(context.supabase, data.webinarId, "chat_generation", () =>
+      auditCommentsTimelineImpl(context.supabase, data),
+    ),
   );
 
 /**
@@ -2134,35 +2379,47 @@ export const auditCommentsTimeline = createServerFn({ method: "POST" })
  * janela, curta o suficiente para caber numa chamada.
  */
 export async function generateEngagementCommentsImpl(supabase: any, data: any) {
-    const webinar = await loadWebinar(supabase, data.webinarId);
-    const duration = computeDuration(webinar, data.transcript);
-    const { start, end } = computeBounds(data.range, duration);
-    const perMinute = perMinuteOf(data.settings);
+  const webinar = await loadWebinar(supabase, data.webinarId);
+  const duration = computeDuration(webinar, data.transcript);
+  const { start, end } = computeBounds(data.range, duration);
+  const perMinute = perMinuteOf(data.settings);
 
-    const ctx: GenContext = {
-      webinar,
-      settings: data.settings,
-      transcript: data.transcript,
-      duration,
-      start,
-      end,
-    };
+  const ctx: GenContext = {
+    webinar,
+    settings: data.settings,
+    transcript: data.transcript,
+    duration,
+    start,
+    end,
+  };
 
-    const howMany =
-      data.count ?? Math.max(2, Math.min(60, Math.round(((end - start) / 60) * perMinute)));
-    const comments = await askWindow(ctx, start, end, howMany, data.existing);
-    if (comments.length === 0) throw new Error("A IA não conseguiu criar comentários desta vez.");
+  const howMany =
+    data.count ?? Math.max(2, Math.min(60, Math.round(((end - start) / 60) * perMinute)));
+  const engine = await engineForRange(data.webinarId, start, end, data.settings, webinar);
+  const comments = await askWindow(
+    ctx,
+    start,
+    end,
+    howMany,
+    data.existing,
+    undefined,
+    undefined,
+    engine,
+  );
+  if (comments.length === 0) throw new Error("A IA não conseguiu criar comentários desta vez.");
 
-    const report: PlacementReport<Comment> = { dropped: [] };
-    const finalList = fixCausality(ctx, comments, report);
-    return { comments: finalList, dropped: report.dropped.length };
-  }
+  const report: PlacementReport<Comment> = { dropped: [] };
+  const finalList = fixCausality(ctx, comments, report);
+  return { comments: finalList, dropped: report.dropped.length };
+}
 
 export const generateEngagementComments = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => generateSchema.parse(data))
   .handler(async ({ data, context }) =>
-    billed(context.supabase, data.webinarId, "chat_generation", () => generateEngagementCommentsImpl(context.supabase, data)),
+    billed(context.supabase, data.webinarId, "chat_generation", () =>
+      generateEngagementCommentsImpl(context.supabase, data),
+    ),
   );
 
 /** Lê o mapa guardado do webinar, para o editor mostrar heatmap, insights e score. */
@@ -2184,11 +2441,11 @@ export const getWebinarAnalysis = createServerFn({ method: "POST" })
       objective: (row.objective as EngagementObjective) ?? "balanced",
       durationSeconds: row.duration_seconds ?? 0,
       segments: (row.segments ?? []) as WebinarAnalysis["segments"],
-       personas: (row.personas ?? []) as WebinarAnalysis["personas"],
-       prompts: (row.prompts ?? []) as WebinarAnalysis["prompts"],
-       moments: (row.moments ?? []) as SemanticMoment[],
-       audienceState: (row.audience_state ?? []) as AudienceStatePoint[],
-       insights: (row.insights ?? []) as WebinarAnalysis["insights"],
+      personas: (row.personas ?? []) as WebinarAnalysis["personas"],
+      prompts: (row.prompts ?? []) as WebinarAnalysis["prompts"],
+      moments: (row.moments ?? []) as SemanticMoment[],
+      audienceState: (row.audience_state ?? []) as AudienceStatePoint[],
+      insights: (row.insights ?? []) as WebinarAnalysis["insights"],
       rescue: (row.rescue ?? []) as WebinarAnalysis["rescue"],
       score: (row.score ?? {}) as WebinarAnalysis["score"],
     };
@@ -2205,10 +2462,9 @@ export async function videoFingerprint(
     .select("organization_id, video_source_id, video_sources(source_url, storage_path)")
     .eq("id", webinarId)
     .maybeSingle();
-  const source = (Array.isArray(row?.video_sources) ? row?.video_sources[0] : row?.video_sources) as
-    | { source_url: string | null; storage_path: string | null }
-    | null
-    | undefined;
+  const source = (
+    Array.isArray(row?.video_sources) ? row?.video_sources[0] : row?.video_sources
+  ) as { source_url: string | null; storage_path: string | null } | null | undefined;
   return {
     organizationId: row?.organization_id ?? null,
     videoSourceId: row?.video_source_id ?? null,
@@ -2218,23 +2474,23 @@ export async function videoFingerprint(
 
 /** Devolve a transcrição já guardada deste vídeo (evita transcrever outra vez). */
 export async function getWebinarTranscriptImpl(supabase: any, data: any) {
-    const { data: row } = await supabase
-      .from("webinar_transcripts")
-      .select("segments, duration_seconds, video_fingerprint, updated_at")
-      .eq("webinar_id", data.webinarId)
-      .maybeSingle();
-    if (!row) return { transcript: [] as TranscriptSegment[], updatedAt: null as string | null };
+  const { data: row } = await supabase
+    .from("webinar_transcripts")
+    .select("segments, duration_seconds, video_fingerprint, updated_at")
+    .eq("webinar_id", data.webinarId)
+    .maybeSingle();
+  if (!row) return { transcript: [] as TranscriptSegment[], updatedAt: null as string | null };
 
-    const current = await videoFingerprint(supabase as never, data.webinarId);
-    // Vídeo trocado desde a última transcrição: recomeçamos do zero.
-    if (row.video_fingerprint && row.video_fingerprint !== current.fingerprint) {
-      return { transcript: [] as TranscriptSegment[], updatedAt: null as string | null };
-    }
-    return {
-      transcript: (row.segments ?? []) as TranscriptSegment[],
-      updatedAt: (row.updated_at as string) ?? null,
-    };
+  const current = await videoFingerprint(supabase as never, data.webinarId);
+  // Vídeo trocado desde a última transcrição: recomeçamos do zero.
+  if (row.video_fingerprint && row.video_fingerprint !== current.fingerprint) {
+    return { transcript: [] as TranscriptSegment[], updatedAt: null as string | null };
   }
+  return {
+    transcript: (row.segments ?? []) as TranscriptSegment[],
+    updatedAt: (row.updated_at as string) ?? null,
+  };
+}
 
 export const getWebinarTranscript = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -2243,24 +2499,27 @@ export const getWebinarTranscript = createServerFn({ method: "POST" })
 
 /** Guarda a transcrição completa para reaproveitar nas próximas gerações. */
 export async function saveWebinarTranscriptImpl(supabase: any, data: any) {
-    if (data.transcript.length === 0) return { ok: false as const };
-    const current = await videoFingerprint(supabase as never, data.webinarId);
-    if (!current.organizationId) return { ok: false as const };
-    const duration = (data.transcript as TranscriptSegment[]).reduce((max: number, s: TranscriptSegment) => Math.max(max, s.at), 0);
-    await supabase.from("webinar_transcripts").upsert(
-      {
-        webinar_id: data.webinarId,
-        organization_id: current.organizationId,
-        video_source_id: current.videoSourceId,
-        video_fingerprint: current.fingerprint,
-        duration_seconds: Math.round(duration),
-        segments: data.transcript,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "webinar_id" },
-    );
-    return { ok: true as const };
-  }
+  if (data.transcript.length === 0) return { ok: false as const };
+  const current = await videoFingerprint(supabase as never, data.webinarId);
+  if (!current.organizationId) return { ok: false as const };
+  const duration = (data.transcript as TranscriptSegment[]).reduce(
+    (max: number, s: TranscriptSegment) => Math.max(max, s.at),
+    0,
+  );
+  await supabase.from("webinar_transcripts").upsert(
+    {
+      webinar_id: data.webinarId,
+      organization_id: current.organizationId,
+      video_source_id: current.videoSourceId,
+      video_fingerprint: current.fingerprint,
+      duration_seconds: Math.round(duration),
+      segments: data.transcript,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "webinar_id" },
+  );
+  return { ok: true as const };
+}
 
 export const saveWebinarTranscript = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -2334,45 +2593,51 @@ async function syncBatch(
  * comentários.
  */
 export async function syncCommentsWithSpeechImpl(supabase: any, data: any) {
-    let transcript = data.transcript;
-    // Se o editor ainda não tem a transcrição em memória, usamos a guardada.
-    if (transcript.length === 0) {
-      const { data: row } = await supabase
-        .from("webinar_transcripts")
-        .select("segments")
-        .eq("webinar_id", data.webinarId)
-        .maybeSingle();
-      transcript = ((row?.segments ?? []) as TranscriptSegment[]).filter(
-        (line) => typeof line?.at === "number" && typeof line?.text === "string",
-      );
-    }
-    if (transcript.length === 0)
-      throw new Error(
-        "Ainda não existe transcrição guardada deste vídeo. Gere o chat com IA uma vez para a criar.",
-      );
-
-    const duration = (transcript as TranscriptSegment[]).reduce((max: number, s: TranscriptSegment) => Math.max(max, s.at), 0) + 30;
-    const ordered = [...data.comments].sort((a, b) => a.at - b.at);
-
-    const from = Math.max(0, (ordered[0]?.at ?? 0) - 180);
-    const to = (ordered[ordered.length - 1]?.at ?? duration) + 300;
-    // Damos o trecho falado à volta do lote, com detalhe suficiente para
-    // encontrar a frase certa.
-    const around = (transcript as TranscriptSegment[]).filter((line: TranscriptSegment) => line.at >= from && line.at <= to);
-    const lines = condenseTranscript(around.length > 0 ? around : transcript, 160, 400);
-    const map = await syncBatch(lines, ordered, duration);
-
-    // Garante segundos únicos, respeitando os já ocupados pelos lotes anteriores.
-    const used = new Set<number>(data.occupiedSeconds);
-    const updates: { id: string; at: number }[] = [];
-    for (const comment of ordered) {
-      const next = map[comment.id];
-      if (typeof next !== "number") continue;
-      let at = Math.min(Math.round(duration), Math.max(0, next));
-      while (used.has(at)) at += 1;
-      used.add(at);
-      updates.push({ id: comment.id, at });
-    }
-
-    return { updates, usedSeconds: Array.from(used) };
+  let transcript = data.transcript;
+  // Se o editor ainda não tem a transcrição em memória, usamos a guardada.
+  if (transcript.length === 0) {
+    const { data: row } = await supabase
+      .from("webinar_transcripts")
+      .select("segments")
+      .eq("webinar_id", data.webinarId)
+      .maybeSingle();
+    transcript = ((row?.segments ?? []) as TranscriptSegment[]).filter(
+      (line) => typeof line?.at === "number" && typeof line?.text === "string",
+    );
   }
+  if (transcript.length === 0)
+    throw new Error(
+      "Ainda não existe transcrição guardada deste vídeo. Gere o chat com IA uma vez para a criar.",
+    );
+
+  const duration =
+    (transcript as TranscriptSegment[]).reduce(
+      (max: number, s: TranscriptSegment) => Math.max(max, s.at),
+      0,
+    ) + 30;
+  const ordered = [...data.comments].sort((a, b) => a.at - b.at);
+
+  const from = Math.max(0, (ordered[0]?.at ?? 0) - 180);
+  const to = (ordered[ordered.length - 1]?.at ?? duration) + 300;
+  // Damos o trecho falado à volta do lote, com detalhe suficiente para
+  // encontrar a frase certa.
+  const around = (transcript as TranscriptSegment[]).filter(
+    (line: TranscriptSegment) => line.at >= from && line.at <= to,
+  );
+  const lines = condenseTranscript(around.length > 0 ? around : transcript, 160, 400);
+  const map = await syncBatch(lines, ordered, duration);
+
+  // Garante segundos únicos, respeitando os já ocupados pelos lotes anteriores.
+  const used = new Set<number>(data.occupiedSeconds);
+  const updates: { id: string; at: number }[] = [];
+  for (const comment of ordered) {
+    const next = map[comment.id];
+    if (typeof next !== "number") continue;
+    let at = Math.min(Math.round(duration), Math.max(0, next));
+    while (used.has(at)) at += 1;
+    used.add(at);
+    updates.push({ id: comment.id, at });
+  }
+
+  return { updates, usedSeconds: Array.from(used) };
+}

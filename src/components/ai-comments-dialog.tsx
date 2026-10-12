@@ -25,6 +25,7 @@ import { Switch } from "@/components/ui/switch";
 import { generateEngagementComments } from "@/lib/ai-comments.functions";
 import { getTranscriptInspection } from "@/lib/temporal/inspect.functions";
 import { TranscriptWords } from "@/components/transcript-words";
+import { AiCommentsReview } from "@/components/ai-comments-review";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -93,7 +94,7 @@ export function AiCommentsDialog({
   const inspectionQuery = useQuery({
     queryKey: ["transcript-inspection", webinarId, job?.status ?? "idle"],
     queryFn: () => loadInspection({ data: { webinarId } }),
-    enabled: open && showTranscript,
+    enabled: open && (showTranscript || job?.status === "ready"),
   });
   const inspection = inspectionQuery.data ?? null;
 
@@ -163,9 +164,7 @@ export function AiCommentsDialog({
       dismissAiJob(webinarId);
       onOpenChange(false);
     } catch (error) {
-      toast.error(
-        friendlyError(error, "Não foi possível aprovar os comentários."),
-      );
+      toast.error(friendlyError(error, "Não foi possível aprovar os comentários."));
     } finally {
       setSaving(false);
     }
@@ -194,8 +193,8 @@ export function AiCommentsDialog({
               : job?.status === "ready"
                 ? "Rever o chat gerado"
                 : replaceAll
-                ? "Regenerar tudo com IA"
-                : "Gerar com IA"}
+                  ? "Regenerar tudo com IA"
+                  : "Gerar com IA"}
           </DialogTitle>
           <DialogDescription>
             {range
@@ -313,8 +312,8 @@ export function AiCommentsDialog({
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                É um alvo aproximado: o número final depende do que acontece no vídeo. Quanto maior a
-                quantidade, mais demora a gerar.
+                É um alvo aproximado: o número final depende do que acontece no vídeo. Quanto maior
+                a quantidade, mais demora a gerar.
               </p>
             </div>
             <div className="space-y-1.5">
@@ -409,78 +408,27 @@ export function AiCommentsDialog({
             </label>
             {replaceAll && (
               <p className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive sm:col-span-2">
-                Ao inserir, os comentários atuais desta timeline são apagados e substituídos pelos
-                novos.
+                Ao inserir, os comentários gerados desta timeline são substituídos pelos novos. Os
+                escritos à mão e os editados à mão ficam.
               </p>
             )}
           </div>
         ) : (
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                {drafts.length} comentário{drafts.length === 1 ? "" : "s"} para rever. Edite, apague
-                ou regenere antes de inserir.
-              </p>
-            </div>
-            <div className="max-h-[45dvh] space-y-2 overflow-y-auto pr-1">
-              {drafts.map((draft, index) => (
-                <div key={index} className="flex items-start gap-2 rounded-xl border p-2">
-                  <Input
-                    className="w-20 shrink-0 text-center tabular-nums"
-                    value={clock(draft.at)}
-                    onChange={(e) => {
-                      const seconds = toSeconds(e.target.value);
-                      if (seconds === null) return;
-                      setAiJobDrafts(
-                        webinarId,
-                        drafts.map((c, i) => (i === index ? { ...c, at: seconds } : c)),
-                      );
-                    }}
-                  />
-                  <Input
-                    className="w-32 shrink-0"
-                    value={draft.author}
-                    onChange={(e) =>
-                      setAiJobDrafts(
-                        webinarId,
-                        drafts.map((c, i) => (i === index ? { ...c, author: e.target.value } : c)),
-                      )
-                    }
-                  />
-                  <Input
-                    value={draft.message}
-                    onChange={(e) =>
-                      setAiJobDrafts(
-                        webinarId,
-                        drafts.map((c, i) => (i === index ? { ...c, message: e.target.value } : c)),
-                      )
-                    }
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Regenerar"
-                    disabled={busy}
-                    onClick={() => regenerateOne(index)}
-                  >
-                    <RefreshCw className="size-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Remover"
-                    onClick={() =>
-                      setAiJobDrafts(
-                        webinarId,
-                        drafts.filter((_, i) => i !== index),
-                      )
-                    }
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
+            <p className="text-sm text-muted-foreground">
+              {drafts.length} comentário{drafts.length === 1 ? "" : "s"} para rever, bloco a bloco
+              da fala. Edite, apague ou regenere antes de inserir.
+            </p>
+            <AiCommentsReview
+              drafts={drafts}
+              blocks={inspection?.blocks ?? []}
+              validation={job?.validation}
+              busy={busy}
+              durationSeconds={lastAt}
+              onChange={(next) => setAiJobDrafts(webinarId, next)}
+              onRegenerate={(index) => void regenerateOne(index)}
+              onSeek={onSeek}
+            />
           </div>
         )}
 

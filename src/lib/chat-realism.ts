@@ -130,7 +130,8 @@ export function chatPace(audience: number, volume: ChatVolume, chosen = DEFAULT_
 }
 
 /** Um comentário antes de ser gravado; o resto dos campos do gerador passa intacto. */
-export type ChatDraft = { at: number; author: string; message: string; tag?: ChatTag | undefined };
+/** `fixed`: o instante veio do motor (ligado à fala) e as regras não o mexem nem o reescrevem. */
+export type ChatDraft = { at: number; author: string; message: string; tag?: ChatTag | undefined; fixed?: boolean | undefined };
 
 const FIRST: Record<ChatCountryCode, readonly string[]> = {
   ao: ["Edson", "Kátia", "Nelson", "Yola", "Mauro", "Délcio", "Hélder", "Celma", "Nádia", "Adilson", "Wilson", "Graça", "Osvaldo", "Lurdes", "Kiesse", "Neusa", "Ivo", "Elsa", "Cláudio", "Sandra", "Domingos", "Filomena", "Euclides", "Marisa", "Anacleto", "Josina", "Valdemar", "Nzinga", "Zola", "Teresa"],
@@ -303,8 +304,8 @@ export function applyChatRealism<T extends ChatDraft>(
     let message = withEmoji ? c.message : stripEmoji(c.message);
     // Mais emojis: uma em cada três mensagens sem nenhum ganha um.
     if (withEmoji && i % 3 === 1 && stripEmoji(message) === message) message = `${message} ${HAPPY[i % HAPPY.length]}`;
-    if (rules.mobile && i % 4 === 2) message = mobileText(message);
-    const at = cap(c.at + (rules.delay ? 3 + ((i * 7) % 13) : 0));
+    if (rules.mobile && i % 4 === 2 && !c.fixed) message = mobileText(message);
+    const at = c.fixed ? cap(c.at) : cap(c.at + (rules.delay ? 3 + ((i * 7) % 13) : 0));
     return { ...c, message: message || c.message, at };
   });
 
@@ -357,7 +358,7 @@ export function applyChatRealism<T extends ChatDraft>(
   if (rules.follow && ctx.audienceAt) {
     out = out.filter((c, i) => {
       const norm = ctx.audienceAt!(c.at);
-      if (c.tag || norm == null) return true;
+      if (c.tag || c.fixed || norm == null) return true;
       if (norm < 0.15) return i % 2 !== 0;
       return norm > 0.4 || i % 3 !== 0;
     });
@@ -390,7 +391,7 @@ export function applyChatRealism<T extends ChatDraft>(
   if (rules.talk) {
     out = out.map((c, i) => {
       const prev = out[i - 1];
-      if (i % 9 !== 6 || !prev || c.tag || prev.tag || c.at - prev.at >= 40 || prev.author === c.author) return c;
+      if (i % 9 !== 6 || !prev || c.tag || c.fixed || prev.tag || c.at - prev.at >= 40 || prev.author === c.author) return c;
       const emo = withEmoji && i % 2 ? " 👏" : "";
       return { ...c, message: `@${first(prev.author)} ${TALK[i % TALK.length]}${emo}`, tag: "reply" as const };
     });

@@ -2276,6 +2276,15 @@ export type Database = {
       }
       scheduled_comments: {
         Row: {
+          block_id: string | null
+          block_type: string | null
+          dependency: string | null
+          interaction_type: string | null
+          manually_edited: boolean
+          profile_id: string | null
+          slot_id: string | null
+          window_end_ms: number | null
+          window_start_ms: number | null
           ai_intent: string | null
           ai_persona: string | null
           ai_thread: string | null
@@ -2302,6 +2311,15 @@ export type Database = {
           webinar_id: string
         }
         Insert: {
+          block_id?: string | null
+          block_type?: string | null
+          dependency?: string | null
+          interaction_type?: string | null
+          manually_edited?: boolean
+          profile_id?: string | null
+          slot_id?: string | null
+          window_end_ms?: number | null
+          window_start_ms?: number | null
           ai_intent?: string | null
           ai_persona?: string | null
           ai_thread?: string | null
@@ -2328,6 +2346,15 @@ export type Database = {
           webinar_id: string
         }
         Update: {
+          block_id?: string | null
+          block_type?: string | null
+          dependency?: string | null
+          interaction_type?: string | null
+          manually_edited?: boolean
+          profile_id?: string | null
+          slot_id?: string | null
+          window_end_ms?: number | null
+          window_start_ms?: number | null
           ai_intent?: string | null
           ai_persona?: string | null
           ai_thread?: string | null
@@ -3174,6 +3201,7 @@ export type Database = {
       }
       webinar_transcript_versions: {
         Row: {
+          blocks: Json
           created_at: string
           duration_seconds: number
           error: string | null
@@ -3198,6 +3226,7 @@ export type Database = {
           words: Json
         }
         Insert: {
+          blocks?: Json
           created_at?: string
           duration_seconds?: number
           error?: string | null
@@ -3222,6 +3251,7 @@ export type Database = {
           words?: Json
         }
         Update: {
+          blocks?: Json
           created_at?: string
           duration_seconds?: number
           error?: string | null

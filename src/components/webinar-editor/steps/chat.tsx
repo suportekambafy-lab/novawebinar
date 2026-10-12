@@ -33,6 +33,8 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { clock } from "@/lib/room-logic";
 import { CHAT_COUNTRIES, type ChatCountryCode } from "@/lib/chat-variants";
+import { BLOCK_LABEL, DEPENDENCY_LABEL } from "@/lib/chat-engine/labels";
+import type { BlockType, Dependency } from "@/lib/chat-engine/types";
 import {
   alunoExample,
   chatPace,
@@ -50,7 +52,18 @@ import type { EditorClock } from "./video";
 import type { EditorForm, FocusProps, SetForm } from "../form";
 
 export type ChatWay = "ai" | "file" | "one";
-export type ChatComment = { id: string; at: number; author: string; message: string; type: string | null };
+export type ChatComment = {
+  id: string;
+  at: number;
+  author: string;
+  message: string;
+  type: string | null;
+  /** Do motor do chat: «antes de ser lido», «depois da fala» ou livre, e o tipo do bloco de fala. */
+  dependency?: string | null;
+  blockType?: string | null;
+  /** Mudado à mão: regenerar não o apaga. */
+  edited?: boolean;
+};
 type Part = "quem" | "volume" | "escrita" | "real" | "perguntas" | "gerar" | "ficou" | "suporte";
 
 /** Quem são, pela nacionalidade (no ecrã: «Angolanos», «Brasileiros»…). */
@@ -752,6 +765,13 @@ function CommentList({
                 <b className="flex flex-wrap items-center gap-1.5 text-[12.5px] font-semibold">
                   {x.author}
                   {tag ? <Tag tone="gray">{tag}</Tag> : null}
+                  {x.dependency === "BEFORE" || x.dependency === "AFTER" ? (
+                    <Tag tone="gray">
+                      {DEPENDENCY_LABEL[x.dependency as Dependency]}
+                      {x.blockType ? ` · ${BLOCK_LABEL[x.blockType as BlockType]}` : ""}
+                    </Tag>
+                  ) : null}
+                  {x.edited ? <Tag tone="gray">Editado à mão</Tag> : null}
                 </b>
                 <span className="block break-words text-[13px] text-foreground/85">{x.message}</span>
               </span>

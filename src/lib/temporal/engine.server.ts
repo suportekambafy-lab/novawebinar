@@ -76,6 +76,8 @@ export type TranscriptVersion = {
   videoFingerprint: string;
   /** Diferença entre o relógio do áudio transcrito e o do player, em ms. */
   mediaTimeOffsetMs: number;
+  /** Blocos de fala classificados (ver chat-engine), quando já existem. */
+  blocks: unknown[];
 };
 
 
@@ -95,6 +97,7 @@ function toVersion(row: any): TranscriptVersion {
     createdAt: row.created_at,
     videoFingerprint: row.video_fingerprint ?? "",
     mediaTimeOffsetMs: row.media_time_offset_ms ?? 0,
+    blocks: Array.isArray(row.blocks) ? row.blocks : [],
   };
 }
 
@@ -176,6 +179,14 @@ export async function saveVersionAnalysis(
   await db
     .from("webinar_transcript_versions")
     .update({ ...changes, updated_at: new Date().toISOString() } as never)
+    .eq("id", versionId);
+}
+
+/** Guarda os blocos de fala classificados nesta versão. */
+export async function saveVersionBlocks(versionId: string, blocks: unknown[]) {
+  await db
+    .from("webinar_transcript_versions")
+    .update({ blocks, updated_at: new Date().toISOString() } as never)
     .eq("id", versionId);
 }
 

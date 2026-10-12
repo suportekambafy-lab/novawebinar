@@ -55,3 +55,21 @@ _Avoid_: Winner, campeã
 **Objectivo**:
 O que o teste mede para decidir: conversões, receita por visitante ou por participante, inscrições, presença, retenção, chegada ao pitch ou cliques na oferta.
 _Avoid_: Métrica alvo, KPI
+
+### Chat programado
+
+**Bloco de fala**:
+Um trecho de 10 a 30 segundos da fala do apresentador com um sentido só: conteúdo, pergunta ao público, pedido de comentários, pedido de confirmação, sondagem, leitura do chat, resposta ao chat, prova social, momento emocional, chamada à acção, oferta, história, transição, parte técnica ou silêncio.
+_Avoid_: Segmento, evento, trecho
+
+**Dependência**:
+Quando é que um comentário pode existir em relação ao bloco: «antes de ser lido» (o apresentador vai lê-lo), «depois da fala» (responde ou reage ao que acabou de ser dito) ou «livre».
+_Avoid_: Causalidade, relação temporal
+
+**Oportunidade**:
+A ocasião que um bloco cria para alguém escrever: a dependência, a janela de tempo, o formato esperado e quantas pessoas é plausível escreverem.
+_Avoid_: Slot, janela
+
+**Editado à mão**:
+Um comentário gerado que o organizador mudou. Regenerar o chat não o apaga.
+_Avoid_: Manual (é o escrito de raiz), bloqueado
