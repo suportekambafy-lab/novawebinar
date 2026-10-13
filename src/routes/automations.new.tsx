@@ -27,7 +27,6 @@ function NewFlowPage() {
   const orgId = workspace?.organizationId;
   const { data: webinars = [] } = useWebinars(orgId);
   const { data: workflows = [] } = useWorkflows(orgId);
-  const destination = useWebhookDestination(orgId);
   const invalidate = useInvalidate();
   const [chosen, setWebinarId] = useState<string>();
   const [name, setName] = useState("");
@@ -38,6 +37,7 @@ function NewFlowPage() {
   const free = webinars.filter((w) => !workflows.some((f) => f.webinar_id === w.id));
   const webinarId = chosen ?? free[0]?.id ?? NONE;
   const webinar = webinars.find((w) => w.id === webinarId);
+  const destination = useWebhookDestination(orgId, webinar?.id ?? null);
   const title = webinar ? webinar.public_title || webinar.internal_name : "";
   const status = channelStatus(Boolean(workspace?.isTest), destination.ready, destination.whatsappReady);
 

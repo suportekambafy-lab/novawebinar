@@ -178,12 +178,14 @@ async function buildRoom(webinar: RoomRow) {
       .select("id, buyer_name, product_name, message, offset_seconds")
       .eq("webinar_id", webinar.id)
       .order("offset_seconds", { ascending: true }),
+    // Os pixels da conta e os deste webinar (Integrações, âmbito «este webinar»): o do webinar substitui o da conta.
     supabaseAdmin
       .from("integrations")
-      .select("provider, settings")
+      .select("provider, settings, webinar_id")
       .eq("organization_id", webinar.organization_id)
       .eq("enabled", true)
-      .in("provider", ["meta_pixel", "tiktok_pixel", "google_tag"]),
+      .in("provider", ["meta_pixel", "tiktok_pixel", "google_tag"])
+      .or(`webinar_id.is.null,webinar_id.eq.${webinar.id}`),
     // A transcrição do vídeo dá as legendas da sala.
     supabaseAdmin
       .from("webinar_transcripts")
@@ -210,12 +212,18 @@ async function buildRoom(webinar: RoomRow) {
 
   // Os ids vão parar a endereços de scripts: validam-se outra vez aqui.
   const pixels: Partial<Record<"meta_pixel" | "tiktok_pixel" | "google_tag", string>> = {};
+  const scoped = new Set<string>();
   for (const row of adIntegrations ?? []) {
     const info = PROVIDERS.find((p) => p.id === row.provider);
     const id = String(
       (row.settings as Record<string, unknown> | null)?.[info?.setting?.key ?? ""] ?? "",
     );
-    if (info?.setting?.pattern.test(id)) pixels[row.provider as keyof typeof pixels] = id;
+    if (!info?.setting?.pattern.test(id)) continue;
+    const own = (row as { webinar_id?: string | null }).webinar_id === webinar.id;
+    // Já há o pixel próprio deste webinar: o da conta não o substitui.
+    if (!own && scoped.has(row.provider)) continue;
+    pixels[row.provider as keyof typeof pixels] = id;
+    if (own) scoped.add(row.provider);
   }
 
   const duration = source?.duration_seconds || webinar.duration_seconds;

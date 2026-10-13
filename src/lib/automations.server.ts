@@ -170,6 +170,7 @@ async function execute(run: Run): Promise<Outcome> {
   const delivery = await deliverOutgoing(run.organization_id, AUTOMATION_EVENT, data, {
     deliveryId: run.id,
     attempt: run.attempts,
+    webinarId: run.webinar_id ?? null,
   });
   return {
     ok: delivery.ok,
@@ -336,7 +337,7 @@ async function executeAction(
         run.organization_id,
         AUTOMATION_EVENT,
         { ...data, step: { id: node.id, label: node.label ?? null } },
-        { deliveryId: `${run.id}:${node.id}`, attempt: run.attempts },
+        { deliveryId: `${run.id}:${node.id}`, attempt: run.attempts, webinarId: run.webinar_id ?? null },
       );
       entry.sends!.push({
         channel: "webhook",

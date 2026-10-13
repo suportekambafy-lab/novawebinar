@@ -209,6 +209,14 @@ describe("webhook de venda: atribuição só com prova", () => {
     expect(written("real_purchase_events")).toMatchObject([{ row: { webinar_id: null } }]);
     expect(logged()[0]?.["reason"]).toMatch(/^Sem webinar atribuível/);
   });
+
+  it("o receptor de um webinar (Integrações, «este webinar») atribui-lhe a venda sem adivinhar", async () => {
+    answers["integrations.select"] = { data: { ...INTEGRATION, webinar_id: "web-3" }, error: null };
+    answers["rpc.purchase_attribution"] = { data: [{ webinar_id: "web-7", evidence: "offer" }], error: null };
+    await send({ ...SALE, product_id: "prod-1" });
+    expect(written("real_purchase_events")).toMatchObject([{ row: { webinar_id: "web-3" } }]);
+    expect(logged()).toMatchObject([{ reason: "Atribuída ao webinar desta integração." }]);
+  });
 });
 
 describe("webhook de venda: tentativas que não acabaram em compra", () => {

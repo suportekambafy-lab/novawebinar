@@ -92,7 +92,7 @@ function must<T>(result: { data: T; error: { message: string; code?: string } | 
 export async function receiveIntegrationWebhook(key: string, request: Request): Promise<Response> {
   const found = await supabaseAdmin
     .from("integrations")
-    .select("id, organization_id, provider, enabled, secret")
+    .select("id, organization_id, provider, enabled, secret, webinar_id")
     .eq("endpoint_key", key)
     .maybeSingle();
   if (found.error) {
@@ -247,21 +247,28 @@ export async function receiveIntegrationWebhook(key: string, request: Request): 
     // Atribuição só com prova, calculada na base de dados sobre os factos: o
     // webinar cuja oferta aponta para este produto; senão o último a que a pessoa
     // assistiu dentro da janela; senão nenhum.
-    const [match] = contactId
-      ? (must(
-          await supabaseAdmin.rpc("purchase_attribution", {
-            _contact_id: contactId,
-            _product_id: sale.productId ?? "",
-          }),
-          "atribuição por calcular",
-        ) ?? [])
-      : [];
+    // O receptor de um webinar (Integrações, âmbito «este webinar») atribui-lhe a venda sem adivinhar.
+    const scopedWebinar = (integration as { webinar_id?: string | null }).webinar_id ?? null;
+    const [match] =
+      contactId && !scopedWebinar
+        ? (must(
+            await supabaseAdmin.rpc("purchase_attribution", {
+              _contact_id: contactId,
+              _product_id: sale.productId ?? "",
+            }),
+            "atribuição por calcular",
+          ) ?? [])
+        : scopedWebinar
+          ? [{ webinar_id: scopedWebinar, evidence: "integration" }]
+          : [];
     const attribution =
-      match?.evidence === "offer"
-        ? "Atribuída ao webinar cuja oferta aponta para este produto."
-        : match
-          ? "Atribuída ao último webinar a que a pessoa assistiu antes do pagamento."
-          : "Sem webinar atribuível: nenhuma oferta com este produto nem presença recente.";
+      match?.evidence === "integration"
+        ? "Atribuída ao webinar desta integração."
+        : match?.evidence === "offer"
+          ? "Atribuída ao webinar cuja oferta aponta para este produto."
+          : match
+            ? "Atribuída ao último webinar a que a pessoa assistiu antes do pagamento."
+            : "Sem webinar atribuível: nenhuma oferta com este produto nem presença recente.";
 
     const saved = must(
       await supabaseAdmin
@@ -370,7 +377,8 @@ export async function deliverOutgoing(
     deliveryId,
     timeoutMs = 10_000,
     attempt = 1,
-  }: { deliveryId?: string; timeoutMs?: number; attempt?: number } = {},
+    webinarId = null,
+  }: { deliveryId?: string; timeoutMs?: number; attempt?: number; webinarId?: string | null } = {},
 ): Promise<Delivery> {
   const started = Date.now();
   const failed = (error: string, transient: boolean, status: number | null = null): Delivery => ({
@@ -380,12 +388,17 @@ export async function deliverOutgoing(
     ms: Date.now() - started,
     error,
   });
-  const { data: hook, error: readError } = await supabaseAdmin
-    .from("integrations")
-    .select("enabled, secret, settings, organizations(is_test)")
-    .eq("organization_id", organizationId)
-    .eq("provider", "outgoing_webhook")
-    .maybeSingle();
+  // O webhook do webinar (Integrações, âmbito «este webinar») antes do da conta.
+  const readHook = (scope: string | null) => {
+    const query = supabaseAdmin
+      .from("integrations")
+      .select("enabled, secret, settings, organizations(is_test)")
+      .eq("organization_id", organizationId)
+      .eq("provider", "outgoing_webhook");
+    return (scope ? query.eq("webinar_id", scope) : query.is("webinar_id", null)).maybeSingle();
+  };
+  let { data: hook, error: readError } = webinarId ? await readHook(webinarId) : { data: null, error: null };
+  if (!hook && !readError) ({ data: hook, error: readError } = await readHook(null));
   if (readError) return failed(`Não foi possível ler a integração: ${readError.message}`, true);
   const settings = (hook?.settings ?? {}) as { url?: string; simulate?: string };
   const url = settings.url;
@@ -432,6 +445,7 @@ export async function deliverOutgoing(
 
 /** Avisos em tempo real (inscrição, clique, venda, caso): uma tentativa, sem esperar. */
 export async function notifyOutgoing(organizationId: string, event: string, data: Record<string, unknown>) {
-  // Um destino lento ou em baixo nunca afecta a sala nem a venda.
-  await deliverOutgoing(organizationId, event, data, { timeoutMs: 4000 });
+  // Um destino lento ou em baixo nunca afecta a sala nem a venda. O webinar do acontecimento escolhe o destino.
+  const webinarId = typeof data["webinar_id"] === "string" ? data["webinar_id"] : null;
+  await deliverOutgoing(organizationId, event, data, { timeoutMs: 4000, webinarId });
 }

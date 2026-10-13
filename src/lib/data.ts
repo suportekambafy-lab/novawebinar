@@ -411,11 +411,13 @@ export function useMonthRevenue(organizationId: string | undefined) {
 
 // O segredo nunca é pedido: o browser só sabe se existe (has_secret).
 const INTEGRATION_COLUMNS =
-  "id, organization_id, provider, enabled, endpoint_key, has_secret, settings, last_event_at, created_at, updated_at";
+  "id, organization_id, webinar_id, provider, enabled, endpoint_key, has_secret, settings, last_event_at, created_at, updated_at";
 
 export type IntegrationRow = {
   id: string;
   organization_id: string;
+  /** O webinar (produto) a que a ligação se aplica; null = toda a conta. */
+  webinar_id: string | null;
   provider: string;
   enabled: boolean;
   endpoint_key: string;
@@ -461,10 +463,16 @@ export function useIntegrationEvents(organizationId: string | undefined) {
   });
 }
 
-export async function connectIntegration(organizationId: string, provider: string, secret: string) {
+/** Liga um fornecedor na conta (`webinarId` null) ou só num webinar: o âmbito escolhe-se ao ligar. */
+export async function connectIntegration(
+  organizationId: string,
+  provider: string,
+  secret: string,
+  webinarId: string | null = null,
+) {
   const { data, error } = await supabase
     .from("integrations")
-    .insert({ organization_id: organizationId, provider, secret })
+    .insert({ organization_id: organizationId, provider, secret, webinar_id: webinarId })
     .select(INTEGRATION_COLUMNS)
     .single();
   if (error) throw error;

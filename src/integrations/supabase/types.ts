@@ -1774,6 +1774,7 @@ export type Database = {
           secret: string
           settings: Json
           updated_at: string
+          webinar_id: string | null
         }
         Insert: {
           created_at?: string
@@ -1786,6 +1787,7 @@ export type Database = {
           secret?: string
           settings?: Json
           updated_at?: string
+          webinar_id?: string | null
         }
         Update: {
           created_at?: string
@@ -1798,6 +1800,7 @@ export type Database = {
           secret?: string
           settings?: Json
           updated_at?: string
+          webinar_id?: string | null
         }
         Relationships: [
           {

@@ -23,7 +23,7 @@ import {
   createLucideIcon,
   type LucideIcon,
 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import eduzzLogo from "@/assets/integrations/eduzz.png";
 import googleLogo from "@/assets/integrations/google_ads.jpg";
@@ -50,6 +50,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
@@ -65,6 +66,7 @@ import {
   useInvalidate,
   useWorkspace,
   type IntegrationRow,
+  useWebinars,
 } from "@/lib/data";
 import {
   DEFAULT_COUNTRY_CODE,
@@ -292,6 +294,9 @@ function StatusPill({ status, small = false }: { status: Status; small?: boolean
 
 /* ---------- Peças da página da direita ---------- */
 
+/** O valor do selector de âmbito para «toda a conta». */
+const ACCOUNT = "conta";
+
 /** Duas colunas sempre, com uma só integração também: todos os cartões com a mesma largura. */
 const GRID = "grid grid-cols-1 gap-3 sm:grid-cols-2";
 
@@ -379,7 +384,46 @@ export default function IntegrationsModal() {
   // As Definições abrem por cima das Integrações; o X delas volta aqui.
   const [settings, setSettings] = useState<string | null>(null);
 
-  const byProvider = new Map(rows.map((r) => [r.provider, r]));
+  // O âmbito: toda a conta (webinar_id nulo) ou um webinar (produto). Cada fornecedor tem uma ligação por âmbito;
+  // na sala, o pixel do webinar substitui o da conta; o receptor de vendas e o webhook de saída de um webinar
+  // valem para esse webinar. O WhatsApp é sempre da conta (é um número).
+  const { data: webinars = [] } = useWebinars(orgId);
+  const [scope, setScope] = useState<string>(ACCOUNT);
+  const webinarId = scope === ACCOUNT ? null : scope;
+  const byProvider = useMemo(() => {
+    const map = new Map<string, IntegrationRow>();
+    for (const r of rows) {
+      if (r.provider === "whatsapp" ? !r.webinar_id : (r.webinar_id ?? null) === webinarId) map.set(r.provider, r);
+    }
+    return map;
+  }, [rows, webinarId]);
+  /** Quantas ligações de cada fornecedor existem noutros âmbitos (para o cartão dizer «e mais 2 webinars»). */
+  const elsewhere = useMemo(() => {
+    const count = new Map<string, number>();
+    for (const r of rows) if ((r.webinar_id ?? null) !== webinarId) count.set(r.provider, (count.get(r.provider) ?? 0) + 1);
+    return count;
+  }, [rows, webinarId]);
+  const scopeLabel = webinarId
+    ? (webinars.find((w) => w.id === webinarId)?.public_title ?? "Webinar")
+    : "Toda a conta";
+  const scopePicker = (
+    <label className="flex flex-wrap items-center gap-2 text-sm">
+      <span className="text-muted-foreground">Para</span>
+      <Select value={scope} onValueChange={setScope}>
+        <SelectTrigger className="h-9 w-full max-w-[22rem]" aria-label="A conta ou o webinar a que a ligação se aplica">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={ACCOUNT}>Toda a conta</SelectItem>
+          {webinars.map((w) => (
+            <SelectItem key={w.id} value={w.id}>
+              {w.public_title || w.internal_name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </label>
+  );
   const current = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0]!;
   const open = (id: SectionId) => {
     setQuery("");
@@ -416,23 +460,30 @@ export default function IntegrationsModal() {
     content =
       info && info.group === current.group ? (
         <ProviderDetail
-          key={info.id}
+          key={`${info.id}:${scope}`}
           info={info}
           row={byProvider.get(info.id)}
           events={events}
           organizationId={orgId}
+          webinarId={webinarId}
+          scopeLabel={scopeLabel}
           onBack={() => go([current.id])}
         />
       ) : (
         <>
           <PaneHeader title={current.label} subtitle={current.subtitle} />
+          <div className="mb-4">{scopePicker}</div>
           <div className={GRID}>
             {PROVIDERS.filter((p) => p.group === current.group).map((p) => (
               <Row
                 key={p.id}
                 tile={<ProviderTile id={p.id} />}
                 title={p.name}
-                text={SHORT[p.id]}
+                text={
+                  elsewhere.get(p.id)
+                    ? `${SHORT[p.id]} ${webinarId ? "Há uma ligação na conta." : `Mais ${elsewhere.get(p.id)} ${elsewhere.get(p.id) === 1 ? "webinar com a sua" : "webinars com a sua"}.`}`
+                    : SHORT[p.id]
+                }
                 status={statusOf(p, byProvider.get(p.id))}
                 onClick={() => go([current.id, p.id])}
               />
@@ -625,12 +676,17 @@ function ProviderDetail({
   row,
   events,
   organizationId,
+  webinarId,
+  scopeLabel,
   onBack,
 }: {
   info: ProviderInfo;
   row: IntegrationRow | undefined;
   events: Events;
   organizationId: string;
+  /** O âmbito escolhido no topo: null é toda a conta. */
+  webinarId: string | null;
+  scopeLabel: string;
   onBack: () => void;
 }) {
   const invalidate = useInvalidate();
@@ -658,9 +714,9 @@ function ProviderDetail({
   const connect = () =>
     run(async () => {
       const secret = info.secret?.generate ? generateSecret() : "";
-      await connectIntegration(organizationId, info.id, secret);
+      await connectIntegration(organizationId, info.id, secret, webinarId);
       if (secret) setShownSecret(secret);
-    }, `${info.name} ligada. Siga os passos abaixo.`);
+    }, `${info.name} ligada ${webinarId ? "neste webinar" : "na conta"}. Siga os passos abaixo.`);
 
   const regenerate = () =>
     run(async () => {
@@ -795,7 +851,7 @@ function ProviderDetail({
         <ActionCard
           tile={<ProviderTile id={info.id} />}
           title={info.name}
-          text={info.category}
+          text={`${info.category} · ${scopeLabel}`}
           action={
             row ? (
               <StatusPill status={statusOf(info, row)} />
@@ -827,7 +883,8 @@ function ProviderDetail({
           {!row && (
             <p className="mb-3 text-muted-foreground">
               Carregue em Conectar: criamos o seu endereço de ligação
-              {info.secret?.generate ? " e um segredo único" : ""}. Depois é só seguir os passos.
+              {info.secret?.generate ? " e um segredo único" : ""}
+              {webinarId ? ` só para «${scopeLabel}»` : " para toda a conta"}. Depois é só seguir os passos.
             </p>
           )}
           <ol className="space-y-4">

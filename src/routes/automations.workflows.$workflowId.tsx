@@ -97,7 +97,7 @@ function WorkflowPage() {
   const { data, isLoading } = useWorkflow(workflowId);
   const stats = useAutomationStats(orgId);
   const counts = useWebinarJourneyCounts(data?.workflow.webinar_id);
-  const destination = useWebhookDestination(orgId);
+  const destination = useWebhookDestination(orgId, data?.workflow.webinar_id ?? null);
   const invalidate = useInvalidate();
   const automations = (data?.automations ?? []).filter((a) => !a.archived_at);
   const ids = automations.map((a) => a.id);
