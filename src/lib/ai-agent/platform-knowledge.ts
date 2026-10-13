@@ -33,7 +33,8 @@ export function platformKnowledge(
   const role = clean(webinar.host_role);
   const minutes = Math.round((webinar.duration_seconds ?? 0) / 60);
   const about = [
-    title ? `Webinar: «${title}».` : "",
+    // «Live», não «webinar»: o agente fala ao público com esta palavra.
+    title ? `Live: «${title}».` : "",
     host ? `Apresentado por ${host}${role ? ` (${role})` : ""}.` : "",
     minutes > 0 ? `Dura cerca de ${minutes} min.` : "",
     clean(webinar.description) ? `Descrição: ${clean(webinar.description).slice(0, 400)}` : "",

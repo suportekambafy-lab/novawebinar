@@ -10,6 +10,7 @@ import { BrandLogo } from "@/components/ds/brand-icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { INBOX_TABS, type InboxItem, type InboxTab } from "@/lib/support/inbox";
 import { cn } from "@/lib/utils";
 import { hourLabel, initials } from "./badges";
@@ -292,13 +293,26 @@ function FilterChip({
 /** O agente da conta em poucas palavras: se está a trabalhar e o que fez hoje. */
 export function AgentStatus({
   active,
+  paused = null,
+  onPausedChange,
   resolved,
   escalated,
 }: {
   active: boolean | null;
+  /** Em pausa em todas as conversas (o interruptor); null enquanto carrega ou no exemplo. */
+  paused?: boolean | null;
+  onPausedChange?: ((paused: boolean) => void) | undefined;
   resolved: number | null;
   escalated: number | null;
 }) {
+  const state =
+    active === null || (onPausedChange && paused === null)
+      ? "…"
+      : paused
+        ? "Em pausa"
+        : active
+          ? "Activo"
+          : "Desligado";
   return (
     <div className="flex h-10 items-center gap-2.5 rounded-pill border bg-card pl-2 pr-3 text-[13px]">
       <span className="flex size-7 items-center justify-center rounded-full bg-gray-150">
@@ -307,11 +321,23 @@ export function AgentStatus({
       <span className="font-medium">Agente IA</span>
       <span className="flex items-center gap-1.5 text-muted-foreground">
         <span
-          className={cn("size-2 rounded-full", active ? "bg-success" : "bg-gray-400")}
+          className={cn("size-2 rounded-full", active && !paused ? "bg-success" : "bg-gray-400")}
           aria-hidden
         />
-        {active === null ? "…" : active ? "Activo" : "Desligado"}
+        {state}
       </span>
+      {/* O interruptor de todas as conversas: desligado, cada mensagem nova vai para a equipa. */}
+      {onPausedChange && (
+        <label className="flex cursor-pointer items-center gap-1.5 border-l pl-2.5">
+          <span className="hidden text-muted-foreground sm:inline">Em todas as conversas</span>
+          <Switch
+            checked={paused === false}
+            disabled={paused === null}
+            aria-label="Agente IA em todas as conversas"
+            onCheckedChange={(on) => onPausedChange(!on)}
+          />
+        </label>
+      )}
       {/* Os números do dia só no computador; no telemóvel e no tablet, só o estado. */}
       <span className="hidden h-4 w-px bg-gray-300 xl:block" aria-hidden />
       <span className="hidden text-muted-foreground xl:inline">

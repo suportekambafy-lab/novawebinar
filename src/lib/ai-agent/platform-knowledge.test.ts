@@ -23,7 +23,7 @@ const byLabel = (lines: { label: string; text: string }[]) => Object.fromEntries
 describe("o que a plataforma diz ao Agente", () => {
   it("junta webinar, produto, agenda e página de inscrição", () => {
     const k = byLabel(platformKnowledge(webinar, opts));
-    expect(k["Webinar"]).toBe("Webinar: «Aprenda a trabalhar com IA». Apresentado por Amado Ruben (Fundador). Dura cerca de 45 min.");
+    expect(k["Webinar"]).toBe("Live: «Aprenda a trabalhar com IA». Apresentado por Amado Ruben (Fundador). Dura cerca de 45 min.");
     expect(k["Produto"]).toBe("Produto à venda: Mentoria IA.");
     // A próxima sessão, na hora do fuso do webinar (20:00 em Luanda).
     expect(k["Agenda"]).toContain("Começa segunda-feira, 12 de outubro");
@@ -49,7 +49,7 @@ describe("o que a plataforma diz ao Agente", () => {
         { ...opts, productName: " ", appUrl: "" },
       ),
     );
-    expect(k["Webinar"]).toBe("Webinar: «Aprenda a trabalhar com IA».");
+    expect(k["Webinar"]).toBe("Live: «Aprenda a trabalhar com IA».");
     expect(k["Produto"]).toBeUndefined();
     expect(k["Agenda"]).not.toContain("gravação");
     expect(k["Página de inscrição"]).toBeUndefined();

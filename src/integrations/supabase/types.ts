@@ -1862,6 +1862,7 @@ export type Database = {
       organizations: {
         Row: {
           ai_monthly_cap_micros: number | null
+          ai_paused: boolean
           created_at: string
           created_by: string
           id: string
@@ -1874,6 +1875,7 @@ export type Database = {
         }
         Insert: {
           ai_monthly_cap_micros?: number | null
+          ai_paused?: boolean
           created_at?: string
           created_by: string
           id?: string
@@ -1886,6 +1888,7 @@ export type Database = {
         }
         Update: {
           ai_monthly_cap_micros?: number | null
+          ai_paused?: boolean
           created_at?: string
           created_by?: string
           id?: string

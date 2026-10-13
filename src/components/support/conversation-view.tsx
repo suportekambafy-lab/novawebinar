@@ -10,7 +10,6 @@ import {
   Bot,
   ChevronDown,
   Link2,
-  MoreHorizontal,
   PhoneCall,
   Send,
   Smile,
@@ -21,13 +20,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { SourceList } from "@/components/ai-agent/agent-panel";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { discardAgentSuggestion, sendAgentSuggestion } from "@/lib/ai-agent/agent.functions";
 import { publicOrigin } from "@/lib/data";
@@ -134,6 +128,7 @@ export function ConversationPane({
   contactLine,
   status,
   actions,
+  control,
   messages,
   notes = [],
   analysis,
@@ -156,6 +151,8 @@ export function ConversationPane({
   contactLine: string[];
   status: { tone: "ai" | "wait" | "person"; text: string };
   actions: ReactNode;
+  /** Na faixa do estado, à direita: o interruptor do agente nesta conversa. */
+  control?: ReactNode;
   messages: PaneMessage[];
   notes?: PaneNote[];
   analysis: PaneAnalysis | null;
@@ -258,6 +255,7 @@ export function ConversationPane({
             aria-hidden
           />
           <span className="font-medium">{status.text}</span>
+          {control && <span className="ml-auto flex items-center gap-2">{control}</span>}
         </div>
       </header>
 
@@ -816,32 +814,27 @@ export function ConversationView({
           )
         }
       />
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" aria-label="Mais acções" disabled={busy}>
-            <MoreHorizontal />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            onSelect={() =>
-              void guard(
-                () =>
-                  toggleAi({
-                    data: { conversationId: conversation.id, enabled: conversation.ai_paused },
-                  }),
-                conversation.ai_paused
-                  ? "O agente volta a responder."
-                  : "Agente em pausa nesta conversa.",
-              )
-            }
-          >
-            <Bot />{" "}
-            {conversation.ai_paused ? "Devolver ao Agente IA" : "Pausar o agente nesta conversa"}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
     </>
+  );
+
+  // O interruptor do agente nesta conversa: ligado, responde; desligado, tudo vai para a equipa.
+  // Com um caso aberto está desligado; ligá-lo devolve a conversa ao agente.
+  const aiOn = !currentCase && !conversation.ai_paused && !conversation.needs_human;
+  const control = (
+    <label className="flex cursor-pointer items-center gap-2 text-[13px]">
+      <span className="text-muted-foreground">Agente IA nesta conversa</span>
+      <Switch
+        checked={aiOn}
+        disabled={busy}
+        aria-label="Agente IA nesta conversa"
+        onCheckedChange={(enabled) =>
+          void guard(
+            () => toggleAi({ data: { conversationId: conversation.id, enabled } }),
+            enabled ? "O agente volta a responder." : "Agente em pausa nesta conversa.",
+          )
+        }
+      />
+    </label>
   );
 
   // Só o texto; o caso, o estado, a prioridade e o prazo estão no contacto (foto ou nome).
@@ -869,6 +862,7 @@ export function ConversationView({
       )}
       status={status}
       actions={actions}
+      control={control}
       messages={messages}
       notes={notes}
       analysis={

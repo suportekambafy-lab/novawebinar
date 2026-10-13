@@ -302,8 +302,8 @@ describe("contexto comercial", () => {
     expect(facts[0]).toBe("Já comprou 2 vezes: Mentoria; Fórmula Digital.");
     // O reembolso não conta como compra, mas quem atende tem de o saber.
     expect(facts[1]).toBe("A última compra foi reembolsada (Extra).");
-    expect(facts[2]).toBe("Neste webinar (Tráfego para Negócios Físicos): assistiu a 78%, viu a oferta.");
-    expect(facts[3]).toBe("Outros webinars: Fórmula Digital (100%).");
+    expect(facts[2]).toBe("Nesta live (Tráfego para Negócios Físicos): assistiu a 78%, viu a oferta.");
+    expect(facts[3]).toBe("Outras lives: Fórmula Digital (100%).");
     expect(facts[4]).toBe("Casos anteriores: Pagamento.");
   });
 
@@ -316,6 +316,6 @@ describe("contexto comercial", () => {
       cases: [],
     });
     expect(now.attended).toBe(0);
-    expect(contextFacts(now, "w9")[1]).toBe("Neste webinar (Aula ao vivo): viu pouco até agora.");
+    expect(contextFacts(now, "w9")[1]).toBe("Nesta live (Aula ao vivo): viu pouco até agora.");
   });
 });

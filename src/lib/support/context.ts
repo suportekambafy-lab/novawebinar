@@ -184,13 +184,13 @@ export function contextFacts(context: CommercialContext, currentWebinarId?: stri
             ? "iniciou o pagamento"
             : "",
     ].filter(Boolean);
-    facts.push(`Neste webinar (${current.title}): ${parts.join(", ")}.`);
+    facts.push(`Nesta live (${current.title}): ${parts.join(", ")}.`);
   }
 
   const others = context.webinars.filter((w) => w.webinarId !== currentWebinarId && w.attended);
   if (others.length > 0) {
     facts.push(
-      `Outros webinars: ${others
+      `Outras lives: ${others
         .slice(0, 4)
         .map((w) => `${w.title}${w.watchedPct !== null ? ` (${w.watchedPct}%)` : ""}`)
         .join("; ")}.`,

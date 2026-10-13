@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { Eye, Lock, MessageCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -51,6 +52,7 @@ import {
   type CaseRow,
   type StaffStatus,
 } from "@/lib/support/model";
+import { setOrganizationAi } from "@/lib/support/support.functions";
 
 /** `exemplo`: contactos fictícios, só no browser (G5). */
 type SupportSearch = { c?: string | undefined; exemplo?: 1 | undefined };
@@ -119,8 +121,28 @@ function useAgentOn(organizationId: string | undefined) {
   });
 }
 
+/** A IA está em pausa em todas as conversas da conta (o interruptor do cabeçalho)? */
+function useOrgAiPaused(organizationId: string | undefined) {
+  return useQuery({
+    queryKey: ["support", "ai-paused", organizationId],
+    enabled: Boolean(organizationId),
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("organizations")
+        .select("ai_paused")
+        .eq("id", organizationId!)
+        .maybeSingle();
+      if (error) throw error;
+      return Boolean(data?.ai_paused);
+    },
+  });
+}
+
 function SupportPage() {
   const { c: requested, exemplo } = Route.useSearch();
+  const queryClient = useQueryClient();
+  const pauseAll = useServerFn(setOrganizationAi);
   const navigate = useNavigate();
   const { data: workspace } = useWorkspace();
   const organizationId = workspace?.organizationId;
@@ -138,6 +160,7 @@ function SupportPage() {
   const { data: skills = [] } = useSkills(scope);
   const { data: aiToday } = useAiToday(scope);
   const { data: agentOn } = useAgentOn(scope);
+  const { data: aiPaused } = useOrgAiPaused(scope);
 
   const [tab, setTab] = useState<InboxTab>("all");
   const [webinarId, setWebinarId] = useState<string | null>(null);
@@ -214,10 +237,27 @@ function SupportPage() {
     }
   };
 
+  const setPausedAll = async (paused: boolean) => {
+    if (!organizationId) return;
+    try {
+      await pauseAll({ data: { organizationId, enabled: !paused } });
+      await queryClient.invalidateQueries({ queryKey: ["support", "ai-paused", organizationId] });
+      toast.success(
+        paused
+          ? "Agente em pausa em todas as conversas: as mensagens novas vêm para a equipa."
+          : "O agente volta a responder em todas as conversas.",
+      );
+    } catch (error) {
+      toast.error(friendlyError(error, "Não foi possível mudar o agente."));
+    }
+  };
+
   const header = (
     <div className="flex flex-wrap items-center gap-2">
       <AgentStatus
         active={exemplo ? EXAMPLE_AGENT.active : (agentOn ?? null)}
+        paused={exemplo ? false : (aiPaused ?? null)}
+        onPausedChange={exemplo ? undefined : (paused) => void setPausedAll(paused)}
         resolved={exemplo ? EXAMPLE_AGENT.resolved : (aiToday?.resolved ?? null)}
         escalated={exemplo ? EXAMPLE_AGENT.escalated : (aiToday?.escalated ?? null)}
       />

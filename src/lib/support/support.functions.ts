@@ -186,6 +186,28 @@ export const setConversationAi = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/**
+ * Ligar ou pausar a IA em todas as conversas da organização (o interruptor do Atendimento). Em pausa,
+ * cada mensagem nova abre um caso para a equipa; as pausas por conversa ficam como estavam.
+ */
+export const setOrganizationAi = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => z.object({ organizationId: uuid, enabled: z.boolean() }).parse(data))
+  .handler(async ({ data, context }) => {
+    const { data: allowed } = await context.supabase.rpc("has_organization_role", {
+      _organization_id: data.organizationId,
+      _roles: ["owner", "admin", "support"],
+    });
+    if (!allowed) throw new Error("Só quem atende pode ligar ou pausar o agente.");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await supabaseAdmin
+      .from("organizations")
+      .update({ ai_paused: !data.enabled })
+      .eq("id", data.organizationId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("assume"), caseId: uuid }),
   z.object({ action: z.literal("resume"), caseId: uuid }),
