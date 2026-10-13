@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deviceOf, PRESENCE_GRACE_MS, withLingering, type LiveViewer } from "./live-presence";
+import { deviceOf, PRESENCE_GRACE_MS, trackRetryDelayMs, withLingering, type LiveViewer } from "./live-presence";
 
 const UA = {
   iphone: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
@@ -83,5 +83,16 @@ describe("withLingering", () => {
     const gone = withLingering([], dropped.viewers, dropped.lingering, t0 + 60_000);
     expect(gone.viewers).toEqual([]);
     expect(gone.lingering.size).toBe(0);
+  });
+});
+
+describe("trackRetryDelayMs", () => {
+  it("espera cada vez mais, até meio minuto", () => {
+    expect(trackRetryDelayMs(1)).toBe(3_000);
+    expect(trackRetryDelayMs(2)).toBe(6_000);
+    expect(trackRetryDelayMs(3)).toBe(12_000);
+    expect(trackRetryDelayMs(4)).toBe(24_000);
+    expect(trackRetryDelayMs(5)).toBe(30_000);
+    expect(trackRetryDelayMs(40)).toBe(30_000);
   });
 });

@@ -127,7 +127,7 @@ export async function lookupPlace(): Promise<GeoPlace> {
 
   for (const probe of probes) {
     try {
-      const response = await fetch(probe.url);
+      const response = await fetch(probe.url, { signal: AbortSignal.timeout(3000) });
       if (!response.ok) continue;
       const place = probe.read((await response.json()) as Record<string, unknown>);
       if (!place.city && !place.country) continue;
@@ -221,9 +221,20 @@ export function publicPlace(place: GeoPlace): GeoPlace {
   return { ...place, lat: round(place.lat), lon: round(place.lon) };
 }
 
+/** Quanto esperar antes de voltar a marcar a presença, depois de `attempt` falhas: 3 s, 6 s, 12 s… até 30 s. */
+export function trackRetryDelayMs(attempt: number) {
+  return Math.min(30_000, 1500 * 2 ** Math.min(Math.max(1, attempt), 5));
+}
+
 /**
  * Marca esta pessoa como presente na sala e avisa quando clica na oferta. `offerOpen`
  * (opcional) diz se a oferta está no ecrã, para a Vista ao vivo contar «Na oferta».
+ *
+ * Quem vê só se marca: não recebe o estado dos outros (`presence.enabled: false`). Com centenas de
+ * pessoas numa sessão, cada uma a receber cada entrada e saída das outras afogava o servidor de
+ * presença e as marcações falhavam («GenServer terminating … :track» nos registos): quem calhava
+ * nessa falha nunca aparecia na Vista ao vivo. A marcação faz-se logo ao ligar, sem esperar pelo
+ * sítio (que chega depois e actualiza), e repete-se, cada vez mais devagar, até o servidor a aceitar.
  */
 export function useLivePresence({
   organizationId,
@@ -244,53 +255,71 @@ export function useLivePresence({
 }) {
   const stateRef = useRef({ checkout, offerOpen });
   stateRef.current = { checkout, offerOpen };
-  const tracked = useRef<{ channel: ReturnType<typeof supabase.channel>; payload: Record<string, unknown> } | null>(null);
+  /** Volta a enviar a presença com o estado actual (clique, oferta); null sem canal. */
+  const sendRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!organizationId) return;
     let active = true;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let retry: number | null = null;
+    let attempt = 0;
+    const identity = presenceIdentity(webinarId);
+    const channel = supabase.channel(presenceChannelName(organizationId), {
+      config: { presence: { key: identity.key, enabled: false } },
+    });
+    let payload: Record<string, unknown> = {
+      webinarId,
+      webinarTitle,
+      name: publicName(name),
+      mode,
+      device: detectDevice(),
+      joinedAt: identity.joinedAt,
+    };
 
-    void (async () => {
-      const place = await lookupPlace();
+    const clearRetry = () => {
+      if (retry !== null) window.clearTimeout(retry);
+      retry = null;
+    };
+    const send = () => {
       if (!active) return;
-      const identity = presenceIdentity(webinarId);
-      channel = supabase.channel(presenceChannelName(organizationId), {
-        config: { presence: { key: identity.key } },
-      });
-      const payload = {
-        webinarId,
-        webinarTitle,
-        name: publicName(name),
-        mode,
-        device: detectDevice(),
-        joinedAt: identity.joinedAt,
-        ...publicPlace(place),
-      };
-      channel.subscribe((status) => {
-        if (status !== "SUBSCRIBED" || !channel) return;
-        tracked.current = { channel, payload };
-        const { checkout: clicked, offerOpen: offer } = stateRef.current;
-        void channel.track({ ...payload, checkout: clicked, ...(offer === undefined ? {} : { offer }) });
-      });
-    })();
+      clearRetry();
+      const { checkout: clicked, offerOpen: offer } = stateRef.current;
+      void channel
+        .track({ ...payload, checkout: clicked, ...(offer === undefined ? {} : { offer }) })
+        .catch(() => "error" as const)
+        .then((result) => {
+          if (!active || retry !== null) return;
+          if (result === "ok") {
+            attempt = 0;
+            return;
+          }
+          attempt += 1;
+          retry = window.setTimeout(send, trackRetryDelayMs(attempt));
+        });
+    };
+    sendRef.current = send;
+
+    channel.subscribe((status) => {
+      // Ao ligar (e a cada religação) marca-se logo; o sítio chega depois.
+      if (status === "SUBSCRIBED") send();
+    });
+    void lookupPlace().then((place) => {
+      if (!active) return;
+      payload = { ...payload, ...publicPlace(place) };
+      if (place.city || place.country) send();
+    });
 
     return () => {
       active = false;
-      tracked.current = null;
-      if (channel) void supabase.removeChannel(channel);
+      clearRetry();
+      sendRef.current = null;
+      void supabase.removeChannel(channel);
     };
   }, [organizationId, webinarId, webinarTitle, name, mode]);
 
   // Quando a pessoa clica em comprar ou a oferta abre/fecha, a presença é atualizada na hora.
   useEffect(() => {
-    const current = tracked.current;
-    if (!current) return;
-    void current.channel.track({
-      ...current.payload,
-      checkout,
-      ...(offerOpen === undefined ? {} : { offer: offerOpen }),
-    });
+    sendRef.current?.();
   }, [checkout, offerOpen]);
 }
 
@@ -303,7 +332,7 @@ export function useLiveViewers(organizationId: string | null | undefined) {
   useEffect(() => {
     if (!organizationId) return;
     const channel = supabase.channel(presenceChannelName(organizationId), {
-      config: { presence: { key: `painel:${Math.random().toString(36).slice(2)}` } },
+      config: { presence: { key: `painel:${Math.random().toString(36).slice(2)}`, enabled: true } },
     });
     let expiry: number | null = null;
 
