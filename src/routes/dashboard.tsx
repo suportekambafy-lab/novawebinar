@@ -36,6 +36,7 @@ import {
 import { fetchAll } from "@/lib/fetch-all";
 import { HEARTS_EVENT } from "@/lib/room-reactions.functions";
 import { useLiveViewers } from "@/lib/live-presence";
+import { nowCount, useRoomNow } from "@/lib/room-now";
 import { FACT_COLUMNS, funnelSummary } from "@/lib/participant-facts";
 import { lifecycleLabel, type WebinarLifecycle } from "@/lib/schedule";
 import { sumByCurrency } from "@/lib/webinar-metrics";
@@ -86,6 +87,8 @@ function Dashboard() {
   const { data: webinars = [], isLoading } = useWebinars(orgId);
   const [period, setPeriod] = useState<Period>("30d");
   const viewers = useLiveViewers(orgId);
+  // A segunda fonte do «na sala agora»: os batimentos que a sala grava (ver room-now.ts).
+  const roomNow = useRoomNow(orgId);
 
   // «Agora» só no browser (no servidor a hora seria outra) e a andar de minuto a minuto.
   const [now, setNow] = useState<number | null>(null);
@@ -171,7 +174,7 @@ function Dashboard() {
               : "Marque a data na etapa Agenda do webinar.",
       image: imageOf(w),
       stats: statsOf(w.id),
-      liveNow: viewers.filter((v) => v.webinarId === w.id).length,
+      liveNow: nowCount(viewers.filter((v) => v.webinarId === w.id).length, roomNow.byWebinar.get(w.id)?.total ?? 0),
       issues: heroIssues({
         hasVideo: Boolean(w.video_source_id),
         workflows: heroAutomations.data?.workflows.length ?? null,
@@ -389,7 +392,7 @@ function Dashboard() {
         agenda={agenda}
         today={
           today.data && dayStart !== null && now !== null
-            ? { ...todaySummary(today.data, dayStart), liveNow: viewers.length, nowMs: now }
+            ? { ...todaySummary(today.data, dayStart), liveNow: nowCount(viewers.length, roomNow.all.total), nowMs: now }
             : null
         }
         recent={loadingWebinars ? null : recent}

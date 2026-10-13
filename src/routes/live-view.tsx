@@ -24,6 +24,7 @@ import { lifecycleOf, useWebinars, useWorkspace } from "@/lib/data";
 import { resolveRange } from "@/lib/date-range";
 import { formatSessionStart, lifecycleDetail, lifecycleLabel } from "@/lib/schedule";
 import { useLiveViewers } from "@/lib/live-presence";
+import { mergeLiveNow, mergeSessions, useRoomNow, type RoomNow } from "@/lib/room-now";
 import { getTeamRoomToken } from "@/lib/room-team.functions";
 
 const THEME_KEY = "nw-live-view-theme";
@@ -90,6 +91,13 @@ function LiveViewPage() {
     () => (webinar ? allViewers.filter((v) => v.webinarId === webinar) : allViewers),
     [allViewers, webinar],
   );
+  // A segunda fonte do «na sala»: os batimentos que a sala grava (room-now.ts), no mesmo âmbito.
+  const roomNowAll = useRoomNow(organizationId);
+  const roomNow = useMemo<RoomNow>(() => {
+    if (!webinar) return roomNowAll;
+    const only = roomNowAll.byWebinar.get(webinar);
+    return { all: only ?? { total: 0, live: 0, replay: 0, mobile: 0, desktop: 0 }, byWebinar: only ? new Map([[webinar, only]]) : new Map() };
+  }, [roomNowAll, webinar]);
   const { data: webinars = [] } = useWebinars(organizationId);
   const selected = webinar ? webinars.find((w) => w.id === webinar) : undefined;
   // O estado da sessão vem do ciclo de vida canónico, não de quem está na sala.
@@ -205,9 +213,9 @@ function LiveViewPage() {
         });
       }
     }
-    for (const s of sessionsOf(viewers)) items.set(s.webinarId, { ...s, ...describe(s.webinarId) });
+    for (const s of mergeSessions(sessionsOf(viewers), roomNow)) items.set(s.webinarId, { ...s, ...describe(s.webinarId) });
     return [...items.values()].sort((a, b) => b.count - a.count);
-  }, [webinars, webinar, viewers, nowMs]);
+  }, [webinars, webinar, viewers, roomNow, nowMs]);
 
   const nextSession = useMemo(() => {
     let next: { title: string; when: string; at: number } | null = null;
@@ -268,7 +276,7 @@ function LiveViewPage() {
         dark={dark}
         nowMs={nowMs}
         scoped={Boolean(webinar)}
-        now={liveNow(viewers)}
+        now={mergeLiveNow(liveNow(viewers), roomNow.all)}
         viewers={viewers}
         spots={spotsOf(viewers)}
         sessions={sessions}
