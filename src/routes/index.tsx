@@ -15,13 +15,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { EASE, Item, Parallax, Reveal, Stagger, Words } from "@/components/landing/motion";
-import {
-  AssistanceVisual,
-  DashboardVisual,
-  OfferVisual,
-  RoomVisual,
-  ScheduleVisual,
-} from "@/components/landing/product-visuals";
+import { DesktopShot, PhoneShot } from "@/components/landing/shots";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -129,35 +123,35 @@ const tabs = [
     slug: "sessoes",
     title: "Sessão única, diária ou à hora de cada pessoa.",
     copy: "Escolha uma data, a repetição diária ou semanal, ou o just in time.",
-    visual: () => <ScheduleVisual />,
+    visual: () => <DesktopShot kind="editor-agenda" />,
   },
   {
     label: "Apresentar",
     slug: "chat",
     title: "O chat acompanha o vídeo.",
     copy: "As mensagens que preparou entram no minuto certo, e quem está na sala conversa a sério.",
-    visual: () => <RoomVisual />,
+    visual: () => <DesktopShot kind="editor-chat" />,
   },
   {
     label: "Oferta",
     slug: "oferta",
     title: "A oferta entra no momento certo.",
     copy: "Produto, preço e contagem aparecem na sala no segundo que definiu.",
-    visual: () => <OfferVisual />,
+    visual: () => <DesktopShot kind="sala-oferta" />,
   },
   {
     label: "Vendas",
     slug: "vendas",
     title: "As compras aparecem na sala.",
     copy: "Os avisos de venda surgem no vídeo e no chat, um de cada vez.",
-    visual: () => <RoomVisual sales />,
+    visual: () => <DesktopShot kind="sala-vendas" />,
   },
   {
     label: "Acompanhar",
     slug: "analise",
     title: "Veja o que aconteceu em cada minuto.",
     copy: "Presenças, replay, cliques na oferta e o momento em que cada pessoa saiu.",
-    visual: () => <DashboardVisual />,
+    visual: () => <DesktopShot kind="metricas" />,
   },
 ];
 
@@ -223,7 +217,7 @@ function FeatureTabs() {
         aria-labelledby={`tab-${tab.slug}`}
         className="mt-10 grid items-center gap-8 lg:grid-cols-[7fr_5fr] lg:gap-16"
       >
-        <div className="overflow-hidden rounded-[var(--radius-panel)] bg-warm-100 p-4 sm:p-8">
+        <div className="overflow-hidden rounded-[var(--radius-panel)] bg-warm-100 p-3 sm:p-6">
           <AnimatePresence mode="wait" initial={false} custom={direction}>
             <motion.div
               key={tab.slug}
@@ -321,7 +315,7 @@ function Hero() {
   });
   return (
     <section data-surface="base" className="relative overflow-hidden pb-[var(--section-y)] pt-[var(--section-y-tight)]">
-      <div className="site-wrap grid items-center gap-12 lg:grid-cols-[7fr_5fr] lg:gap-16">
+      <div className="site-wrap grid items-center gap-12 lg:grid-cols-[1fr_1.1fr] lg:gap-14">
         <div>
           <h1 className="max-w-[16ch] text-site-display">
             <Words text="Grave uma vez. Apresente todos os dias." />
@@ -348,8 +342,17 @@ function Hero() {
         >
           <div className="site-glow" aria-hidden="true" />
           <Parallax range={28}>
-            <div className="site-visual rounded-[var(--radius-panel)] bg-warm-100 p-4 sm:p-6">
-              <RoomVisual />
+            <div className="site-visual relative pb-10 pr-6 sm:pb-14 sm:pr-10 lg:pr-14">
+              <DesktopShot kind="sala" priority />
+              {/* O telemóvel por cima, no canto: a mesma sala, ao alto. */}
+              <motion.div
+                className="absolute bottom-0 right-0 w-[28%] max-w-[9.5rem] sm:max-w-[11rem]"
+                initial={{ opacity: 0, y: reduced ? 0 : 24, rotate: reduced ? 0 : 4 }}
+                animate={{ opacity: 1, y: 0, rotate: 0 }}
+                transition={{ duration: 0.8, ease: EASE, delay: 0.9 }}
+              >
+                <PhoneShot kind="sala-vendas" priority />
+              </motion.div>
             </div>
           </Parallax>
         </motion.div>
@@ -438,6 +441,11 @@ function LandingPage() {
                 </Item>
               ))}
             </Stagger>
+            <Reveal delay={0.1} distance={32} className="mt-12">
+              <Parallax range={16}>
+                <DesktopShot kind="fluxo" />
+              </Parallax>
+            </Reveal>
             <Reveal delay={0.2}>
               <Link to="/auth/register" className="site-btn site-btn-primary mt-10">
                 Criar conta
@@ -468,7 +476,7 @@ function LandingPage() {
             </div>
             <Reveal distance={32} delay={0.1}>
               <Parallax range={20}>
-                <DashboardVisual />
+                <DesktopShot kind="analises" />
               </Parallax>
             </Reveal>
           </div>
@@ -487,7 +495,7 @@ function LandingPage() {
             </div>
             <Reveal distance={32} delay={0.1}>
               <Parallax range={20}>
-                <AssistanceVisual />
+                <DesktopShot kind="atendimento" />
               </Parallax>
             </Reveal>
           </div>

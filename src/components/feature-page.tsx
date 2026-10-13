@@ -2,24 +2,21 @@ import { Link } from "@tanstack/react-router";
 import { ArrowRight, Check } from "lucide-react";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import {
-  AssistanceVisual,
-  DashboardVisual,
-  OfferVisual,
-  ReplayVisual,
-  RoomVisual,
-  ScheduleVisual,
-} from "@/components/landing/product-visuals";
+import { DesktopShot, type ShotKind } from "@/components/landing/shots";
 import { landingFeatures, type FeatureDefinition, type FeatureVisual } from "@/lib/landing-features";
 
+/** Cada visual das funcionalidades é uma captura real do produto (landing/shots.tsx). */
+const SHOT: Record<FeatureVisual, ShotKind> = {
+  schedule: "editor-agenda",
+  room: "sala",
+  sales: "sala-vendas",
+  offer: "sala-oferta",
+  replay: "sala-replay",
+  assistance: "atendimento",
+  dashboard: "metricas",
+};
 function Visual({ kind }: { kind: FeatureVisual }) {
-  if (kind === "schedule") return <ScheduleVisual />;
-  if (kind === "room") return <RoomVisual />;
-  if (kind === "sales") return <RoomVisual sales />;
-  if (kind === "offer") return <OfferVisual />;
-  if (kind === "replay") return <ReplayVisual />;
-  if (kind === "assistance") return <AssistanceVisual />;
-  return <DashboardVisual />;
+  return <DesktopShot kind={SHOT[kind]} />;
 }
 
 export function FeaturePage({ feature }: { feature: FeatureDefinition }) {

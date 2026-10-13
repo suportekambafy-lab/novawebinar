@@ -1,7 +1,7 @@
 import { useEffect, useState, type InputHTMLAttributes, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { CircleAlert, Eye, EyeOff, Mail } from "lucide-react";
-import { RoomVisual } from "@/components/landing/product-visuals";
+import { DesktopShot } from "@/components/landing/shots";
 import { BrandMark } from "@/components/site-header";
 
 /**
@@ -41,7 +41,7 @@ export function AuthUI({ children, topLink }: { children: ReactNode; topLink?: R
         className="hidden flex-col justify-center gap-10 p-12 lg:flex xl:p-16"
       >
         <div className="rounded-[var(--radius-panel)] bg-s-card p-6">
-          <RoomVisual />
+          <DesktopShot kind="sala" />
         </div>
         <p className="max-w-[18ch] text-site-h2">Grave uma vez. Apresente todos os dias.</p>
       </aside>

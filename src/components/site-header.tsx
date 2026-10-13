@@ -2,8 +2,9 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Menu, X } from "lucide-react";
 import { landingFeatures } from "@/lib/landing-features";
+import iconAsset from "@/assets/brand/novawebinar-icon.png";
 
-/** O símbolo no contentor laranja com o nome, sem pedidos (SVG em linha). */
+/** O símbolo oficial (o N vermelho, o mesmo do painel e do favicon) com o nome. */
 export function BrandMark({
   className = "",
   compact = false,
@@ -15,17 +16,15 @@ export function BrandMark({
     <span
       className={`inline-flex items-center gap-2.5 text-[1.125rem] font-semibold tracking-[-0.02em] ${className}`}
     >
-      <svg viewBox="0 0 100 100" width="32" height="32" aria-hidden="true" className="flex-none">
-        <rect width="100" height="100" rx="24" fill="#E8440C" />
-        <path
-          d="M68.4 31.6a26 26 0 1 0 0 36.8"
-          fill="none"
-          stroke="#fff"
-          strokeWidth="11"
-          strokeLinecap="round"
-        />
-        <path d="M46 40.5v19l15-9.5z" fill="#fff" />
-      </svg>
+      <img
+        src={iconAsset}
+        width={32}
+        height={32}
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+        className="size-8 flex-none"
+      />
       {/* No telemóvel o cabeçalho mostra só o símbolo (o link tem o nome no aria-label). */}
       <span className={compact ? "max-sm:sr-only" : ""}>Novawebinar</span>
     </span>

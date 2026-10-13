@@ -329,6 +329,15 @@
     animation: site-glow 14s ease-in-out infinite alternate; }
   /* O cartão do visual: vidro leve, com uma sombra quente que se levanta ao passar o rato. */
   .site-visual { position: relative; transition: transform var(--duration-base) ease-out, box-shadow var(--duration-base) ease-out; }
+  /* As capturas do produto (landing/shots.tsx): moldura de browser, com a barra em cima, e de telemóvel. */
+  .site-browser { margin: 0; overflow: hidden; border-radius: 14px; background: #0f0f0f; box-shadow: 0 30px 70px -30px rgba(37,17,10,.45), 0 0 0 1px rgba(0,0,0,.08); }
+  .site-browser-bar { display: flex; align-items: center; gap: 6px; height: 32px; padding-inline: 12px; background: #1c1c1e; }
+  .site-browser-bar span { width: 9px; height: 9px; border-radius: 50%; background: #3a3a3c; }
+  .site-browser-bar span:nth-child(1) { background: #ff5f57; } .site-browser-bar span:nth-child(2) { background: #febc2e; } .site-browser-bar span:nth-child(3) { background: #28c840; }
+  .site-browser-bar i { margin-left: 10px; flex: 1; max-width: 22rem; height: 18px; border-radius: 6px; background: #2c2c2e; color: #9a9a9e; font-style: normal; font-size: 11px; line-height: 18px; text-align: center; letter-spacing: .01em; }
+  .site-browser img { display: block; width: 100%; height: auto; }
+  .site-phone { margin: 0; overflow: hidden; border-radius: 34px; background: #000; padding: 8px; box-shadow: 0 30px 60px -28px rgba(0,0,0,.6), 0 0 0 1px rgba(0,0,0,.2); }
+  .site-phone img { display: block; width: 100%; height: auto; border-radius: 26px; }
   /* A linha que liga os três passos (só no computador): desenha-se ao rolar. */
   .site-steps { position: relative; }
   .site-steps-line { position: absolute; top: 2.75rem; left: 12%; right: 12%; height: 2px; background: color-mix(in oklab, var(--accent-600) 35%, transparent); transform-origin: left center; }

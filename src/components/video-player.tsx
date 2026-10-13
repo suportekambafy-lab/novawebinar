@@ -460,15 +460,18 @@ export function VideoPlayer({
 
   // Ao sair, o vídeo pára de vez. O navegador pausa um elemento retirado da página, mas o «nunca parar» de
   // cima voltava a dar play antes da limpeza: o som seguia atrás do «Terminou» e duplicava ao rodar o aparelho.
+  // A limpeza também corre sem sair (o StrictMode do React, em desenvolvimento, desmonta e volta a montar):
+  // o React não volta a escrever um `src` que não mudou, por isso repõe-se aqui o que a limpeza tirou.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+    if (!isHls && valid && playbackUrl && !video.getAttribute("src")) video.src = playbackUrl;
     return () => {
       video.pause();
       video.removeAttribute("src");
       video.load();
     };
-  }, [attempt, videoRef]);
+  }, [attempt, videoRef, isHls, valid, playbackUrl]);
 
 
 
