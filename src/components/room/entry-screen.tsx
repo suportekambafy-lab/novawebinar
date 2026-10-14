@@ -1,3 +1,4 @@
+import { safeZone } from "@/lib/schedule";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import {
   BookOpen,
@@ -412,7 +413,8 @@ export function isDirectVideo(url: string | null | undefined, provider?: string 
 /** «Ao vivo» ou, antes da hora, «Começa às 20:00» (ou o dia, se não for hoje). */
 export function entryLiveLabel(startMs: number | null, timezone: string | null | undefined, nowMs: number) {
   if (startMs === null || startMs <= nowMs) return { live: true, label: "Ao vivo" };
-  const zone = timezone || "UTC";
+  // Um fuso inválido rebentava a página inteira (RangeError do Intl): cai para UTC.
+  const zone = safeZone(timezone);
   const day = (ms: number) => new Intl.DateTimeFormat("en-CA", { timeZone: zone }).format(new Date(ms));
   const hour = new Intl.DateTimeFormat("pt-PT", { timeZone: zone, hour: "2-digit", minute: "2-digit" }).format(new Date(startMs));
   if (day(startMs) === day(nowMs)) return { live: false, label: `Começa às ${hour}` };

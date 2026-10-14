@@ -5,6 +5,7 @@
  */
 import { buildAudienceCurve, curveBounds } from "@/lib/audience-curve";
 import { templateById } from "@/lib/prelive-templates";
+import { safeZone } from "@/lib/schedule";
 
 /** 65 → «01:05»; a partir de uma hora, «1:01:05». */
 export function clock(seconds: number) {
@@ -829,7 +830,7 @@ export function offerDeadlinePassed(
   nowMs: number,
 ) {
   if (!deadline || !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) return false;
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: timezone || "UTC" }).format(
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: safeZone(timezone) }).format(
     new Date(nowMs),
   );
   return today > deadline;

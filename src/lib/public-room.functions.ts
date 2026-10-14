@@ -98,6 +98,13 @@ async function requestIp() {
 
 // ponytail: memória de cada instância da função; trava um ciclo, não um ataque distribuído.
 let chatLimiter: InstanceType<typeof import("@/lib/registration").RateLimiter> | undefined;
+/** Cliques e entradas no grupo: cada um grava e pode avisar webhooks; um ciclo com o token inundava tudo. */
+let ctaLimiter: InstanceType<typeof import("@/lib/registration").RateLimiter> | undefined;
+async function allowCta(participantId: string) {
+  const { RateLimiter } = await import("@/lib/registration");
+  ctaLimiter ??= new RateLimiter(20, 60_000);
+  if (!ctaLimiter.allow(participantId)) throw new Error("Demasiados pedidos seguidos. Aguarde um minuto.");
+}
 
 /** Quem está a pedir: só a credencial emitida pelo servidor diz qual é a participação. */
 async function participantOf(token: string) {
@@ -142,6 +149,35 @@ async function requestAudienceMeta() {
   }
 }
 
+/**
+ * Há gravação para ver? Com o replay ligado e: sem horário (sempre disponível), ou a sessão
+ * de data única já terminou, ou o webinar repete e já houve pelo menos uma sessão acabada.
+ */
+async function replayOpen(webinar: {
+  replay_enabled?: boolean | null;
+  duration_seconds?: number | null;
+  video_sources?: { duration_seconds?: number | null } | null;
+} & Parameters<typeof import("@/lib/schedule").sessionWindow>[0]) {
+  if (!webinar.replay_enabled) return false;
+  const { sessionWindow } = await import("@/lib/schedule");
+  const window = sessionWindow({
+    ...webinar,
+    duration_seconds: webinar.video_sources?.duration_seconds || webinar.duration_seconds || 0,
+  });
+  if (window.startMs === null) return true;
+  if (window.endedMs !== null) return true;
+  if (window.endMs !== null && window.endMs <= Date.now()) return true;
+  // O webinar repete: houve sessões antes desta? A janela devolve a actual/próxima; uma anterior acabada
+  // conta-se pela base (webinar_sessions com ended_at).
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { count } = await supabaseAdmin
+    .from("webinar_sessions")
+    .select("id", { count: "exact", head: true })
+    .eq("webinar_id", (webinar as { id: string }).id)
+    .not("ended_at", "is", null);
+  return (count ?? 0) > 0;
+}
+
 export const joinPublicRoom = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => joinSchema.parse(data))
   .handler(async ({ data }) => {
@@ -157,6 +193,10 @@ export const joinPublicRoom = createServerFn({ method: "POST" })
     if (!webinar) throw new Error("Webinar indisponível.");
     if (webinar.status === "draft" && !data.teste) throw new Error("Webinar indisponível.");
     if (!roomPerTarget.allow(webinar.id)) throw new Error(RATE_LIMITED);
+    // O replay só existe com o replay ligado e depois de a sessão terminar (a sala de teste passa sempre).
+    if (data.mode === "replay" && !data.teste && !(await replayOpen(webinar))) {
+      throw new Error("A gravação ainda não está disponível.");
+    }
 
     // Os campos da página: os mesmos que a pessoa viu, com as mesmas regras.
     const { parseEntryFields, validateEntry } = await import("@/lib/entry-fields");
@@ -164,7 +204,10 @@ export const joinPublicRoom = createServerFn({ method: "POST" })
       collectPhone: webinar.registration_collect_phone,
       requirePhone: webinar.registration_require_phone,
     });
-    const entry = validateEntry(fields, {
+    // Entrada sem formulário (acesso facilitado): o convidado só traz nome e e-mail provisório; os outros
+    // campos obrigatórios pedem-se depois (ex.: ao entrar no grupo), em vez de trancar toda a gente à porta.
+    const guest = (data.email ?? "").endsWith("@sala.local") && Boolean(webinar.easy_access);
+    const entry = validateEntry(guest ? fields.filter((f) => f.kind === "name" || f.kind === "email") : fields, {
       ...(data.answers ?? {}),
       name: data.name ?? "",
       email: data.email ?? "",
@@ -310,6 +353,7 @@ export const trackPublicRoomCta = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => ctaSchema.parse(data))
   .handler(async ({ data }) => {
     const participantId = await participantOf(data.token);
+    await allowCta(participantId);
     const { recordCta } = await import("@/lib/public-room.server");
     return recordCta({ participantId, eventType: data.eventType, videoSecond: data.videoSecond });
   });
@@ -333,6 +377,7 @@ export const joinOfferGroup = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const participantId = await participantOf(data.token);
+    await allowCta(participantId);
     const { recordGroupJoin } = await import("@/lib/public-room.server");
     return recordGroupJoin({
       participantId,

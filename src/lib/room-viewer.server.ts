@@ -47,11 +47,13 @@ export async function originalRegistration(
 
 /** A sessão desta participação, até onde viu e se a pessoa já comprou; null se não existir. */
 export async function loadViewerState(participantId: string): Promise<ViewerState | null> {
-  const { data: participant } = await supabaseAdmin
+  const { data: participant, error } = await supabaseAdmin
     .from("participants")
     .select("webinar_session_id, watched_seconds")
     .eq("id", participantId)
     .maybeSingle();
+  // Uma falha da base não é «não existe»: a sala mantém a entrada e tenta outra vez.
+  if (error) throw new Error("Serviço temporariamente indisponível. Tente novamente.");
   if (!participant) return null;
   const [session, facts] = await Promise.all([
     participant.webinar_session_id

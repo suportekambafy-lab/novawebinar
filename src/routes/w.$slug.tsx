@@ -193,6 +193,8 @@ export function PublicRoom({
   prefill?: { name: string; email: string } | undefined;
 }) {
   const testMode = Boolean(teste);
+  // A sala de teste guarda a sua entrada à parte: nunca se confunde com a inscrição real neste browser.
+  const viewerKey = testMode ? `${slug}:teste` : slug;
   const roomMode: "live" | "replay" = replay ? "replay" : "live";
   const fetchRoom = useServerFn(getPublicRoom);
   const join = useServerFn(joinPublicRoom);
@@ -395,12 +397,12 @@ export function PublicRoom({
 
   useEffect(() => {
     try {
-      const stored = window.localStorage.getItem(storageKey(slug));
+      const stored = window.localStorage.getItem(storageKey(viewerKey));
       if (!stored) return;
       const parsed = JSON.parse(stored) as Viewer;
       // Entradas antigas guardavam só o id da participação: já não servem, a pessoa entra outra vez.
       if (!parsed?.token) {
-        forgetViewer(slug);
+        forgetViewer(viewerKey);
         return;
       }
       if (parsed.name) {
@@ -414,7 +416,7 @@ export function PublicRoom({
         }
       }
     } catch {
-      forgetViewer(slug);
+      forgetViewer(viewerKey);
     }
   }, [slug]);
 
@@ -435,7 +437,7 @@ export function PublicRoom({
   // Credencial recusada pelo servidor: volta ao formulário em vez de falhar de 5 em 5 segundos.
   useEffect(() => {
     if (threadError?.message !== VIEWER_EXPIRED) return;
-    forgetViewer(slug);
+    forgetViewer(viewerKey);
     setViewer(null);
   }, [threadError, slug]);
 
@@ -505,7 +507,9 @@ export function PublicRoom({
   // comporta-se exatamente como a real, por isso segue a configuração pública.
   // A equipa nunca se inscreve: não conta na audiência.
   const easyAccess = Boolean(data?.webinar.easy_access);
-  const shouldAutoJoin = easyAccess && !equipa;
+  // Se a entrada automática falhar (limite, campos obrigatórios), aparece o formulário em vez de ficar preso.
+  const [autoJoinFailed, setAutoJoinFailed] = useState(false);
+  const shouldAutoJoin = easyAccess && !equipa && !autoJoinFailed;
   const autoJoinRef = useRef(false);
   useEffect(() => {
     if (!data || !shouldAutoJoin || viewer || autoJoinRef.current) return;
@@ -524,13 +528,14 @@ export function PublicRoom({
           },
         });
         const next = { token: result.token, name: result.name };
-        rememberViewer(slug, next);
+        rememberViewer(viewerKey, next);
         setViewer(next);
       } catch {
         autoJoinRef.current = false;
+        setAutoJoinFailed(true);
       }
     })();
-  }, [data, shouldAutoJoin, viewer, join, roomMode, slug, testMode, audienceMeta]);
+  }, [data, shouldAutoJoin, viewer, join, roomMode, viewerKey, testMode, audienceMeta]);
 
   const lastSentPeakRef = useRef(0);
   // Segundos vistos que ainda não chegaram ao servidor: se um envio falha, seguem no próximo.
@@ -546,12 +551,12 @@ export function PublicRoom({
         savedPositionRef.current = seconds;
         setResumeSeconds(seconds);
         try {
-          const stored = window.localStorage.getItem(storageKey(slug));
+          const stored = window.localStorage.getItem(storageKey(viewerKey));
           if (stored) {
             const parsed = JSON.parse(stored) as Viewer;
             if (parsed?.token) {
               window.localStorage.setItem(
-                storageKey(slug),
+                storageKey(viewerKey),
                 JSON.stringify({ ...parsed, position: seconds, maxPosition: peak }),
               );
             }
@@ -704,7 +709,8 @@ export function PublicRoom({
         video={webinar.waiting_video}
         countdownBackground={{ image: countdown.background.image, video: webinar.countdown_video }}
         showCountdown={webinar.live.waiting.countdown}
-        groupUrl={(webinar as { group_url?: string | null }).group_url}
+        // O convite do grupo só depois da inscrição: o botão pede os dados antes de abrir o grupo.
+        groupUrl={viewer ? (webinar as { group_url?: string | null }).group_url : null}
       />
     );
 
@@ -778,7 +784,7 @@ export function PublicRoom({
     );
 
   // O replay só existe pelo link do replay (?replay=1); o link de sempre é sempre a live (ou a espera por ela).
-  const effectiveMode = roomMode;
+  const effectiveMode = roomMode === "replay" && !testMode && !webinar.replay_enabled ? "live" : roomMode;
 
   // O prazo da oferta fecha também o replay.
   if (effectiveMode === "replay" && offerClosedByDeadline && !testMode)
@@ -847,7 +853,7 @@ export function PublicRoom({
           },
         });
         const next = { token: result.token, name: result.name };
-        rememberViewer(slug, next);
+        rememberViewer(viewerKey, next);
         if (!testMode) trackPixels("lead");
         setViewer(next);
       } catch (cause) {

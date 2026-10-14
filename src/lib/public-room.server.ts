@@ -343,7 +343,7 @@ export async function recordCta(data: {
 }) {
   const { data: participant, error: participantError } = await supabaseAdmin
     .from("participants")
-    .select("id, name, email, webinar_id, organization_id")
+    .select("id, name, email, webinar_id, organization_id, cta_clicked")
     .eq("id", data.participantId)
     .maybeSingle();
   // Quem falha avisa: a sala repete o envio em vez de perder o evento.
@@ -360,6 +360,9 @@ export async function recordCta(data: {
   if (eventError) throw new Error(UNAVAILABLE);
 
   if (data.eventType === "click") {
+    // Só o primeiro clique avisa os webhooks; a sala de teste (`@sala.local`) nunca avisa ninguém.
+    const isTestViewer = !participant.email || participant.email.endsWith("@sala.local");
+    const firstClick = !participant.cta_clicked;
     const { error: clickError } = await supabaseAdmin
       .from("participants")
       .update({ cta_clicked: true })
@@ -369,6 +372,7 @@ export async function recordCta(data: {
         `[cta] participante ${participant.id} sem marca de clique: ${clickError.message}`,
       );
 
+    if (isTestViewer || !firstClick) return { ok: true };
     const { data: webinar } = await supabaseAdmin
       .from("webinars")
       .select("public_title, webhook_url, webhook_enabled")
@@ -383,15 +387,13 @@ export async function recordCta(data: {
       name: participant.name,
       email: participant.email,
     });
-    if (participant.email && !participant.email.endsWith("@sala.local")) {
-      await notifyOutgoing(participant.organization_id, "offer.clicked", {
-        webinar_id: participant.webinar_id,
-        webinar: webinar?.public_title ?? null,
-        name: participant.name,
-        email: participant.email,
-        video_second: data.videoSecond ?? null,
-      });
-    }
+    await notifyOutgoing(participant.organization_id, "offer.clicked", {
+      webinar_id: participant.webinar_id,
+      webinar: webinar?.public_title ?? null,
+      name: participant.name,
+      email: participant.email,
+      video_second: data.videoSecond ?? null,
+    });
   }
 
   return { ok: true };
