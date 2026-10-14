@@ -9,8 +9,9 @@ export const getViewerState = createServerFn({ method: "GET" })
     const { VIEWER_EXPIRED } = await import("@/lib/public-room.functions");
     const participantId = participantFromToken(data.token);
     if (!participantId) throw new Error(VIEWER_EXPIRED);
-    const { loadViewerState } = await import("@/lib/room-viewer.server");
+    const { loadViewerState, moveToNextSession } = await import("@/lib/room-viewer.server");
     const state = await loadViewerState(participantId);
     if (!state) throw new Error(VIEWER_EXPIRED);
-    return state;
+    // Num webinar que repete, a sessão acabada dá lugar à seguinte (ver room-return).
+    return (await moveToNextSession(participantId, state)) ?? state;
   });

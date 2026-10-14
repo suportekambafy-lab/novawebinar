@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { keepOriginalSession, sessionOfWebinar, type ViewerState, type WebinarSchedule } from "@/lib/room-return";
+import { keepOriginalSession, repeatsSessions, sessionOfWebinar, type ViewerState, type WebinarSchedule } from "@/lib/room-return";
 
 /**
  * Quem regressa à sala, com dados que já existem (sem migração): a sessão de cada pessoa
@@ -41,7 +41,7 @@ export async function originalRegistration(
   if (session && !sessionOfWebinar(Date.parse(session.starts_at), webinar)) return null;
   const end = session?.ended_at ?? session?.ends_at ?? null;
   const watched = rows.some((r) => r.webinar_session_id === latest.webinar_session_id && (r.watched_seconds ?? 0) > 0);
-  if (!keepOriginalSession(end ? Date.parse(end) : null, watched, Date.now())) return null;
+  if (!keepOriginalSession(end ? Date.parse(end) : null, watched, Date.now(), repeatsSessions(webinar))) return null;
   return { id: latest.id, contact_id: latest.contact_id, webinar_session_id: latest.webinar_session_id };
 }
 
@@ -66,4 +66,53 @@ export async function loadViewerState(participantId: string): Promise<ViewerStat
     // Uma leitura falhada das compras não fecha a sala a ninguém: conta como «ainda não comprou».
     bought: Boolean(facts.data?.purchased),
   };
+}
+
+/**
+ * Quem volta a um webinar que repete depois de a sua sessão ter acabado passa para a sessão actual ou
+ * a próxima (a mesma que uma inscrição nova abriria), para a sala lhe mostrar a live seguinte e o tempo
+ * visto contar nessa sessão. Devolve o estado já com a sessão nova; null quando nada muda (sessão a
+ * decorrer, webinar de data única, comprou, sem sessão, ou nenhuma sessão por abrir).
+ */
+export async function moveToNextSession(participantId: string, state: ViewerState): Promise<ViewerState | null> {
+  if (!state.session || state.bought) return null;
+  // Uma falha aqui nunca fecha a sala: fica o estado que já havia.
+  try {
+    return await moveIfEnded(participantId, state);
+  } catch {
+    return null;
+  }
+}
+
+async function moveIfEnded(participantId: string, state: ViewerState): Promise<ViewerState | null> {
+  if (!state.session) return null;
+  const endMs = state.session.endsAt ? Date.parse(state.session.endsAt) : Number.NaN;
+  const { data: participant } = await supabaseAdmin
+    .from("participants")
+    .select("webinar_id")
+    .eq("id", participantId)
+    .maybeSingle();
+  if (!participant?.webinar_id) return null;
+  const { loadRegistrationWebinar, openRegistrationSession } = await import("@/lib/registration.server");
+  const webinar = await loadRegistrationWebinar(participant.webinar_id);
+  if (!webinar || !repeatsSessions(webinar)) return null;
+  const duration = webinar.video_sources?.duration_seconds || webinar.duration_seconds || 0;
+  const ended = Number.isFinite(endMs)
+    ? endMs <= Date.now()
+    : duration > 0 && Date.parse(state.session.startsAt) + duration * 1000 <= Date.now();
+  if (!ended) return null;
+  const sessionId = await openRegistrationSession(webinar, "live");
+  if (!sessionId) return null;
+  const { data: session } = await supabaseAdmin
+    .from("webinar_sessions")
+    .select("starts_at, ends_at, ended_at")
+    .eq("id", sessionId)
+    .maybeSingle();
+  if (!session || session.starts_at === state.session.startsAt) return null;
+  const { error } = await supabaseAdmin
+    .from("participants")
+    .update({ webinar_session_id: sessionId })
+    .eq("id", participantId);
+  if (error) return null;
+  return { ...state, session: { startsAt: session.starts_at, endsAt: session.ended_at ?? session.ends_at } };
 }

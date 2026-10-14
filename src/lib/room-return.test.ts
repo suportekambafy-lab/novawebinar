@@ -19,10 +19,18 @@ describe("a sala segue a sessão de cada pessoa", () => {
     expect(viewerPlan(state("2026-10-10T20:00:00Z"), opts).kind).toBe("session");
   });
 
-  it("a sessão dela acabou: retoma em replay onde ficou; sem replay, «terminou»; quem comprou tem acesso", () => {
+  it("data única: a sessão dela acabou, retoma em replay onde ficou; sem replay, «terminou»; quem comprou tem acesso", () => {
     const past = state("2026-10-08T20:00:00Z", { watchedSeconds: 1240 });
-    expect(viewerPlan(past, opts)).toEqual({ kind: "replay", resumeSeconds: 1240 });
-    expect(viewerPlan(past, { ...opts, replayEnabled: false })).toEqual({ kind: "ended", startMs: Date.parse("2026-10-08T20:00:00Z") });
+    const single = { ...opts, schedule: { scheduled_at: "2026-10-08T20:00:00Z" } };
+    expect(viewerPlan(past, single)).toEqual({ kind: "replay", resumeSeconds: 1240 });
+    expect(viewerPlan(past, { ...single, replayEnabled: false })).toEqual({ kind: "ended", startMs: Date.parse("2026-10-08T20:00:00Z") });
+    expect(viewerPlan({ ...past, bought: true }, single)).toEqual({ kind: "bought" });
+  });
+
+  it("webinar que repete: a sessão dela acabou e volta pelo link de sempre: a live seguinte, não o replay (quem comprou tem acesso)", () => {
+    const past = state("2026-10-08T20:00:00Z", { watchedSeconds: 1240 });
+    expect(viewerPlan(past, opts)).toEqual({ kind: "global" });
+    expect(viewerPlan(past, { ...opts, schedule: { recurrence_enabled: true } })).toEqual({ kind: "global" });
     expect(viewerPlan({ ...past, bought: true }, opts)).toEqual({ kind: "bought" });
   });
 
@@ -59,5 +67,8 @@ describe("segunda inscrição", () => {
     expect(keepOriginalSession(NOW + 60_000, false, NOW)).toBe(true);
     expect(keepOriginalSession(NOW - 60_000, true, NOW)).toBe(true);
     expect(keepOriginalSession(NOW - 60_000, false, NOW)).toBe(false);
+    // Num webinar que repete, a sessão acabada não prende ninguém, mesmo quem já viu.
+    expect(keepOriginalSession(NOW - 60_000, true, NOW, true)).toBe(false);
+    expect(keepOriginalSession(NOW + 60_000, true, NOW, true)).toBe(true);
   });
 });

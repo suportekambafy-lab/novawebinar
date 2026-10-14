@@ -54,11 +54,13 @@ export function viewerPlan(
       : null;
   if (endMs === null || !Number.isFinite(endMs) || endMs > options.nowMs) return { kind: "session", startMs };
   if (state.bought) return { kind: "bought" };
-  if (options.replayEnabled) return { kind: "replay", resumeSeconds: Math.max(0, state.watchedSeconds) };
-  // Nunca viu e o webinar repete (just in time, repetição): entra na sessão seguinte, como numa nova
-  // inscrição (`keepOriginalSession`). Sem isto ficava para sempre em «terminou» neste aparelho.
+  // O webinar repete (repetição, just in time): a sessão dela acabou e a próxima é outra live. Quem volta
+  // pelo link de sempre entra na sessão seguinte (espera, depois ao vivo), como numa nova inscrição; o
+  // replay fica para o link do replay (?replay=1). Sem isto, quem já tinha entrado um dia via «Replay»
+  // no dia seguinte, em vez da live, e a sala nunca mais lhe parecia ao vivo.
   const repeats = options.schedule.schedule_mode === "jit" || Boolean(options.schedule.recurrence_enabled);
-  if (repeats && state.watchedSeconds <= 0) return { kind: "global" };
+  if (repeats) return { kind: "global" };
+  if (options.replayEnabled) return { kind: "replay", resumeSeconds: Math.max(0, state.watchedSeconds) };
   return { kind: "ended", startMs };
 }
 
@@ -67,6 +69,13 @@ export function viewerPlan(
  * sessão, e não se repete: nem aquecimento nem lembretes outra vez) enquanto ela não acabou, ou se a
  * pessoa já viu alguma coisa. Quem nunca entrou numa sessão que já acabou inscreve-se na seguinte.
  */
-export function keepOriginalSession(endMs: number | null, watched: boolean, nowMs: number) {
-  return endMs === null || endMs > nowMs || watched;
+export function keepOriginalSession(endMs: number | null, watched: boolean, nowMs: number, repeats = false) {
+  const open = endMs === null || endMs > nowMs;
+  // Num webinar que repete, uma sessão acabada é passado: a inscrição nova vai para a sessão actual ou a próxima.
+  return open || (!repeats && watched);
+}
+
+/** O webinar abre outra sessão depois desta (repetição automática ou just in time)? */
+export function repeatsSessions(schedule: WebinarSchedule) {
+  return schedule.schedule_mode === "jit" || Boolean(schedule.recurrence_enabled);
 }
