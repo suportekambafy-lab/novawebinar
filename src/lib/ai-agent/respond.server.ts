@@ -132,11 +132,13 @@ export type AgentBundle = NonNullable<Awaited<ReturnType<typeof loadAgentBundle>
  * O conhecimento (fontes marcadas, perguntas, objeções, produto) é sempre o da linha do webinar.
  */
 export async function loadAgentBundle(webinarId: string, organizationId?: string) {
-  const { data: own } = await db
+  const { data: own, error: ownError } = await db
     .from("ai_agents")
     .select("*")
     .eq("webinar_id", webinarId)
     .maybeSingle();
+  // Uma leitura falhada não é «webinar sem agente»: falha, e quem chama passa a mensagem a uma pessoa.
+  if (ownError) throw new Error(`Agente por ler: ${ownError.message}`);
   let agent = own as Row | null;
   if (!own || own.scope === "account") {
     const org =
@@ -144,12 +146,13 @@ export async function loadAgentBundle(webinarId: string, organizationId?: string
       organizationId ??
       (await db.from("webinars").select("organization_id").eq("id", webinarId).maybeSingle()).data?.organization_id;
     if (org) {
-      const { data: account } = await db
+      const { data: account, error: accountError } = await db
         .from("ai_agents")
         .select("*")
         .eq("organization_id", org)
         .is("webinar_id", null)
         .maybeSingle();
+      if (accountError) throw new Error(`Agente por ler: ${accountError.message}`);
       if (account) agent = account as Row;
     }
   }

@@ -435,3 +435,33 @@ export const getPublicRoomPurchases = createServerFn({ method: "GET" })
     const { loadRoomPurchases } = await import("@/lib/public-room.server");
     return loadRoomPurchases(data.webinarId, data.since);
   });
+
+/** A contagem real por webinar, partilhada por toda a sala durante 15 s (uma leitura, não uma por pessoa). */
+const liveCounts = new Map<string, { until: number; value: Promise<number> }>();
+
+/**
+ * Quantas pessoas entraram na sala nos últimos 10 minutos (sem a sala de teste). O browser não pode
+ * contar os participantes (a RLS esconde-os): antes, «Só a real» mostrava sempre 0.
+ */
+export const getRoomLiveCount = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) => z.object({ webinarId: z.string().uuid() }).parse(data))
+  .handler(async ({ data }) => {
+    const hit = liveCounts.get(data.webinarId);
+    if (hit && hit.until > Date.now()) return hit.value;
+    if (liveCounts.size > 2000) liveCounts.clear();
+    const value = (async () => {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { count, error } = await supabaseAdmin
+        .from("participants")
+        .select("id", { count: "exact", head: true })
+        .eq("webinar_id", data.webinarId)
+        .gte("joined_at", new Date(Date.now() - 10 * 60_000).toISOString())
+        // Quem só deu o WhatsApp não tem e-mail e conta; só a sala de teste fica de fora.
+        .or("email.is.null,email.not.like.%@sala.local");
+      if (error) throw new Error(UNAVAILABLE);
+      return count ?? 0;
+    })();
+    liveCounts.set(data.webinarId, { until: Date.now() + 15_000, value });
+    value.catch(() => liveCounts.delete(data.webinarId));
+    return value;
+  });

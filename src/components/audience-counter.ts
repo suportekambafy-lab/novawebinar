@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 
 type CurvePoint = { at: number; viewers: number };
 
@@ -82,13 +81,14 @@ export function useAudienceCount({
     if (!wantsReal) return;
     let cancelled = false;
     const load = async () => {
-      const since = new Date(Date.now() - 1000 * 60 * 10).toISOString();
-      const { count } = await supabase
-        .from("participants")
-        .select("id", { count: "exact", head: true })
-        .eq("webinar_id", webinarId)
-        .gte("joined_at", since);
-      if (!cancelled) setFetchedRealCount(count ?? 0);
+      // Pelo servidor: a RLS não deixa o browser contar participantes (antes dava sempre 0).
+      try {
+        const { getRoomLiveCount } = await import("@/lib/public-room.functions");
+        const count = await getRoomLiveCount({ data: { webinarId } });
+        if (!cancelled) setFetchedRealCount(count);
+      } catch {
+        /* fica a última contagem */
+      }
     };
     void load();
     const timer = window.setInterval(() => void load(), 20000);

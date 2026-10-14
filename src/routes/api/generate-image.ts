@@ -29,13 +29,17 @@ export const Route = createFileRoute("/api/generate-image")({
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: memberships, error: membershipError } = await supabaseAdmin
           .from("organization_members")
-          .select("organization_id")
+          .select("organization_id, role")
           .eq("user_id", auth.userId)
           .order("created_at", { ascending: true });
         if (membershipError) return new Response("Temporariamente indisponível.", { status: 503 });
-        const membership =
-          memberships.find((m) => m.organization_id === body.organizationId) ?? memberships[0];
-        if (!membership) return new Response("Sem organização.", { status: 403 });
+        // Pedida uma organização que não é desta pessoa: recusa (antes cobrava em silêncio a primeira).
+        const membership = body.organizationId
+          ? memberships.find((m) => m.organization_id === body.organizationId)
+          : memberships[0];
+        if (!membership) return new Response("Sem acesso a esta organização.", { status: 403 });
+        // A função «suporte» não gasta créditos da conta.
+        if (membership.role === "support") return new Response("Sem permissão para gerar imagens.", { status: 403 });
 
         const { generateImage } = await import("@/lib/ai/gateway.server");
         const { NoCreditsError, runBilled } = await import("@/lib/ai/billing.server");
