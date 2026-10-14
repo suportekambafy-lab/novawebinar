@@ -19,11 +19,12 @@ describe("a sala segue a sessão de cada pessoa", () => {
     expect(viewerPlan(state("2026-10-10T20:00:00Z"), opts).kind).toBe("session");
   });
 
-  it("data única: a sessão dela acabou, retoma em replay onde ficou; sem replay, «terminou»; quem comprou tem acesso", () => {
+  it("data única: a sessão dela acabou, «terminou» (o replay só pelo link do replay, e a sala diz se existe); quem comprou tem acesso", () => {
     const past = state("2026-10-08T20:00:00Z", { watchedSeconds: 1240 });
     const single = { ...opts, schedule: { scheduled_at: "2026-10-08T20:00:00Z" } };
-    expect(viewerPlan(past, single)).toEqual({ kind: "replay", resumeSeconds: 1240 });
-    expect(viewerPlan(past, { ...single, replayEnabled: false })).toEqual({ kind: "ended", startMs: Date.parse("2026-10-08T20:00:00Z") });
+    const startMs = Date.parse("2026-10-08T20:00:00Z");
+    expect(viewerPlan(past, single)).toEqual({ kind: "ended", startMs, replayAvailable: true });
+    expect(viewerPlan(past, { ...single, replayEnabled: false })).toEqual({ kind: "ended", startMs, replayAvailable: false });
     expect(viewerPlan({ ...past, bought: true }, single)).toEqual({ kind: "bought" });
   });
 

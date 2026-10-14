@@ -15,10 +15,11 @@ export type ViewerPlan =
   | { kind: "global" }
   /** A sessão dela ainda não acabou: espera por ela, ou entra ao vivo no ponto certo. */
   | { kind: "session"; startMs: number }
-  /** A sessão dela acabou e há replay: retoma onde ficou, como gravação (nunca outra vez «Ao vivo»). */
-  | { kind: "replay"; resumeSeconds: number }
-  /** Acabou, sem replay: a sessão dela terminou (sem convite para «a próxima» como se fosse nova). */
-  | { kind: "ended"; startMs: number }
+  /**
+   * Acabou (data única): a sessão dela terminou, sem convite para «a próxima» como se fosse nova. O replay
+   * nunca entra pelo link de sempre: só pelo link do replay (?replay=1); `replayAvailable` diz se existe.
+   */
+  | { kind: "ended"; startMs: number; replayAvailable: boolean }
   /** Acabou e já comprou: tem acesso, não volta a ver a venda. */
   | { kind: "bought" };
 
@@ -55,13 +56,12 @@ export function viewerPlan(
   if (endMs === null || !Number.isFinite(endMs) || endMs > options.nowMs) return { kind: "session", startMs };
   if (state.bought) return { kind: "bought" };
   // O webinar repete (repetição, just in time): a sessão dela acabou e a próxima é outra live. Quem volta
-  // pelo link de sempre entra na sessão seguinte (espera, depois ao vivo), como numa nova inscrição; o
-  // replay fica para o link do replay (?replay=1). Sem isto, quem já tinha entrado um dia via «Replay»
-  // no dia seguinte, em vez da live, e a sala nunca mais lhe parecia ao vivo.
+  // pelo link de sempre entra na sessão seguinte (espera, depois ao vivo), como numa nova inscrição. Sem
+  // isto, quem já tinha entrado um dia via «Replay» no dia seguinte, em vez da live.
   const repeats = options.schedule.schedule_mode === "jit" || Boolean(options.schedule.recurrence_enabled);
   if (repeats) return { kind: "global" };
-  if (options.replayEnabled) return { kind: "replay", resumeSeconds: Math.max(0, state.watchedSeconds) };
-  return { kind: "ended", startMs };
+  // Data única: terminou. A gravação, se existir, vê-se pelo link do replay (a sala oferece-o), nunca por aqui.
+  return { kind: "ended", startMs, replayAvailable: options.replayEnabled };
 }
 
 /**

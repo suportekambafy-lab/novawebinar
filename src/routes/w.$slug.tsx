@@ -761,15 +761,24 @@ export function PublicRoom({
           </p>
           <h1 className="text-2xl font-black text-room-text sm:text-3xl">{webinar.public_title}</h1>
           <p className="text-sm leading-relaxed text-room-subtle">
-            A sua sessão ({formatSessionStart(plan.startMs, webinar.timezone)}) já terminou e esta
-            aula não fica gravada.
+            A sua sessão ({formatSessionStart(plan.startMs, webinar.timezone)}) já terminou
+            {plan.replayAvailable ? "." : " e esta aula não fica gravada."}
           </p>
+          {/* O replay só entra pelo link do replay: a sala oferece-o aqui, nunca o abre sozinha. */}
+          {plan.replayAvailable && (
+            <a
+              href={`/w/${slug}?replay=1`}
+              className="inline-flex h-12 items-center justify-center rounded-xl bg-primary px-6 text-sm font-bold text-white"
+            >
+              Ver a gravação
+            </a>
+          )}
         </div>
       </main>
     );
 
-  // A sessão desta pessoa acabou e há replay: retoma onde ficou, como gravação.
-  const effectiveMode = plan.kind === "replay" ? "replay" : roomMode;
+  // O replay só existe pelo link do replay (?replay=1); o link de sempre é sempre a live (ou a espera por ela).
+  const effectiveMode = roomMode;
 
   // O prazo da oferta fecha também o replay.
   if (effectiveMode === "replay" && offerClosedByDeadline && !testMode)
@@ -896,8 +905,7 @@ export function PublicRoom({
   // contagem antes da hora e sem depender da hora marcada. O vídeo arranca sempre
   // do início (nunca retoma onde ficou: quem viu até ao fim abria em «Transmissão
   // terminou») e todo o conteúdo segue o relógio do vídeo, como num replay ao vivo.
-  // Quem regressa segue a sua sessão (`plan`); no replay depois da sessão, retoma onde ficou (neste aparelho,
-  // ou até onde viu noutro).
+  // Quem regressa segue a sua sessão (`plan`); no replay (pelo link do replay) retoma onde ficou neste aparelho.
   const roomStartsAt =
     testMode || effectiveMode === "replay"
       ? null
@@ -906,20 +914,12 @@ export function PublicRoom({
         : webinar.session_start
           ? new Date(new Date(webinar.session_start).getTime() + delayMs).toISOString()
           : webinar.session_start;
-  const syncWithStart = testMode || plan.kind === "replay" ? false : webinar.sync_video_with_start;
+  const syncWithStart = testMode || effectiveMode === "replay" ? false : webinar.sync_video_with_start;
   // Sem hora de arranque (replay, sala de teste, webinar sem horário), entrar é chegar à hora: a contagem
   // «depois de começar» corre a partir daí e o vídeo espera por ela (a sala de teste tem um botão para a saltar).
   const effectivePreliveSeconds = roomStartsAt === null ? countdown.afterSeconds : preliveSeconds;
-  const resumeAt = testMode
-    ? null
-    : plan.kind === "replay"
-      ? (resumeSeconds ?? plan.resumeSeconds)
-      : resumeSeconds;
-  const resumePeak = testMode
-    ? null
-    : plan.kind === "replay"
-      ? Math.max(resumePeakSeconds ?? 0, plan.resumeSeconds)
-      : resumePeakSeconds;
+  const resumeAt = testMode ? null : resumeSeconds;
+  const resumePeak = testMode ? null : resumePeakSeconds;
 
   return (
     <WebinarRoom

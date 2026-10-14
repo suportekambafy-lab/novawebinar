@@ -167,6 +167,8 @@ function AbTestPage() {
         </div>
 
         <div className="space-y-4">
+          <LinksCard link={link} variants={variants} />
+
           <VariantsCard test={test} variants={variants} winner={winner ?? null} busy={busy} onWinner={(v) => void run(() => actions.winner.mutateAsync({ testId: test.id, variantId: v.id }), `Variante ${v.label} aplicada.`)} onTraffic={(traffic) => run(() => actions.update.mutateAsync({ testId: test.id, traffic }), "Divisão do tráfego guardada.")} />
 
           <SettingsCard test={test} busy={busy} onSave={(patch) => run(() => actions.update.mutateAsync({ testId: test.id, ...patch }), "Definições guardadas.")} />
@@ -195,6 +197,53 @@ function AbTestPage() {
         </div>
       </div>
     </AppShell>
+  );
+}
+
+/**
+ * Os endereços do teste: o principal (a live; cada pessoa recebe a sua variante), o do replay (a única
+ * forma de ver a gravação: o principal nunca abre em replay) e a sala de teste de cada variante (entra já,
+ * sem contar como visita nem inscrição).
+ */
+function LinksCard({ link, variants }: { link: string; variants: AbTestVariantRow[] }) {
+  const copy = (url: string, what: string) => {
+    (navigator.clipboard?.writeText(url) ?? Promise.reject(new Error("sem clipboard"))).then(
+      () => toast.success(`${what} copiado.`),
+      () => toast.error("Não foi possível copiar."),
+    );
+  };
+  const rows: { label: string; hint: string; url: string }[] = [
+    { label: "Principal", hint: "A live. Cada pessoa recebe a sua variante.", url: link },
+    { label: "Replay", hint: "A gravação, para quem faltou ou saiu cedo. Só este endereço abre em replay.", url: `${link}?replay=1` },
+    ...variants.map((v) => ({
+      label: `Sala de teste · ${v.label}`,
+      hint: "Entra já na variante, sem contar como visita nem inscrição.",
+      url: `${link}?teste=1&variante=${encodeURIComponent(v.label)}`,
+    })),
+  ];
+  return (
+    <section className="rounded-card bg-card p-5 sm:p-6">
+      <h2 className="font-semibold">Endereços</h2>
+      <p className="mt-1 text-sm text-muted-foreground">O principal é o que se envia. O replay só pelo link do replay.</p>
+      <ul className="mt-3 divide-y">
+        {rows.map((r) => (
+          <li key={r.label} className="flex items-center gap-3 py-2.5">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">{r.label}</p>
+              <p className="truncate text-[13px] text-muted-foreground" title={r.url}>{r.hint}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => copy(r.url, `Endereço «${r.label}»`)} aria-label={`Copiar o endereço ${r.label}`}>
+              <Copy className="size-4" />
+            </Button>
+            <Button variant="outline" size="sm" asChild>
+              <a href={r.url} target="_blank" rel="noopener noreferrer" aria-label={`Abrir ${r.label}`}>
+                <ExternalLink className="size-4" />
+              </a>
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
