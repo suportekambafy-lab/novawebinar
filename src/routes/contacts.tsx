@@ -138,7 +138,7 @@ function ContactsPage() {
   const { data: themeRows = [], isLoading: themeLoading } = useThemeContacts(theme ? orgId : undefined, themeIds);
   const rows = theme ? filterContacts(themeRows, { stage, search }) : (page$?.rows ?? []);
   const inRows = rows.some((r) => r.id === openId);
-  const { data: linked } = useLinkedContact(exemplo || inRows ? undefined : openId, orgId);
+  const { data: linked, isFetched: linkedFetched } = useLinkedContact(exemplo || inRows ? undefined : openId, orgId);
 
   const total = theme ? (themeLoading ? null : rows.length) : page$ ? page$.total : null;
   const counts = theme ? stageCountsOf(themeRows) : serverCounts;
@@ -471,6 +471,15 @@ function ContactsPage() {
                 onOpenConversation={(id) => void navigate({ to: "/support", search: { c: id } })}
                 onBack={() => openContact(null)}
               />
+            ) : openId && !linked && linkedFetched && !inRows ? (
+              // Ligação antiga para um contacto apagado (ou de outra conta): diz-se, em vez de carregar para sempre.
+              <div className="space-y-3 p-6 text-center">
+                <p className="font-medium">Contacto não encontrado</p>
+                <p className="text-sm text-muted-foreground">Pode ter sido apagado ou pertencer a outro espaço de trabalho.</p>
+                <Button variant="outline" size="sm" onClick={() => openContact(null)}>
+                  Voltar aos contactos
+                </Button>
+              </div>
             ) : openId && !linked ? (
               <div className="space-y-3 p-4">
                 <Skeleton className="h-14 w-full" />

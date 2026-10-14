@@ -545,6 +545,20 @@ export function useAutomationRuns(
     // A execução avança sozinha (espera, servidor): a página acompanha sem recarregar.
     refetchInterval: 15_000,
     queryFn: async () => {
+      // As métricas de um webinar contam todas as execuções: página a página, sem o corte de `limit`
+      // (antes, acima de 1000 os números ficavam errados sem aviso).
+      if (scope.webinarId && !scope.contactId && !scope.automationId && !scope.automationIds) {
+        const rows = await fetchAll((from, to) =>
+          supabase
+            .from("automation_runs")
+            .select(RUN_COLUMNS, { count: "exact" })
+            .eq("webinar_id", scope.webinarId!)
+            .order("created_at", { ascending: false })
+            .order("id")
+            .range(from, to),
+        );
+        return rows as unknown as AutomationRun[];
+      }
       let q = supabase.from("automation_runs").select(RUN_COLUMNS);
       if (scope.contactId) q = q.eq("contact_id", scope.contactId);
       else if (scope.automationId) q = q.eq("automation_id", scope.automationId);

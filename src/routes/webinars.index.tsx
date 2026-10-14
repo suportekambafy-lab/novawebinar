@@ -39,7 +39,9 @@ const filters: { value: string; label: string; match?: (l: WebinarLifecycle) => 
 
 function WebinarsPage() {
   const { data: workspace } = useWorkspace();
-  const { data: webinars = [], isLoading } = useWebinars(workspace?.organizationId);
+  const { data: webinars = [], isPending } = useWebinars(workspace?.organizationId);
+  // Enquanto o espaço de trabalho ou a lista carregam, nada de «ainda não criou nenhum webinar».
+  const isLoading = !workspace || isPending;
   const [tab, setTab] = useState("todos");
   const { q } = Route.useSearch();
 

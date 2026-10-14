@@ -111,10 +111,15 @@ async function maybeAutoApply(test: AbTestRow, variants: AbTestVariantRow[], ev:
   return true;
 }
 
+/** O dia (AAAA-MM-DD) no fuso do servidor, o mesmo em que `since` começa à meia-noite. */
+const localDay = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
 /** Visitantes por dia e por variante nos últimos 14 dias (para o gráfico do painel). */
 async function dailyOf(testId: string, variants: AbTestVariantRow[]) {
   const db = await admin();
-  const since = new Date(Date.now() - 14 * 86_400_000);
+  // Os últimos 14 dias com hoje incluído: começa há 13 dias.
+  const since = new Date(Date.now() - 13 * 86_400_000);
   since.setHours(0, 0, 0, 0);
   const { data } = await db
     .from("ab_test_assignments")
@@ -124,14 +129,14 @@ async function dailyOf(testId: string, variants: AbTestVariantRow[]) {
     .order("assigned_at")
     .limit(20_000);
   const days: { day: string; counts: Record<string, number> }[] = [];
-  for (let i = 0; i < 15; i += 1) {
-    const d = new Date(since.getTime() + i * 86_400_000);
-    days.push({ day: d.toISOString().slice(0, 10), counts: Object.fromEntries(variants.map((v) => [v.label, 0])) });
+  for (let i = 0; i < 14; i += 1) {
+    const d = new Date(since.getTime() + i * 86_400_000 + 12 * 3_600_000);
+    days.push({ day: localDay(d), counts: Object.fromEntries(variants.map((v) => [v.label, 0])) });
   }
   const byDay = new Map(days.map((d) => [d.day, d]));
   const labelOf = new Map(variants.map((v) => [v.id, v.label]));
   for (const row of data ?? []) {
-    const entry = byDay.get(row.assigned_at.slice(0, 10));
+    const entry = byDay.get(localDay(new Date(row.assigned_at)));
     const label = labelOf.get(row.variant_id);
     if (entry && label) entry.counts[label] = (entry.counts[label] ?? 0) + 1;
   }

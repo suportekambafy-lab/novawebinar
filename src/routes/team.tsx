@@ -641,18 +641,19 @@ function TeamsTab({
   };
 
   const makeFallback = async (id: string) => {
-    // Só pode haver uma: primeiro sai a actual, depois entra a nova.
-    const current = departments.find((d) => d.is_fallback);
-    if (current)
-      await supabase
-        .from("support_departments")
-        .update({ is_fallback: false })
-        .eq("id", current.id);
+    // Primeiro entra a nova, depois sai a actual: se o segundo passo falhar fica uma a mais por instantes,
+    // nunca nenhuma (as conversas sem equipa ficavam sem destino).
+    const current = departments.find((d) => d.is_fallback && d.id !== id);
     const { error } = await supabase
       .from("support_departments")
       .update({ is_fallback: true })
       .eq("id", id);
-    done(error, "departments");
+    if (error || !current) return done(error, "departments");
+    const { error: clearError } = await supabase
+      .from("support_departments")
+      .update({ is_fallback: false })
+      .eq("id", current.id);
+    done(clearError, "departments");
   };
 
   return (

@@ -45,7 +45,9 @@ type Provider = Database["public"]["Enums"]["video_provider"];
 
 function LibraryPage() {
   const { data: workspace } = useWorkspace();
-  const { data: videos = [], isLoading } = useVideoSources(workspace?.organizationId);
+  const { data: videos = [], isPending } = useVideoSources(workspace?.organizationId);
+  // Enquanto o espaço de trabalho ou a lista carregam, nada de «ainda não tem vídeos».
+  const isLoading = !workspace || isPending;
   const invalidate = useInvalidate();
   const [open, setOpen] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
