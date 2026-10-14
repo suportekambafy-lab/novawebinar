@@ -1519,7 +1519,7 @@ export function fixCausality(
 
 /** Elogios genéricos tipo "muito bom 🔥": no máximo um por momento. */
 const GENERIC_PRAISE =
-  /^(muito bom|top|show|ótimo|otimo|excelente|perfeito|boa|adorei|amei|maravilha|sensacional|incrível|incrivel|demais|massa|👏+|🔥+)[\s!.🔥👏💯🙌]*$/i;
+  /^(muito bom|top|show|ótimo|otimo|excelente|perfeito|boa|adorei|amei|maravilha|sensacional|incrível|incrivel|demais|massa|👏+|🔥+)[\s!.🔥👏💯🙌]*$/iu;
 
 function dropPraiseClusters(list: Comment[]): Comment[] {
   const kept: Comment[] = [];

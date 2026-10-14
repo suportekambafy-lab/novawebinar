@@ -273,9 +273,13 @@ function EditWebinar() {
   // Carrega o formulário uma única vez por webinar: assim uma atualização em
   // segundo plano não apaga o que o organizador está a escrever.
   const hydratedRef = useRef<string | null>(null);
+  // A versão (updated_at) que o formulário carregou: o guardar só escreve por cima dela,
+  // nunca por cima do que outro separador ou outra pessoa guardou entretanto.
+  const loadedUpdatedAtRef = useRef<string | null>(null);
   useEffect(() => {
     if (!webinar || hydratedRef.current === webinar.id) return;
     hydratedRef.current = webinar.id;
+    loadedUpdatedAtRef.current = webinar.updated_at;
     const base = emptyEditorForm();
     const loaded: EditorForm = {
       ...base,
@@ -843,7 +847,9 @@ function EditWebinar() {
     const times = form.recurrence_times.filter(Boolean);
     setSaving(true);
     try {
-      const { error } = await supabase
+      // Só escreve se a linha ainda estiver na versão que o formulário carregou (ver loadedUpdatedAtRef).
+      const loadedUpdatedAt = loadedUpdatedAtRef.current ?? webinar.updated_at;
+      const { data: savedRows, error } = await supabase
         .from("webinars")
         .update({
           internal_name: form.internal_name.trim(),
@@ -916,8 +922,18 @@ function EditWebinar() {
           webhook_enabled: form.webhook_enabled && Boolean(form.webhook_url.trim()),
           updated_at: new Date().toISOString(),
         })
-        .eq("id", webinarId);
+        .eq("id", webinarId)
+        .eq("updated_at", loadedUpdatedAt)
+        .select("id, updated_at");
       if (error) throw error;
+      const savedRow = savedRows?.[0];
+      if (!savedRow) {
+        // Nenhuma linha nessa versão: alguém guardou entretanto. Não se escreve por cima; o aviso
+        // sai mesmo nos guardares silenciosos (Continuar, Publicar), que de outro modo ficariam parados sem explicação.
+        toast.error("Este webinar foi alterado entretanto noutro separador ou por outra pessoa. Recarregue a página para ver a versão actual.");
+        return false;
+      }
+      loadedUpdatedAtRef.current = savedRow.updated_at;
       const productOk = await saveProduct();
       const audienceOk = await saveAudience();
       invalidate(["webinar", "webinars"]);

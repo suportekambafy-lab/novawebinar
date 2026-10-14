@@ -316,14 +316,20 @@ function pick(body: Body, ...paths: string[]): unknown {
 
 const text = (value: unknown) => (value === undefined || value === null ? "" : String(value).trim());
 
-/** "5000.00", "5.000,00", 97 → número; o resto → null. */
+/**
+ * "5000.00", "5.000,00", "1,500.00", "15,000", 97 → número; o resto → null.
+ * O separador decimal é o último que aparece, e só se vier seguido de 1 ou 2 dígitos
+ * (o resto são milhares): "1,500.00" → 1500; "15,000" → 15000; "197,5" → 197.5.
+ */
 export function parseAmount(value: unknown): number | null {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  let s = text(value).replace(/[^\d.,-]/g, "");
+  const s = text(value).replace(/[^\d.,-]/g, "");
   if (!s) return null;
-  if (s.includes(",") && s.includes(".")) s = s.replace(/\./g, "").replace(",", ".");
-  else if (s.includes(",")) s = s.replace(",", ".");
-  const n = Number(s);
+  const last = Math.max(s.lastIndexOf(","), s.lastIndexOf("."));
+  const digitsAfter = last >= 0 ? s.length - last - 1 : 0;
+  const decimal = last >= 0 && digitsAfter > 0 && digitsAfter <= 2;
+  const integer = (decimal ? s.slice(0, last) : s).replace(/[.,]/g, "");
+  const n = Number(decimal ? `${integer}.${s.slice(last + 1)}` : integer);
   return Number.isFinite(n) ? n : null;
 }
 

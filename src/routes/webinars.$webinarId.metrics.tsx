@@ -90,6 +90,9 @@ export const Route = createFileRoute("/webinars/$webinarId/metrics")({
   component: WebinarMetricsPage,
 });
 
+/** As sessões mais recentes do período que a tabela mostra (um webinar diário tem ~365 por ano). */
+const SESSIONS_CAP = 500;
+
 const numberFormat = new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 1 });
 /** Percentagem de uma base; sem base não há percentagem. */
 const pctLabel = (value: number, from: number) => (from ? `${numberFormat.format((value / from) * 100)}%` : "—");
@@ -320,19 +323,21 @@ function WebinarMetricsPage() {
   const duration = webinar?.duration_seconds ?? 0;
 
   // Sessões globais deste webinar, como a base de dados as regista (o fim é dado de
-  // minuto a minuto pelo varrimento, não por quem abre a página).
+  // minuto a minuto pelo varrimento, não por quem abre a página). O período aplica-se
+  // na consulta, para um período antigo não ficar de fora por haver sessões mais recentes.
   const { data: allSessions = [] } = useQuery({
-    queryKey: ["webinar-sessions", webinarId],
+    queryKey: ["webinar-sessions", webinarId, rangeKey(range)],
     enabled: Boolean(webinarId),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("webinar_sessions")
-        .select("id, starts_at, ends_at, state, ended_at")
-        .eq("webinar_id", webinarId)
-        .order("starts_at", { ascending: false })
-        .limit(20);
-      if (error) throw error;
-      return data ?? [];
+      const rows = await fetchAll((from, to) => {
+        let q = supabase
+          .from("webinar_sessions")
+          .select("id, starts_at, ends_at, state, ended_at", { count: "exact" })
+          .eq("webinar_id", webinarId);
+        if (range) q = q.gte("starts_at", range.from).lt("starts_at", range.to);
+        return q.order("starts_at", { ascending: false }).order("id").range(from, Math.min(to, SESSIONS_CAP - 1));
+      });
+      return rows.slice(0, SESSIONS_CAP);
     },
   });
   const lifecycle = webinar ? lifecycleOf(webinar) : null;

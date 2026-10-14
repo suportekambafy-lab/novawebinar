@@ -44,6 +44,7 @@ import { Route as ReplayWebinarIdRouteImport } from './routes/replay.$webinarId'
 import { Route as WSlugRouteImport } from './routes/w.$slug'
 import { Route as WebinarsIndexRouteImport } from './routes/webinars.index'
 import { Route as WebinarsNewRouteImport } from './routes/webinars.new'
+import { Route as ApiPublicBillingWebhookRouteImport } from './routes/api/public/billing-webhook'
 import { Route as ApiPublicPurchaseWebhookRouteImport } from './routes/api/public/purchase-webhook'
 import { Route as ApiPublicRegisterRouteImport } from './routes/api/public/register'
 import { Route as ApiPublicRunJobsRouteImport } from './routes/api/public/run-jobs'
@@ -228,6 +229,11 @@ const WebinarsNewRoute = WebinarsNewRouteImport.update({
   path: '/webinars/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicBillingWebhookRoute = ApiPublicBillingWebhookRouteImport.update({
+  id: '/api/public/billing-webhook',
+  path: '/api/public/billing-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicPurchaseWebhookRoute =
   ApiPublicPurchaseWebhookRouteImport.update({
     id: '/api/public/purchase-webhook',
@@ -309,6 +315,7 @@ export interface FileRoutesByFullPath {
   '/automations/': typeof AutomationsIndexRoute
   '/funcionalidades/': typeof FuncionalidadesIndexRoute
   '/webinars/': typeof WebinarsIndexRoute
+  '/api/public/billing-webhook': typeof ApiPublicBillingWebhookRoute
   '/api/public/purchase-webhook': typeof ApiPublicPurchaseWebhookRoute
   '/api/public/register': typeof ApiPublicRegisterRoute
   '/api/public/run-jobs': typeof ApiPublicRunJobsRoute
@@ -354,6 +361,7 @@ export interface FileRoutesByTo {
   '/automations': typeof AutomationsIndexRoute
   '/funcionalidades': typeof FuncionalidadesIndexRoute
   '/webinars': typeof WebinarsIndexRoute
+  '/api/public/billing-webhook': typeof ApiPublicBillingWebhookRoute
   '/api/public/purchase-webhook': typeof ApiPublicPurchaseWebhookRoute
   '/api/public/register': typeof ApiPublicRegisterRoute
   '/api/public/run-jobs': typeof ApiPublicRunJobsRoute
@@ -400,6 +408,7 @@ export interface FileRoutesById {
   '/automations/': typeof AutomationsIndexRoute
   '/funcionalidades/': typeof FuncionalidadesIndexRoute
   '/webinars/': typeof WebinarsIndexRoute
+  '/api/public/billing-webhook': typeof ApiPublicBillingWebhookRoute
   '/api/public/purchase-webhook': typeof ApiPublicPurchaseWebhookRoute
   '/api/public/register': typeof ApiPublicRegisterRoute
   '/api/public/run-jobs': typeof ApiPublicRunJobsRoute
@@ -447,6 +456,7 @@ export interface FileRouteTypes {
     | '/automations/'
     | '/funcionalidades/'
     | '/webinars/'
+    | '/api/public/billing-webhook'
     | '/api/public/purchase-webhook'
     | '/api/public/register'
     | '/api/public/run-jobs'
@@ -492,6 +502,7 @@ export interface FileRouteTypes {
     | '/automations'
     | '/funcionalidades'
     | '/webinars'
+    | '/api/public/billing-webhook'
     | '/api/public/purchase-webhook'
     | '/api/public/register'
     | '/api/public/run-jobs'
@@ -537,6 +548,7 @@ export interface FileRouteTypes {
     | '/automations/'
     | '/funcionalidades/'
     | '/webinars/'
+    | '/api/public/billing-webhook'
     | '/api/public/purchase-webhook'
     | '/api/public/register'
     | '/api/public/run-jobs'
@@ -583,6 +595,7 @@ export interface RootRouteChildren {
   AutomationsIndexRoute: typeof AutomationsIndexRoute
   FuncionalidadesIndexRoute: typeof FuncionalidadesIndexRoute
   WebinarsIndexRoute: typeof WebinarsIndexRoute
+  ApiPublicBillingWebhookRoute: typeof ApiPublicBillingWebhookRoute
   ApiPublicPurchaseWebhookRoute: typeof ApiPublicPurchaseWebhookRoute
   ApiPublicRegisterRoute: typeof ApiPublicRegisterRoute
   ApiPublicRunJobsRoute: typeof ApiPublicRunJobsRoute
@@ -840,6 +853,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WebinarsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/billing-webhook': {
+      id: '/api/public/billing-webhook'
+      path: '/api/public/billing-webhook'
+      fullPath: '/api/public/billing-webhook'
+      preLoaderRoute: typeof ApiPublicBillingWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/purchase-webhook': {
       id: '/api/public/purchase-webhook'
       path: '/api/public/purchase-webhook'
@@ -935,6 +955,7 @@ const rootRouteChildren: RootRouteChildren = {
   AutomationsIndexRoute: AutomationsIndexRoute,
   FuncionalidadesIndexRoute: FuncionalidadesIndexRoute,
   WebinarsIndexRoute: WebinarsIndexRoute,
+  ApiPublicBillingWebhookRoute: ApiPublicBillingWebhookRoute,
   ApiPublicPurchaseWebhookRoute: ApiPublicPurchaseWebhookRoute,
   ApiPublicRegisterRoute: ApiPublicRegisterRoute,
   ApiPublicRunJobsRoute: ApiPublicRunJobsRoute,

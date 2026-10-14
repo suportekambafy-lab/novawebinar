@@ -146,7 +146,8 @@ function ActiveSwitch({ webinar }: { webinar: WebinarRow }) {
       const status = next
         ? statusFromLifecycle(lifecycleOf({ ...webinar, status: null }), webinar.replay_enabled)
         : "draft";
-      const { error } = await supabase.from("webinars").update({ status }).eq("id", webinar.id);
+      // Marca a versão: um editor aberto com a versão anterior não guarda por cima deste estado.
+      const { error } = await supabase.from("webinars").update({ status, updated_at: new Date().toISOString() }).eq("id", webinar.id);
       if (error) throw error;
     },
     onSuccess: (_data, next) => {

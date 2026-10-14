@@ -8,7 +8,8 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { normalizeEvent, type ProviderId } from "@/lib/integrations";
 import { isHttpUrl } from "@/lib/utils";
 
-function same(a: string, b: string) {
+/** Compara segredos em tempo constante: o tamanho da diferença não se nota no relógio. */
+export function same(a: string, b: string) {
   const digest = (v: string) => createHash("sha256").update(v, "utf8").digest();
   return timingSafeEqual(digest(a), digest(b));
 }
@@ -398,7 +399,8 @@ export async function deliverOutgoing(
     return (scope ? query.eq("webinar_id", scope) : query.is("webinar_id", null)).maybeSingle();
   };
   let { data: hook, error: readError } = webinarId ? await readHook(webinarId) : { data: null, error: null };
-  if (!hook && !readError) ({ data: hook, error: readError } = await readHook(null));
+  // Sem linha do webinar, ou com ela desligada, vale a da conta.
+  if ((!hook || !hook.enabled) && !readError) ({ data: hook, error: readError } = await readHook(null));
   if (readError) return failed(`Não foi possível ler a integração: ${readError.message}`, true);
   const settings = (hook?.settings ?? {}) as { url?: string; simulate?: string };
   const url = settings.url;

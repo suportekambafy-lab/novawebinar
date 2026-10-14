@@ -257,4 +257,22 @@ describe("parseAmount", () => {
       5000, 5000, 1500, null,
     ]);
   });
+
+  it.each([
+    ["1,500.00", 1500],
+    ["15,000", 15000],
+    ["1.500,00", 1500],
+    ["1500", 1500],
+    ["Kz 1,500.00", 1500],
+    ["197,5", 197.5],
+    ["197.5", 197.5],
+    ["1.234.567", 1234567],
+    [97, 97],
+  ])("%s → %s: o último separador decide", (raw, expected) => {
+    expect(parseAmount(raw)).toBe(expected);
+  });
+
+  it("sem número, nada", () => {
+    expect([parseAmount("abc"), parseAmount(null), parseAmount(Number.NaN)]).toEqual([null, null, null]);
+  });
 });

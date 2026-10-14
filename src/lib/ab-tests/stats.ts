@@ -309,7 +309,7 @@ export type Thresholds = {
 export type Evaluation = {
   objective: Objective;
   control: VariantMetrics | null;
-  /** A melhor variante face ao controlo, ou null sem dados. */
+  /** A melhor variante (pode ser o controlo), ou null sem dados ou em empate. */
   best: VariantMetrics | null;
   comparison: Comparison | null;
   verdict: Verdict;
@@ -340,12 +340,19 @@ export function evaluate(
     return { variant, measure, comparison: variant === control ? null : compare(controlMeasure, measure) };
   });
   const challengers = measures.filter((m) => m.comparison);
-  const best = challengers.reduce<(typeof challengers)[number] | null>(
+  const bestChallenger = challengers.reduce<(typeof challengers)[number] | null>(
     (acc, m) => (acc === null || m.measure.value > acc.measure.value ? m : acc),
     null,
   );
-  const top = best && best.measure.value > controlMeasure.value ? best : null;
-  const comparison = top?.comparison ?? challengers[0]?.comparison ?? null;
+  // A melhor pode ser o próprio controlo: aí compara-se o controlo com a melhor desafiante (o ganho
+  // é o dele) e o teste conclui a favor de A, em vez de ficar para sempre em «sem diferença clara».
+  const controlWins = bestChallenger !== null && bestChallenger.measure.value <= controlMeasure.value;
+  const top = controlWins
+    ? { variant: control, measure: controlMeasure, comparison: compare(bestChallenger.measure, controlMeasure) }
+    : bestChallenger;
+  const comparison = top?.comparison ?? null;
+  // Iguais ao controlo não são uma vitória de A: fica sem vencedora.
+  const tie = controlWins && bestChallenger.measure.value === controlMeasure.value;
 
   const reasons: string[] = [];
   const minVisitors = Math.min(...variants.map((v) => v.visitors));
@@ -364,12 +371,12 @@ export function evaluate(
 
   let verdict: Verdict;
   if (reasons.length > 0) verdict = "insufficient";
-  else if (!comparison || !top) verdict = "none";
+  else if (!comparison || !top || tie) verdict = "none";
   else if (comparison.confidence >= thresholds.confidenceThreshold) verdict = "consistent";
   else if (comparison.confidence >= 80) verdict = "trend";
   else verdict = "none";
 
-  return { objective, control, best: top?.variant ?? null, comparison, verdict, reasons, measures };
+  return { objective, control, best: tie ? null : (top?.variant ?? null), comparison, verdict, reasons, measures };
 }
 
 /** «12,5%», «3,2 €»: o valor de uma medida em texto. */

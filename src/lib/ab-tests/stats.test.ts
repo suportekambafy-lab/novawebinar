@@ -105,6 +105,13 @@ describe("veredito", () => {
     expect(e.reasons[0]).toContain("3 dias");
   });
 
+  it("quando o controlo (A) é a melhor, o teste conclui a favor de A, com o ganho de A sobre a desafiante", () => {
+    const e = evaluate({ ...metrics, variants: [{ ...better, id: "a", label: "A", position: 0 }, { ...control, id: "b", label: "B", position: 1 }] }, "conversions", thresholds, started);
+    expect(e.verdict).toBe("consistent");
+    expect(e.best?.id).toBe("a");
+    expect(e.comparison?.lift).toBeCloseTo(1, 6);
+  });
+
   it("sem diferença entre variantes não há vencedora", () => {
     const same = { ...metrics, variants: [control, { ...control, id: "b", label: "B", position: 1 }] };
     const e = evaluate(same, "conversions", thresholds, started);

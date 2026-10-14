@@ -11,7 +11,7 @@ import { normalizeName, normalizePhone, originAllowed, parseRegistration, RateLi
 import { originalRegistration } from "@/lib/room-viewer.server";
 
 export const WEBINAR_REGISTRATION_COLUMNS =
-  "id, organization_id, status, slug, public_title, internal_name, webhook_url, webhook_enabled, schedule_mode, scheduled_at, session_end_time, recurrence_enabled, recurrence_pattern, recurrence_weekday, recurrence_start_time, recurrence_end_time, recurrence_days, recurrence_times, jit_interval_minutes, jit_skip_night, timezone, duration_seconds, entry_fields, registration_collect_phone, registration_require_phone, video_sources(duration_seconds)";
+  "id, organization_id, status, slug, public_title, internal_name, webhook_url, webhook_enabled, schedule_mode, scheduled_at, session_end_time, recurrence_enabled, recurrence_pattern, recurrence_weekday, recurrence_start_time, recurrence_end_time, recurrence_days, recurrence_times, jit_interval_minutes, jit_skip_night, timezone, duration_seconds, entry_fields, registration_collect_phone, registration_require_phone, replay_enabled, easy_access, video_sources(duration_seconds)";
 
 export async function loadRegistrationWebinar(id: string) {
   const { data, error } = await supabaseAdmin
@@ -65,21 +65,47 @@ function countryNameFromIso(code: string): string {
  * sala mostra. Replay, teste e webinars sem horário não têm sessão. Uma falha não impede a
  * inscrição.
  */
-export async function openRegistrationSession(webinar: RegistrationWebinar, mode: "live" | "replay", teste = false) {
+/**
+ * Just in time: a hora de início que a sala mostrou, se for um começo válido de sessão (múltiplo do
+ * intervalo) e essa sessão ainda estiver a decorrer. Qualquer outro valor é ignorado (null).
+ */
+export function jitShownSlot(
+  webinar: { schedule_mode?: string | null; jit_interval_minutes?: number | null },
+  durationSeconds: number,
+  shownStartMs: number | null,
+  nowMs: number,
+): number | null {
+  if (webinar.schedule_mode !== "jit" || shownStartMs === null || !Number.isFinite(shownStartMs)) return null;
+  const interval = Math.max(5, webinar.jit_interval_minutes ?? 15) * 60_000;
+  if (shownStartMs % interval !== 0 || shownStartMs > nowMs) return null;
+  const endMs = shownStartMs + Math.max(0, durationSeconds) * 1000;
+  return durationSeconds > 0 && nowMs < endMs ? shownStartMs : null;
+}
+
+export async function openRegistrationSession(
+  webinar: RegistrationWebinar,
+  mode: "live" | "replay",
+  teste = false,
+  /** A hora de início que a sala mostrou à pessoa («Ao vivo»), para a inscrição ficar nessa sessão. */
+  shownStartMs: number | null = null,
+) {
   if (mode !== "live" || teste) return null;
   const { sessionWindow } = await import("@/lib/schedule");
-  const window = sessionWindow({
-    ...webinar,
-    duration_seconds: webinar.video_sources?.duration_seconds || webinar.duration_seconds,
-  });
+  const duration = webinar.video_sources?.duration_seconds || webinar.duration_seconds;
+  const window = sessionWindow({ ...webinar, duration_seconds: duration });
   if (window.startMs === null) return null;
   // Data única que já terminou: quem chega agora não entra na sessão encerrada (fica como o
   // replay, sem sessão). A repetição e o just in time devolvem sempre a sessão actual ou a próxima.
   if (window.endMs !== null && window.endMs <= Date.now()) return null;
+  // Just in time: a sala disse «Ao vivo» com a sessão de há pouco, mas a tolerância de dois minutos passou
+  // enquanto a pessoa preenchia o formulário. Fica nessa sessão (ainda a decorrer), não na seguinte.
+  const shown = jitShownSlot(webinar, duration, shownStartMs, Date.now());
+  const startMs = shown ?? window.startMs;
+  const endMs = shown !== null ? (duration ? shown + duration * 1000 : null) : window.endMs;
   const opened = await supabaseAdmin.rpc("open_webinar_session", {
     _webinar_id: webinar.id,
-    _starts_at: new Date(window.startMs).toISOString(),
-    ...(window.endMs !== null ? { _ends_at: new Date(window.endMs).toISOString() } : {}),
+    _starts_at: new Date(startMs).toISOString(),
+    ...(endMs !== null ? { _ends_at: new Date(endMs).toISOString() } : {}),
   });
   if (opened.error) {
     console.error(`[sessão] por abrir no webinar ${webinar.id}: ${opened.error.message}`);

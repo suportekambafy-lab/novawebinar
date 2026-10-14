@@ -152,13 +152,37 @@ export const saveAgentScope = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/**
+ * Só as colunas que o editor muda (migrações 0039 e 0073). Estrito: id, webinar_id,
+ * organization_id e as datas nunca entram, senão um membro mudava o agente de webinar ou de conta.
+ */
+const agentPatch = z
+  .object({
+    enabled: z.boolean(),
+    mode: z.enum(["desativado", "copiloto", "hibrido", "automatico"]),
+    agent_name: z.string().max(80),
+    intro: z.string().max(500),
+    personality: z.record(z.string(), z.unknown()),
+    response_speed: z.string().max(40),
+    show_typing: z.boolean(),
+    permissions: z.record(z.string(), z.boolean()),
+    never_say: z.string().max(4000),
+    escalation: z.record(z.string(), z.unknown()),
+    confidence_threshold: z.number().min(0).max(1),
+    avatar_url: z.string().max(2000).nullable(),
+    use_webinar_transcript: z.boolean(),
+    scope: z.enum(["webinar", "account"]),
+  })
+  .partial()
+  .strict();
+
 export const saveAgent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) =>
     z
       .object({
         webinarId: uuid,
-        patch: z.record(z.string(), z.unknown()),
+        patch: agentPatch,
       })
       .parse(data),
   )
