@@ -575,6 +575,16 @@ export const sendAgentSuggestion = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!conversation) throw new Error("Conversa não encontrada.");
 
+    // Reclama a sugestão antes de enviar: dois membros da equipa a carregar em «Enviar» ao mesmo tempo
+    // só enviam uma vez (o segundo vê que já foi enviada).
+    const { data: claimed } = await supabase
+      .from("ai_agent_messages")
+      .update({ status: "sent", updated_at: new Date().toISOString() })
+      .eq("id", row.id)
+      .eq("status", "suggested")
+      .select("id");
+    if (!claimed?.length) throw new Error("Esta sugestão já foi enviada ou descartada.");
+
     const { error: sendError } = await supabase.from("private_messages").insert({
       conversation_id: row.conversation_id,
       organization_id: row.organization_id,
@@ -583,7 +593,10 @@ export const sendAgentSuggestion = createServerFn({ method: "POST" })
       body: data.finalAnswer,
       agent_message_id: row.id,
     });
-    if (sendError) throw new Error("Não foi possível enviar a resposta.");
+    if (sendError) {
+      await supabase.from("ai_agent_messages").update({ status: "suggested" }).eq("id", row.id);
+      throw new Error("Não foi possível enviar a resposta.");
+    }
     await supabase
       .from("private_conversations")
       .update({ status: "active" })

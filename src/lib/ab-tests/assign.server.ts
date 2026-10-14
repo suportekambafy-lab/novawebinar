@@ -225,7 +225,11 @@ export async function attributePurchase(input: {
       .select("id, webinar_id")
       .in("id", assignments.map((a) => a.variant_id));
     const webinarOf = new Map((variants ?? []).map((v) => [v.id, v.webinar_id]));
-    const matching = assignments.filter((a) => !input.webinarId || webinarOf.get(a.variant_id) === input.webinarId);
+    // Sem webinar na venda: só o teste da atribuição mais recente desta pessoa (antes a venda contava
+    // para todos os testes em que o e-mail alguma vez entrou).
+    const matching = input.webinarId
+      ? assignments.filter((a) => webinarOf.get(a.variant_id) === input.webinarId)
+      : assignments.slice(0, 1);
     // Uma por teste: a atribuição mais recente de cada um.
     const seen = new Set<string>();
     for (const a of matching) {

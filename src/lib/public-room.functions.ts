@@ -287,14 +287,26 @@ export const sendPublicRoomMessage = createServerFn({ method: "POST" })
         })
         .select("id")
         .single();
-      if (error) throw new Error("Não foi possível abrir a conversa.");
-      conversationId = created.id;
-      await supabaseAdmin.rpc("support_log_conversation_event", {
-        _conversation_id: created.id,
-        _name: "conversation_created",
-        _actor_kind: "contact",
-        _data: { channel: "webinar_chat" },
-      });
+      if (error?.code === "23505") {
+        // Duas mensagens quase ao mesmo tempo: a outra abriu a conversa; usa-se essa.
+        const { data: again, error: againError } = await supabaseAdmin
+          .from("private_conversations")
+          .select("id")
+          .eq("participant_id", participant.id)
+          .maybeSingle();
+        if (againError || !again) throw new Error(UNAVAILABLE);
+        conversationId = again.id;
+      } else if (error || !created) {
+        throw new Error("Não foi possível abrir a conversa.");
+      } else {
+        conversationId = created.id;
+        await supabaseAdmin.rpc("support_log_conversation_event", {
+          _conversation_id: created.id,
+          _name: "conversation_created",
+          _actor_kind: "contact",
+          _data: { channel: "webinar_chat" },
+        });
+      }
     }
 
     const { error: messageError } = await supabaseAdmin.from("private_messages").insert({

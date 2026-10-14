@@ -469,6 +469,12 @@ describe("hora do dia nas esperas (fuso do webinar)", () => {
   const s = { startsAt: "2026-07-10T20:00:00Z", endsAt: "2026-07-10T21:00:00Z" };
   const wait = (mode: WaitNode["mode"], minutes: number, time?: string): WaitNode => ({ id: "w", kind: "wait", mode, minutes, ...(time ? { time } : {}), next: "m" });
 
+  it("«Até uma data» inválida não envia já: a espera fica sem alvo", () => {
+    const bad: WaitNode = { id: "w", kind: "wait", mode: "until", minutes: 0, at: "2026-13-45T00:00", next: "m" };
+    expect(waitTarget(bad, now, s, LX)).toBeNull();
+    expect(waitTarget({ ...bad, at: "2026-07-20T10:00:00Z" }, now, s, LX)?.toISOString()).toBe("2026-07-20T10:00:00.000Z");
+  });
+
   it("1 dia antes da sessão, às 09:00: na véspera, às 09:00 de Lisboa", () => {
     expect(waitTarget(wait("before_session", 1440, "09:00"), now, s, LX)?.toISOString()).toBe("2026-07-09T08:00:00.000Z");
     expect(waitLabel(wait("before_session", 1440, "09:00"))).toBe("1 dia antes da sessão, às 09:00");

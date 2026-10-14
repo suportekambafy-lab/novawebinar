@@ -122,6 +122,8 @@ export function validateSteps(steps: Steps): string[] {
     if (node.kind === "wait" && node.mode !== "until" && !(Number(node.minutes) >= 0 && Number(node.minutes) <= 43200))
       errors.push("Uma espera tem de ter entre 0 minutos e 30 dias.");
     if (node.kind === "wait" && node.mode === "until" && !node.at) errors.push("Falta a data da espera.");
+    else if (node.kind === "wait" && node.mode === "until" && Number.isNaN(Date.parse(node.at ?? "")))
+      errors.push("A data da espera não é válida.");
     if (node.kind === "wait" && node.time != null && !TIME_RE.test(node.time)) errors.push("A hora da espera tem de ser HH:MM.");
   }
   // Ciclos: um caminho nunca volta a um passo onde já passou.
@@ -349,8 +351,11 @@ export function waitTarget(node: WaitNode, now: Date, session: SessionTimes | nu
       return session?.startsAt ? new Date(Date.parse(session.startsAt) - m) : null;
     case "after_session":
       return session?.endsAt ? new Date(Date.parse(session.endsAt) + m) : null;
-    case "until":
-      return node.at ? new Date(node.at) : null;
+    case "until": {
+      // Uma data inválida (guardada à mão, pela API) não envia já: a espera fica sem alvo.
+      const at = node.at ? Date.parse(node.at) : Number.NaN;
+      return Number.isNaN(at) ? null : new Date(at);
+    }
   }
 }
 
@@ -362,7 +367,7 @@ export type LogEntry = {
   at: string;
   outcome: string;
   /** Envios de uma mensagem: canal, destino, estado. */
-  sends?: { channel: Channel; target: Target; to: string | null; status: "simulated" | "delivered" | "failed" | "shared"; http_status?: number | null; error?: string | null }[];
+  sends?: { channel: Channel; target: Target; to: string | null; status: "simulated" | "delivered" | "failed" | "shared" | "skipped"; http_status?: number | null; error?: string | null }[];
   /** Resultado de um ramo. */
   branch?: "yes" | "no";
 };

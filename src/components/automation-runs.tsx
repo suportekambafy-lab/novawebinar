@@ -314,6 +314,7 @@ const SEND_STATUS = {
   delivered: "entregue",
   failed: "falhou",
   shared: "o grupo já a recebeu nesta sessão",
+  skipped: "saltado",
 } as const;
 
 function StepsLog({

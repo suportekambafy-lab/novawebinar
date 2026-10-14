@@ -322,6 +322,22 @@ async function executeAction(
       entry.outcome = `Mensagem por configurar (falta ${missing.join(", ")})`;
       return { ok: false, transient: false, result: null, error: entry.outcome, entry };
     }
+    // Sem telefone (ou sem e-mail) não há para onde enviar a esta pessoa: este envio salta-se e os
+    // outros seguem. Antes a execução inteira falhava e nenhuma mensagem seguinte saía.
+    if (send.target === "contact") {
+      const noPhone = (send.channel === "whatsapp" || send.channel === "sms") && !data.contact.phone;
+      const noEmail = send.channel === "email" && !data.contact.email;
+      if (noPhone || noEmail) {
+        entry.sends!.push({
+          channel: send.channel,
+          target: "contact",
+          to: null,
+          status: "skipped",
+          error: noPhone ? "Sem telefone" : "Sem e-mail",
+        });
+        continue;
+      }
+    }
     const sendVars = varsFor(send);
     const to =
       send.target === "group"

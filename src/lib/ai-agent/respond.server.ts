@@ -484,6 +484,27 @@ function humanDelay(speed: string, answer: string) {
  * Trata uma mensagem real de um participante: a IA tenta resolver; o que não
  * resolve, ou não deve resolver sozinha, passa para o núcleo de casos.
  */
+/**
+ * A IA ainda pode responder nesta conversa? Não, se alguém a assumiu (caso aberto), se a equipa a pausou
+ * nesta conversa ou em todas, ou se pediu uma pessoa. Uma leitura falhada conta como «não»: na dúvida, a
+ * resposta fica como sugestão em vez de sair por cima de uma pessoa.
+ */
+async function aiStillAnswers(conversationId: string, organizationId: string): Promise<boolean> {
+  const [convo, org, open] = await Promise.all([
+    db.from("private_conversations").select("ai_paused, needs_human").eq("id", conversationId).maybeSingle(),
+    db.from("organizations").select("ai_paused").eq("id", organizationId).maybeSingle(),
+    db
+      .from("support_cases")
+      .select("id", { count: "exact", head: true })
+      .eq("conversation_id", conversationId)
+      .not("status", "in", "(resolved,closed)"),
+  ]);
+  if (convo.error || org.error || open.error) return false;
+  if (convo.data?.ai_paused || convo.data?.needs_human) return false;
+  if ((org.data as { ai_paused?: boolean } | null)?.ai_paused) return false;
+  return (open.count ?? 0) === 0;
+}
+
 export async function handleParticipantMessage(input: {
   webinarId: string;
   organizationId: string;
@@ -732,7 +753,12 @@ export async function handleParticipantMessage(input: {
   let caseId: string | null = null;
   let finalReason = escalationReason;
 
-  if (autoSend) {
+  // O modelo demora segundos: entretanto alguém pode ter assumido a conversa ou pausado a IA. Confirma-se
+  // outra vez mesmo antes de enviar; se mudou, a resposta fica como sugestão para a pessoa e nada sai.
+  const stillMine = autoSend ? await aiStillAnswers(input.conversationId, input.organizationId) : false;
+  if (autoSend && !stillMine) {
+    if (messageId) await db.from("ai_agent_messages").update({ status: "suggested" }).eq("id", messageId);
+  } else if (autoSend) {
     const { error: sendError } = await db.from("private_messages").insert({
       conversation_id: input.conversationId,
       organization_id: input.organizationId,
