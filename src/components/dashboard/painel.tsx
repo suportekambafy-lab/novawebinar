@@ -233,13 +233,64 @@ function HeroStat({ value, label, extra }: { value: number; label: string; extra
 }
 
 /** Um teste A/B a correr, como um banner do hero: as variantes lado a lado, quem vai à frente e a ligação. */
+/**
+ * O fundo do slide de um teste A/B: não é a capa do webinar (essa é do 1.º slide). As variantes lado a lado,
+ * cada uma com a capa do seu webinar tingida na cor da variante e a letra em grande, e «VS» ao meio.
+ */
+function AbBackdrop({
+  variants,
+  imageOfWebinar,
+  leadId,
+}: {
+  variants: AbTestSummary["metrics"]["variants"];
+  imageOfWebinar?: ((webinarId: string) => HeroData["image"] | null) | undefined;
+  leadId: string | null;
+}) {
+  return (
+    <div aria-hidden className="absolute inset-0">
+      <div className="absolute inset-0 bg-[radial-gradient(70%_120%_at_90%_0%,rgba(91,214,138,.22),transparent_60%),radial-gradient(60%_90%_at_100%_100%,rgba(0,114,245,.25),transparent_70%)]" />
+      <div className="absolute inset-y-0 right-0 flex w-full md:w-[62%]">
+        {variants.map((v, i) => {
+          const image = v.webinarId ? imageOfWebinar?.(v.webinarId) : null;
+          const poster = image ? image.cover || posterFromUrl(image.video) : null;
+          return (
+            <div
+              key={v.id}
+              className="relative min-w-0 flex-1 overflow-hidden"
+              style={i > 0 ? { clipPath: "polygon(12% 0, 100% 0, 100% 100%, 0 100%)", marginLeft: "-6%" } : undefined}
+            >
+              {poster && <img src={poster} alt="" className="size-full scale-105 object-cover grayscale-[35%]" />}
+              <div className="absolute inset-0 mix-blend-multiply" style={{ background: variantColor(v.position), opacity: 0.55 }} />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,10,10,.1),rgba(10,10,10,.7))]" />
+              <span
+                className={cn(
+                  "absolute top-4 right-5 text-[64px] leading-none font-black tracking-tight text-white/25 sm:text-[96px]",
+                  v.id === leadId && "text-white/45",
+                )}
+              >
+                {v.label}
+              </span>
+            </div>
+          );
+        })}
+        {variants.length === 2 && (
+          <span className="absolute top-1/2 left-1/2 grid size-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-[#0a0a0a]/80 text-[12px] font-bold tracking-wider text-white ring-1 ring-white/25 backdrop-blur">
+            VS
+          </span>
+        )}
+      </div>
+      <div className="absolute inset-0 bg-[linear-gradient(0deg,#0a0a0a_38%,rgba(10,10,10,.5)_70%,rgba(10,10,10,.15))] md:bg-[linear-gradient(90deg,#0a0a0a_0%,#0a0a0a_32%,rgba(10,10,10,.6)_52%,rgba(10,10,10,0)_75%)]" />
+    </div>
+  );
+}
+
 function AbHeroSlide({
   summary,
-  image,
+  imageOfWebinar,
   onCopyLink,
 }: {
   summary: AbTestSummary;
-  image: HeroData["image"] | null;
+  imageOfWebinar?: ((webinarId: string) => HeroData["image"] | null) | undefined;
   onCopyLink: (slug: string) => void;
 }) {
   const { test, metrics, evaluation } = summary;
@@ -250,7 +301,7 @@ function AbHeroSlide({
   const confident = evaluation.verdict === "consistent";
   return (
     <section className="relative isolate flex h-full min-h-[420px] min-w-0 flex-col justify-end overflow-hidden rounded-card bg-[#0a0a0a] text-white md:min-h-[360px]">
-      <Backdrop image={image ?? { cover: null, video: null, at: 0 }} />
+      <AbBackdrop variants={metrics.variants} imageOfWebinar={imageOfWebinar} leadId={best?.id ?? null} />
       <div className="relative flex flex-col gap-6 p-5 pb-12 sm:p-8 sm:pb-12 md:max-w-[680px] md:p-10 md:pb-12">
         <div className="flex flex-col gap-3">
           <span className="inline-flex w-fit items-center gap-1.5 rounded-pill bg-white/12 px-2.5 py-1 text-[12px] font-medium backdrop-blur">
@@ -358,10 +409,6 @@ export function HeroCarousel({
   }, [count, paused]);
 
   const go = (i: number) => setIndex(((i % count) + count) % count);
-  const imageFor = (t: AbTestSummary) => {
-    const lead = t.evaluation.best?.webinarId ?? t.variants[0]?.webinar_id ?? null;
-    return (lead && imageOfWebinar?.(lead)) || null;
-  };
 
   return (
     <div
@@ -386,7 +433,7 @@ export function HeroCarousel({
             {i === 0 ? (
               <Hero hero={hero} loading={loading} hasWebinars={hasWebinars} onCopyLink={onCopyLink} />
             ) : (
-              <AbHeroSlide summary={tests[i - 1]!} image={imageFor(tests[i - 1]!)} onCopyLink={onCopyLink} />
+              <AbHeroSlide summary={tests[i - 1]!} imageOfWebinar={imageOfWebinar} onCopyLink={onCopyLink} />
             )}
           </div>
         ))}
