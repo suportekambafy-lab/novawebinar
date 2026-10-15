@@ -36,6 +36,7 @@ import {
 import { fetchAll } from "@/lib/fetch-all";
 import { HEARTS_EVENT } from "@/lib/room-reactions.functions";
 import { useLiveViewers } from "@/lib/live-presence";
+import { useAbTests } from "@/lib/ab-tests/hooks";
 import { nowCount, useRoomNow } from "@/lib/room-now";
 import { FACT_COLUMNS, funnelSummary } from "@/lib/participant-facts";
 import { lifecycleLabel, type WebinarLifecycle } from "@/lib/schedule";
@@ -89,6 +90,8 @@ function Dashboard() {
   const viewers = useLiveViewers(orgId);
   // A segunda fonte do «na sala agora»: os batimentos que a sala grava (ver room-now.ts).
   const roomNow = useRoomNow(orgId);
+  // Os testes A/B: o que estiver a correr aparece no hero.
+  const { data: abTests } = useAbTests(orgId);
 
   // «Agora» só no browser (no servidor a hora seria outra) e a andar de minuto a minuto.
   const [now, setNow] = useState<number | null>(null);
@@ -379,6 +382,7 @@ function Dashboard() {
       <SyncJobsOverview className="mb-4" />
       <DashboardView
         hero={hero}
+        abTests={abTests}
         heroLoading={loadingWebinars}
         hasWebinars={list.length > 0}
         onCopyLink={copyLink}

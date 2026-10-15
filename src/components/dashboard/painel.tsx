@@ -29,6 +29,8 @@ import { cloneElement, useState, type ReactElement, type ReactNode } from "react
 import { Avatar, TintIcon } from "@/components/ds";
 import { posterFromUrl } from "@/components/video-thumb";
 import { Button } from "@/components/ui/button";
+import { AbHeroCard, pickHeroTest } from "@/components/dashboard/ab-hero-card";
+import type { AbTestSummary } from "@/lib/ab-tests/ab-tests.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DayEntry } from "@/lib/agenda";
 import { zoneParts } from "@/lib/schedule";
@@ -230,18 +232,28 @@ export function Hero({
   loading,
   hasWebinars,
   onCopyLink,
+  abTests,
 }: {
   hero: HeroData | null;
   loading: boolean;
   hasWebinars: boolean;
   onCopyLink: (slug: string) => void;
+  /** Os testes A/B da conta: o activo aparece num cartão dentro do hero. */
+  abTests?: AbTestSummary[] | undefined;
 }) {
   const live = hero?.kind === "live";
+  const ab = loading ? { featured: null, others: 0 } : pickHeroTest(abTests, hero?.id ?? null);
   return (
     <section className="relative isolate flex min-h-[420px] min-w-0 flex-col justify-end overflow-hidden rounded-card bg-[#0a0a0a] text-white md:min-h-[360px]">
       {hero && <Backdrop key={hero.id} image={hero.image} />}
       {!hero && !loading && <Backdrop image={{ cover: null, video: null, at: 0 }} />}
-      <div className="relative flex flex-col gap-6 p-5 sm:p-8 md:max-w-[620px] md:p-10">
+      {/* Teste A/B a correr: no computador por cima da imagem, à direita; no telemóvel no fim do hero. */}
+      {ab.featured && (
+        <div className="relative order-last p-5 pt-0 sm:p-8 sm:pt-0 lg:absolute lg:right-8 lg:bottom-8 lg:order-none lg:w-[340px] lg:p-0 xl:right-10 xl:bottom-10">
+          <AbHeroCard summary={ab.featured} others={ab.others} />
+        </div>
+      )}
+      <div className={cn("relative flex flex-col gap-6 p-5 sm:p-8 md:max-w-[620px] md:p-10", ab.featured && "lg:max-w-[calc(100%-400px)]")}>
         {loading ? (
           <>
             <Skeleton className="h-6 w-36 bg-white/10" />
@@ -1223,7 +1235,9 @@ export function DashboardView({
   agenda,
   today,
   recent,
+  abTests,
 }: {
+  abTests?: AbTestSummary[] | undefined;
   hero: HeroData | null;
   heroLoading: boolean;
   hasWebinars: boolean;
@@ -1241,7 +1255,7 @@ export function DashboardView({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <Hero hero={hero} loading={heroLoading} hasWebinars={hasWebinars} onCopyLink={onCopyLink} />
+      <Hero hero={hero} loading={heroLoading} hasWebinars={hasWebinars} onCopyLink={onCopyLink} abTests={abTests} />
 
       <div className="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-12">
         <div className="min-w-0 lg:col-span-7">
