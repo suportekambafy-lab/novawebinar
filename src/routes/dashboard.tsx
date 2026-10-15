@@ -383,6 +383,10 @@ function Dashboard() {
       <DashboardView
         hero={hero}
         abTests={abTests}
+        imageOfWebinar={(id) => {
+          const w = list.find((x) => x.id === id);
+          return w ? imageOf(w) : null;
+        }}
         heroLoading={loadingWebinars}
         hasWebinars={list.length > 0}
         onCopyLink={copyLink}

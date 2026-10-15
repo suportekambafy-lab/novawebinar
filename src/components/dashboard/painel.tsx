@@ -9,6 +9,8 @@ import {
   ArrowUpRight,
   Banknote,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   CircleAlert,
   Clock,
   Heart,
@@ -22,14 +24,17 @@ import {
   ShoppingBag,
   Smartphone,
   Tablet,
+  Trophy,
   Users,
   Video,
 } from "lucide-react";
-import { cloneElement, useState, type ReactElement, type ReactNode } from "react";
+import { cloneElement, useEffect, useState, type ReactElement, type ReactNode } from "react";
 import { Avatar, TintIcon } from "@/components/ds";
 import { posterFromUrl } from "@/components/video-thumb";
 import { Button } from "@/components/ui/button";
-import { AbHeroCard, pickHeroTest } from "@/components/dashboard/ab-hero-card";
+import { activeHeroTests } from "@/components/dashboard/ab-hero-card";
+import { pct, variantColor } from "@/components/ab-tests/parts";
+import { formatMeasure, measureOf, objectiveInfo, VERDICT_LABEL, type Objective } from "@/lib/ab-tests/stats";
 import type { AbTestSummary } from "@/lib/ab-tests/ab-tests.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DayEntry } from "@/lib/agenda";
@@ -227,33 +232,222 @@ function HeroStat({ value, label, extra }: { value: number; label: string; extra
   );
 }
 
-export function Hero({
+/** Um teste A/B a correr, como um banner do hero: as variantes lado a lado, quem vai à frente e a ligação. */
+function AbHeroSlide({
+  summary,
+  image,
+  onCopyLink,
+}: {
+  summary: AbTestSummary;
+  image: HeroData["image"] | null;
+  onCopyLink: (slug: string) => void;
+}) {
+  const { test, metrics, evaluation } = summary;
+  const objective = test.objective as Objective;
+  const total = metrics.variants.reduce((sum, v) => sum + v.visitors, 0);
+  const best = evaluation.best;
+  const comparison = evaluation.comparison;
+  const confident = evaluation.verdict === "consistent";
+  return (
+    <section className="relative isolate flex h-full min-h-[420px] min-w-0 flex-col justify-end overflow-hidden rounded-card bg-[#0a0a0a] text-white md:min-h-[360px]">
+      <Backdrop image={image ?? { cover: null, video: null, at: 0 }} />
+      <div className="relative flex flex-col gap-6 p-5 pb-12 sm:p-8 sm:pb-12 md:max-w-[680px] md:p-10 md:pb-12">
+        <div className="flex flex-col gap-3">
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-pill bg-white/12 px-2.5 py-1 text-[12px] font-medium backdrop-blur">
+            <span className="relative flex size-2">
+              <span className="absolute inset-0 animate-ping rounded-full bg-[#5BD68A]/70 motion-reduce:animate-none" />
+              <span className="relative size-2 rounded-full bg-[#5BD68A]" />
+            </span>
+            Teste A/B a correr
+          </span>
+          <h2 className="line-clamp-2 text-[28px] leading-[1.08] font-semibold tracking-[var(--tracking-display)] sm:text-[40px]">
+            {test.name}
+          </h2>
+          <p className="text-[15px] text-white/75">
+            <span className="font-medium text-white">{objectiveInfo(objective).label}</span>
+            {" · "}
+            {total > 0 ? `${nf.format(total)} visitantes` : "à espera dos primeiros visitantes"}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-x-8 gap-y-4">
+          {metrics.variants.map((v) => {
+            const share = total > 0 ? v.visitors / total : 0;
+            return (
+              <div key={v.id} className="min-w-[8.5rem]">
+                <p className="flex items-baseline gap-2 text-[26px] leading-none font-semibold tracking-[var(--tracking-display)] sm:text-[30px]">
+                  {formatMeasure(measureOf(v, objective))}
+                  {best?.id === v.id && (
+                    <Trophy className="size-4 self-center text-[#FFC46B]" strokeWidth={2} aria-label="à frente" />
+                  )}
+                </p>
+                <p className="mt-1.5 flex items-center gap-1.5 text-[12px] text-white/60">
+                  <span className="size-2 rounded-full" style={{ background: variantColor(v.position) }} aria-hidden />
+                  Variante {v.label} · {nf.format(v.visitors)} ({total > 0 ? pct(share, 0) : "—"})
+                </p>
+                <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/12" aria-hidden>
+                  <div className="h-full rounded-full" style={{ width: `${Math.round(share * 100)}%`, background: variantColor(v.position) }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <p className={cn("text-[14px]", confident ? "text-[#5BD68A]" : "text-white/75")}>
+          {VERDICT_LABEL[evaluation.verdict]}
+          {best && comparison
+            ? ` · ${best.label} ${Number.isFinite(comparison.lift) ? `${comparison.lift >= 0 ? "+" : ""}${pct(comparison.lift, 0)}` : "à frente"} com ${Math.round(comparison.confidence)}% de confiança`
+            : ""}
+        </p>
+
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap [&>*:first-child]:col-span-2">
+          <Button asChild size="lg" className="bg-white text-[#0a0a0a] hover:bg-white/85">
+            <Link to="/ab-tests/$testId" params={{ testId: test.id }}>
+              Ver teste <ArrowRight />
+            </Link>
+          </Button>
+          <Button
+            size="lg"
+            variant="ghost"
+            className="bg-white/10 text-white hover:bg-white/20"
+            onClick={() => onCopyLink(test.slug)}
+          >
+            <Link2 /> Copiar link
+          </Button>
+          <Button asChild size="lg" variant="ghost" className="bg-white/10 text-white hover:bg-white/20">
+            <Link to="/ab-tests">Todos os testes</Link>
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * O hero do Painel em slides: o webinar em destaque e, a seguir, cada teste A/B a correr. Passa sozinho de
+ * 7 em 7 segundos (pára com o rato por cima, com o foco lá dentro, ou com «reduzir movimento»); os pontos
+ * e as setas mudam à mão. Os slides ocupam a mesma célula: a altura é a do maior, sem saltos.
+ */
+export function HeroCarousel({
   hero,
   loading,
   hasWebinars,
   onCopyLink,
   abTests,
+  imageOfWebinar,
 }: {
   hero: HeroData | null;
   loading: boolean;
   hasWebinars: boolean;
   onCopyLink: (slug: string) => void;
-  /** Os testes A/B da conta: o activo aparece num cartão dentro do hero. */
   abTests?: AbTestSummary[] | undefined;
+  /** A imagem de um webinar da conta (a capa da variante que vai à frente serve de fundo ao teste). */
+  imageOfWebinar?: ((webinarId: string) => HeroData["image"] | null) | undefined;
 }) {
-  const live = hero?.kind === "live";
-  const ab = loading ? { featured: null, others: 0 } : pickHeroTest(abTests, hero?.id ?? null);
+  const tests = loading ? [] : activeHeroTests(abTests, hero?.id ?? null);
+  const count = 1 + tests.length;
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const current = Math.min(index, count - 1);
+
+  useEffect(() => {
+    if (count < 2 || paused) return;
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => setIndex((i) => (i + 1) % count), 7000);
+    return () => window.clearInterval(timer);
+  }, [count, paused]);
+
+  const go = (i: number) => setIndex(((i % count) + count) % count);
+  const imageFor = (t: AbTestSummary) => {
+    const lead = t.evaluation.best?.webinarId ?? t.variants[0]?.webinar_id ?? null;
+    return (lead && imageOfWebinar?.(lead)) || null;
+  };
+
   return (
-    <section className="relative isolate flex min-h-[420px] min-w-0 flex-col justify-end overflow-hidden rounded-card bg-[#0a0a0a] text-white md:min-h-[360px]">
-      {hero && <Backdrop key={hero.id} image={hero.image} />}
-      {!hero && !loading && <Backdrop image={{ cover: null, video: null, at: 0 }} />}
-      {/* Teste A/B a correr: no computador por cima da imagem, à direita; no telemóvel no fim do hero. */}
-      {ab.featured && (
-        <div className="relative order-last p-5 pt-0 sm:p-8 sm:pt-0 lg:absolute lg:right-8 lg:bottom-8 lg:order-none lg:w-[340px] lg:p-0 xl:right-10 xl:bottom-10">
-          <AbHeroCard summary={ab.featured} others={ab.others} />
+    <div
+      className="relative min-w-0"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocusCapture={() => setPaused(true)}
+      onBlurCapture={() => setPaused(false)}
+      aria-roledescription={count > 1 ? "carrossel" : undefined}
+    >
+      <div className="grid">
+        {[0, ...tests.map((_, i) => i + 1)].map((i) => (
+          <div
+            key={i}
+            className={cn(
+              "[grid-area:1/1] min-w-0 transition-opacity duration-500 motion-reduce:transition-none",
+              i === current ? "opacity-100" : "pointer-events-none opacity-0",
+            )}
+            aria-hidden={i !== current}
+            {...(i !== current ? { inert: true } : {})}
+          >
+            {i === 0 ? (
+              <Hero hero={hero} loading={loading} hasWebinars={hasWebinars} onCopyLink={onCopyLink} />
+            ) : (
+              <AbHeroSlide summary={tests[i - 1]!} image={imageFor(tests[i - 1]!)} onCopyLink={onCopyLink} />
+            )}
+          </div>
+        ))}
+      </div>
+      {count > 1 && (
+        <div className="absolute right-4 bottom-4 z-10 flex items-center gap-2 sm:right-6 sm:bottom-5">
+          <button
+            type="button"
+            onClick={() => go(current - 1)}
+            aria-label="Anterior"
+            className="grid size-8 place-items-center rounded-full bg-white/12 text-white backdrop-blur transition hover:bg-white/25"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+          <div className="flex items-center gap-1.5" role="tablist" aria-label="Destaques">
+            {Array.from({ length: count }, (_, i) => (
+              <button
+                key={i}
+                type="button"
+                role="tab"
+                aria-selected={i === current}
+                aria-label={i === 0 ? "Webinar em destaque" : `Teste A/B ${i}`}
+                onClick={() => go(i)}
+                className={cn(
+                  "h-1.5 rounded-full transition-all duration-300",
+                  i === current ? "w-6 bg-white" : "w-1.5 bg-white/40 hover:bg-white/70",
+                )}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => go(current + 1)}
+            aria-label="Seguinte"
+            className="grid size-8 place-items-center rounded-full bg-white/12 text-white backdrop-blur transition hover:bg-white/25"
+          >
+            <ChevronRight className="size-4" />
+          </button>
         </div>
       )}
-      <div className={cn("relative flex flex-col gap-6 p-5 sm:p-8 md:max-w-[620px] md:p-10", ab.featured && "lg:max-w-[calc(100%-400px)]")}>
+    </div>
+  );
+}
+
+export function Hero({
+  hero,
+  loading,
+  hasWebinars,
+  onCopyLink,
+}: {
+  hero: HeroData | null;
+  loading: boolean;
+  hasWebinars: boolean;
+  onCopyLink: (slug: string) => void;
+}) {
+  const live = hero?.kind === "live";
+  return (
+    <section className="relative isolate flex h-full min-h-[420px] min-w-0 flex-col justify-end overflow-hidden rounded-card bg-[#0a0a0a] text-white md:min-h-[360px]">
+      {hero && <Backdrop key={hero.id} image={hero.image} />}
+      {!hero && !loading && <Backdrop image={{ cover: null, video: null, at: 0 }} />}
+      <div className="relative flex flex-col gap-6 p-5 pb-12 sm:p-8 sm:pb-12 md:max-w-[620px] md:p-10 md:pb-12">
         {loading ? (
           <>
             <Skeleton className="h-6 w-36 bg-white/10" />
@@ -1236,8 +1430,10 @@ export function DashboardView({
   today,
   recent,
   abTests,
+  imageOfWebinar,
 }: {
   abTests?: AbTestSummary[] | undefined;
+  imageOfWebinar?: ((webinarId: string) => HeroData["image"] | null) | undefined;
   hero: HeroData | null;
   heroLoading: boolean;
   hasWebinars: boolean;
@@ -1255,7 +1451,14 @@ export function DashboardView({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <Hero hero={hero} loading={heroLoading} hasWebinars={hasWebinars} onCopyLink={onCopyLink} abTests={abTests} />
+      <HeroCarousel
+        hero={hero}
+        loading={heroLoading}
+        hasWebinars={hasWebinars}
+        onCopyLink={onCopyLink}
+        abTests={abTests}
+        imageOfWebinar={imageOfWebinar}
+      />
 
       <div className="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-12">
         <div className="min-w-0 lg:col-span-7">
