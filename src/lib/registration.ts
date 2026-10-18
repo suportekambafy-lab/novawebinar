@@ -42,6 +42,22 @@ export function normalizeName(name: string) {
 }
 
 /** Telefone/WhatsApp: só dígitos, com o "+" inicial quando existe. null quando não serve. */
+/**
+ * A sala e o formulário juntam o indicativo escolhido ao que a pessoa escreveu. Quem escreve o número já com o
+ * indicativo («+244 923…», sem o «+», que o campo tira) ficava com ele duas vezes: «+244 244923456789».
+ * Só se tira a repetição quando o resto é comprido demais para um número nacional (12+ dígitos): um número
+ * brasileiro de 11 dígitos com o DDD 55 fica como está.
+ */
+export function withoutRepeatedDial(raw: string | null | undefined): string | null | undefined {
+  if (!raw) return raw;
+  const match = /^\s*\+(\d{1,4})\s+(.*)$/.exec(raw);
+  if (!match) return raw;
+  const dial = match[1]!;
+  const rest = match[2]!.replace(/\D/g, "");
+  if (rest.length >= 12 && rest.startsWith(dial)) return `+${dial} ${rest.slice(dial.length)}`;
+  return raw;
+}
+
 export function normalizePhone(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const trimmed = raw.trim();

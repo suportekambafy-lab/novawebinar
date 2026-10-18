@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { clientIp, normalizePhone, originAllowed, parseRegistration, RateLimiter, readLimitedBody, resolveUtm } from "./registration";
+import { clientIp, normalizePhone, originAllowed, parseRegistration, RateLimiter, readLimitedBody, resolveUtm, withoutRepeatedDial } from "./registration";
 
 describe("normalização", () => {
   it("telefone: só dígitos com o + internacional; curto demais não serve", () => {
@@ -216,7 +216,7 @@ describe("inscrição pela captura externa", () => {
   it("muitas inscrições seguidas do mesmo visitante: 429", async () => {
     const same = { ...req(), ip: "1.2.3.4" };
     const statuses: number[] = [];
-    for (let i = 0; i < 12; i += 1) {
+    for (let i = 0; i < 62; i += 1) {
       answers["participants"] = [
         { data: { id: "p-1", webinar_session_id: "session-1" }, error: null },
       ];
@@ -462,11 +462,11 @@ describe("captura: limite por visitante e sessão terminada", () => {
   it("o mesmo visitante a trocar de webinar_id não abre um limite novo", async () => {
     answers["webinars"] = { data: null, error: null };
     const statuses: number[] = [];
-    for (let i = 0; i < 12; i += 1) {
+    for (let i = 0; i < 62; i += 1) {
       const id = `33333333-3333-4333-8333-${String(i).padStart(12, "0")}`;
       statuses.push((await registerFromCapture({ webinar_id: id, name: "Rui", email: "rui@exemplo.com" }, { ...req(null), ip: "9.9.9.9" })).status);
     }
-    expect(statuses.slice(0, 10).every((s) => s === 404)).toBe(true);
+    expect(statuses.slice(0, 60).every((s) => s === 404)).toBe(true);
     expect(statuses.slice(-2)).toEqual([429, 429]);
   });
 
@@ -475,5 +475,23 @@ describe("captura: limite por visitante e sessão terminada", () => {
     const res = await registerFromCapture(body({ submission_id: "sub-depois-do-fim" }), req());
     expect(res.status).toBe(201);
     expect(inserts.find((i) => i.table === "participants")!.row).toMatchObject({ webinar_session_id: null });
+  });
+});
+
+describe("withoutRepeatedDial", () => {
+  it("tira o indicativo escrito outra vez à frente do número", () => {
+    expect(withoutRepeatedDial("+244 244923456789")).toBe("+244 923456789");
+    expect(withoutRepeatedDial("+244 244 923 456 789")).toBe("+244 923456789");
+    expect(withoutRepeatedDial("+351 351912345678")).toBe("+351 912345678");
+    expect(withoutRepeatedDial("+55 5511912345678")).toBe("+55 11912345678");
+  });
+
+  it("deixa números nacionais e vazios como estão", () => {
+    expect(withoutRepeatedDial("+244 923 456 789")).toBe("+244 923 456 789");
+    // DDD 55 no Brasil: 11 dígitos é um número nacional.
+    expect(withoutRepeatedDial("+55 55991234567")).toBe("+55 55991234567");
+    expect(withoutRepeatedDial("923456789")).toBe("923456789");
+    expect(withoutRepeatedDial(undefined)).toBeUndefined();
+    expect(withoutRepeatedDial("")).toBe("");
   });
 });

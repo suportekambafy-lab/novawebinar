@@ -203,6 +203,7 @@ export const joinPublicRoom = createServerFn({ method: "POST" })
 
     // Os campos da página: os mesmos que a pessoa viu, com as mesmas regras.
     const { parseEntryFields, validateEntry } = await import("@/lib/entry-fields");
+    const { normalizePhone, withoutRepeatedDial } = await import("@/lib/registration");
     const fields = parseEntryFields(webinar.entry_fields, {
       collectPhone: webinar.registration_collect_phone,
       requirePhone: webinar.registration_require_phone,
@@ -214,9 +215,11 @@ export const joinPublicRoom = createServerFn({ method: "POST" })
       ...(data.answers ?? {}),
       name: data.name ?? "",
       email: data.email ?? "",
-      whatsapp: data.phone ?? "",
+      whatsapp: withoutRepeatedDial(data.phone) ?? "",
     });
     if (!entry.ok) throw new Error(entry.message);
+    // O mesmo formato da captura externa («+244923456789»): assim a mesma pessoa é reconhecida nos dois caminhos.
+    const phone = entry.phone ? (normalizePhone(entry.phone) ?? entry.phone) : entry.phone;
 
     // Inscrição ao vivo num webinar com horário: fica ligada à sessão global, com a
     // mesma janela que a sala mostra (o mesmo caminho da captura externa).
@@ -226,7 +229,7 @@ export const joinPublicRoom = createServerFn({ method: "POST" })
       {
         name: entry.name,
         email: entry.email,
-        phone: entry.phone,
+        phone,
         answers: entry.answers,
         mode: data.mode,
         device: data.device ?? fallback.device,
@@ -247,8 +250,11 @@ export const joinPublicRoom = createServerFn({ method: "POST" })
     );
     if (error || !participant) throw new Error("Não foi possível entrar na sala.");
     // Num teste A/B, a participação e o e-mail ficam ligados à variante desta pessoa (nunca trava a entrada).
-    const { linkAssignment } = await import("@/lib/ab-tests/assign.server");
-    await linkAssignment({ webinarId: webinar.id, participantId: participant.id, email: entry.email });
+    // A sala de teste não entra nos números do teste A/B (nem leva o e-mail de quem testa).
+    if (!data.teste) {
+      const { linkAssignment } = await import("@/lib/ab-tests/assign.server");
+      await linkAssignment({ webinarId: webinar.id, participantId: participant.id, email: entry.email });
+    }
     const { roomToken } = await import("@/lib/public-room.server");
     return { token: roomToken(participant.id), name: participant.name };
   });
@@ -459,8 +465,9 @@ export const getRoomLiveCount = createServerFn({ method: "GET" })
         .select("id", { count: "exact", head: true })
         .eq("webinar_id", data.webinarId)
         .gte("joined_at", new Date(Date.now() - 10 * 60_000).toISOString())
-        // Quem só deu o WhatsApp não tem e-mail e conta; só a sala de teste fica de fora.
-        .or("email.is.null,email.not.like.%@sala.local");
+        // Quem só deu o WhatsApp não tem e-mail e conta, tal como os convidados do acesso fácil
+        // (convidado-…@sala.local); só a sala de teste (teste-…@sala.local) fica de fora.
+        .or("email.is.null,email.not.like.teste-%@sala.local");
       if (error) throw new Error(UNAVAILABLE);
       return count ?? 0;
     })();

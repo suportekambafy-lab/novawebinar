@@ -166,7 +166,8 @@ export async function linkAssignment(input: { webinarId: string; participantId: 
       .from("ab_tests")
       .select("id")
       .in("id", candidates.map((c) => c.ab_test_id))
-      .in("status", ["active", "paused", "completed"]);
+      // Um teste terminado (ou o original de um duplicado, que usa os mesmos webinars) já não recebe visitas.
+      .in("status", ["active", "paused"]);
     const open = new Set((tests ?? []).map((t) => t.id));
     for (const variant of candidates.filter((c) => open.has(c.ab_test_id))) {
       const { data: assignment } = await supabaseAdmin
@@ -175,7 +176,8 @@ export async function linkAssignment(input: { webinarId: string; participantId: 
         .eq("ab_test_id", variant.ab_test_id)
         .eq("visitor_id", visitor)
         .maybeSingle();
-      if (!assignment) continue;
+      // Só a variante desta pessoa: quem tem A e abre o link do webinar de B não passa a contar para A com B.
+      if (!assignment || assignment.variant_id !== variant.id) continue;
       const patch: { participant_id?: string; email?: string } = {};
       if (!assignment.participant_id) patch.participant_id = input.participantId;
       if (!assignment.email && input.email && !input.email.endsWith("@sala.local")) patch.email = input.email.toLowerCase();
@@ -222,13 +224,21 @@ export async function attributePurchase(input: {
     if (!assignments?.length) return;
     const { data: variants } = await supabaseAdmin
       .from("ab_test_variants")
-      .select("id, webinar_id")
-      .in("id", assignments.map((a) => a.variant_id));
-    const webinarOf = new Map((variants ?? []).map((v) => [v.id, v.webinar_id]));
+      .select("id, ab_test_id, webinar_id")
+      .in("ab_test_id", [...new Set(assignments.map((a) => a.ab_test_id))]);
+    // Os webinars de cada teste: uma venda presa ao webinar de uma variante (o receptor desse webinar, um
+    // checkout partilhado) conta também para quem estava na outra variante do mesmo teste.
+    const webinarsOf = new Map<string, Set<string>>();
+    for (const v of variants ?? []) {
+      if (!v.webinar_id) continue;
+      const set = webinarsOf.get(v.ab_test_id) ?? new Set<string>();
+      set.add(v.webinar_id);
+      webinarsOf.set(v.ab_test_id, set);
+    }
     // Sem webinar na venda: só o teste da atribuição mais recente desta pessoa (antes a venda contava
     // para todos os testes em que o e-mail alguma vez entrou).
     const matching = input.webinarId
-      ? assignments.filter((a) => webinarOf.get(a.variant_id) === input.webinarId)
+      ? assignments.filter((a) => webinarsOf.get(a.ab_test_id)?.has(input.webinarId!) ?? false)
       : assignments.slice(0, 1);
     // Uma por teste: a atribuição mais recente de cada um.
     const seen = new Set<string>();

@@ -7,7 +7,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { leadSource } from "@/lib/contacts";
 import { fieldApiKey, parseEntryFields, validateEntry } from "@/lib/entry-fields";
-import { normalizeName, normalizePhone, originAllowed, parseRegistration, RateLimiter, type RegistrationError } from "@/lib/registration";
+import { normalizeName, normalizePhone, withoutRepeatedDial, originAllowed, parseRegistration, RateLimiter, type RegistrationError } from "@/lib/registration";
 import { originalRegistration } from "@/lib/room-viewer.server";
 
 export const WEBINAR_REGISTRATION_COLUMNS =
@@ -185,6 +185,9 @@ export async function createRegistration(
     .single();
   if (error) return { participant: null, error };
 
+  // A mesma pessoa outra vez (outro aparelho, o link do e-mail, o formulário de novo): a linha nova serve a
+  // sala dela, mas o CRM e os webhooks já receberam esta inscrição; não se envia um contacto em duplicado.
+  if (original) return { participant, error: null };
   const { notifyWebhook } = await import("@/lib/public-room.server");
   await notifyWebhook(webinar.webhook_url, r.teste ? false : webinar.webhook_enabled, {
     event: "registration",
@@ -217,8 +220,12 @@ export async function createRegistration(
 
 /* ---------- Captura externa (formulário embed ou API) ---------- */
 
-export const perVisitor = new RateLimiter(10, 60_000);
-export const perTarget = new RateLimiter(300, 60_000);
+/**
+ * Os mesmos limites largos da sala: um site que envia pela API sai de um só IP, e as operadoras móveis
+ * partilham um IP entre muitos telemóveis; com 10 por minuto perdiam-se inscrições reais num lançamento.
+ */
+export const perVisitor = new RateLimiter(60, 60_000);
+export const perTarget = new RateLimiter(5000, 60_000);
 /**
  * A sala tem limites mais largos: as operadoras partilham um IP entre muitos telemóveis, e uma audiência
  * de 10 000 pessoas entra a mais de 1000 por minuto antes de começar. Chega para travar um ciclo num só IP.
@@ -317,7 +324,7 @@ export async function registerFromCapture(
     collectPhone: webinar.registration_collect_phone,
     requirePhone: webinar.registration_require_phone,
   });
-  const entry = validateEntry(fields, { ...(v.answers ?? {}), name: v.name ?? "", email: v.email ?? "", whatsapp: v.phone ?? "" });
+  const entry = validateEntry(fields, { ...(v.answers ?? {}), name: v.name ?? "", email: v.email ?? "", whatsapp: withoutRepeatedDial(v.phone) ?? "" });
   const invalid = (key: string, message: string) =>
     fail({ status: 400, code: "invalid", message, fields: { [key]: message } }, allowOrigin);
   if (!entry.ok) {
