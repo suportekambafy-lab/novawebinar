@@ -28,6 +28,11 @@ export type ScheduleInput = {
   recurrence_times?: readonly string[] | null;
   timezone?: string | null;
   duration_seconds?: number | null;
+  /**
+   * Contagem depois de começar (segundos): o vídeo só arranca este tempo depois da hora, por isso a
+   * sessão acaba outro tanto mais tarde. Ver `startDelaySeconds` em room-logic.
+   */
+  start_delay_seconds?: number | null;
 };
 
 export type SessionWindow = {
@@ -114,7 +119,13 @@ export function zonedTimeToMs(
 /** Devolve a janela da sessão em curso, ou da próxima, para o momento indicado. */
 export function sessionWindow(webinar: ScheduleInput, nowMs = Date.now()): SessionWindow {
   const timezone = safeZone(webinar.timezone);
-  const duration = Math.max(0, webinar.duration_seconds ?? 0) * 1000;
+  const video = Math.max(0, webinar.duration_seconds ?? 0) * 1000;
+  const delay = Math.max(0, webinar.start_delay_seconds ?? 0) * 1000;
+  // A sessão dura o vídeo mais a contagem depois de começar, que atrasa o arranque do vídeo.
+  const duration = video ? video + delay : 0;
+  // Com essa contagem, uma hora de fim marcada nunca corta o fim do vídeo.
+  const fitVideo = (startMs: number, endMs: number) =>
+    delay && duration ? Math.max(endMs, startMs + duration) : endMs;
 
   // Just in time: arranca de X em X minutos.
   if (webinar.schedule_mode === "jit") {
@@ -176,14 +187,17 @@ export function sessionWindow(webinar: ScheduleInput, nowMs = Date.now()): Sessi
           timezone,
         );
         const endMs = end
-          ? zonedTimeToMs(
-              base.getUTCFullYear(),
-              base.getUTCMonth() + 1,
-              base.getUTCDate() +
-                (end.hour * 60 + end.minute <= start.hour * 60 + start.minute ? 1 : 0),
-              end.hour,
-              end.minute,
-              timezone,
+          ? fitVideo(
+              startMs,
+              zonedTimeToMs(
+                base.getUTCFullYear(),
+                base.getUTCMonth() + 1,
+                base.getUTCDate() +
+                  (end.hour * 60 + end.minute <= start.hour * 60 + start.minute ? 1 : 0),
+                end.hour,
+                end.minute,
+                timezone,
+              ),
             )
           : duration
             ? startMs + duration
@@ -220,6 +234,7 @@ export function sessionWindow(webinar: ScheduleInput, nowMs = Date.now()): Sessi
         endMs = zonedTimeToMs(day.year, day.month, day.day, end.hour, end.minute, timezone);
         // Se a hora de fim for anterior à de início, a sessão termina no dia seguinte.
         if (endMs <= startMs) endMs += 24 * 60 * 60 * 1000;
+        endMs = fitVideo(startMs, endMs);
       } else if (duration) {
         endMs = startMs + duration;
       }

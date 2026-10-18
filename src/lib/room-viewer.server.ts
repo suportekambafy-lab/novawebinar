@@ -98,7 +98,9 @@ async function moveIfEnded(participantId: string, state: ViewerState): Promise<V
   const { loadRegistrationWebinar, openRegistrationSession } = await import("@/lib/registration.server");
   const webinar = await loadRegistrationWebinar(participant.webinar_id);
   if (!webinar || !repeatsSessions(webinar)) return null;
-  const duration = webinar.video_sources?.duration_seconds || webinar.duration_seconds || 0;
+  const { startDelaySeconds } = await import("@/lib/room-logic");
+  const video = webinar.video_sources?.duration_seconds || webinar.duration_seconds || 0;
+  const duration = video ? video + startDelaySeconds(webinar.chat_settings) : 0;
   const ended = Number.isFinite(endMs)
     ? endMs <= Date.now()
     : duration > 0 && Date.parse(state.session.startsAt) + duration * 1000 <= Date.now();

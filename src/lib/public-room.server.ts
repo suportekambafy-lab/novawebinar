@@ -13,7 +13,7 @@ import { fetchAll } from "@/lib/fetch-all";
 import { flowGroupInvite } from "@/lib/flow-group.server";
 import { PROVIDERS } from "@/lib/integrations";
 import { notifyOutgoing } from "@/lib/integrations.server";
-import { liveSettings, parseExtraOffers, roomFormat } from "@/lib/room-logic";
+import { liveSettings, parseExtraOffers, roomFormat, startDelaySeconds } from "@/lib/room-logic";
 import { sessionWindow } from "@/lib/schedule";
 import { smallImage } from "@/lib/shrink-image";
 
@@ -227,7 +227,11 @@ async function buildRoom(webinar: RoomRow) {
   }
 
   const duration = source?.duration_seconds || webinar.duration_seconds;
-  const session = sessionWindow({ ...webinar, duration_seconds: duration });
+  const session = sessionWindow({
+    ...webinar,
+    duration_seconds: duration,
+    start_delay_seconds: startDelaySeconds(webinar.chat_settings),
+  });
 
   // Vídeo guardado no bucket privado: URL assinado. Vídeos externos (ou enviados antes de existir
   // `storage_path`) mantêm o link guardado.

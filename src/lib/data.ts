@@ -5,6 +5,7 @@ import { LEDGER_LIMIT } from "@/lib/credits";
 import { isSegmentRules, type SegmentRules } from "@/lib/segments";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { webinarLifecycle, type ScheduleInput, type WebinarLifecycle } from "@/lib/schedule";
+import { startDelaySeconds } from "@/lib/room-logic";
 import {
   buildJourney,
   PARTICIPATION_COLUMNS,
@@ -256,11 +257,17 @@ export function lifecycleOf(
   webinar: ScheduleInput & {
     status?: string | null;
     video_sources?: { duration_seconds: number | null } | null;
+    /** Com ele, a contagem depois de começar entra no fim da sessão. */
+    chat_settings?: unknown;
   },
   nowMs = Date.now(),
 ): WebinarLifecycle {
   return webinarLifecycle(
-    { ...webinar, duration_seconds: webinar.video_sources?.duration_seconds || webinar.duration_seconds || 0 },
+    {
+      ...webinar,
+      duration_seconds: webinar.video_sources?.duration_seconds || webinar.duration_seconds || 0,
+      start_delay_seconds: startDelaySeconds(webinar.chat_settings),
+    },
     nowMs,
   );
 }

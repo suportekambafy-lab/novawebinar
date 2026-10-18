@@ -155,14 +155,17 @@ async function requestAudienceMeta() {
  */
 async function replayOpen(webinar: {
   replay_enabled?: boolean | null;
+  chat_settings?: unknown;
   duration_seconds?: number | null;
   video_sources?: { duration_seconds?: number | null } | null;
 } & Parameters<typeof import("@/lib/schedule").sessionWindow>[0]) {
   if (!webinar.replay_enabled) return false;
   const { sessionWindow } = await import("@/lib/schedule");
+  const { startDelaySeconds } = await import("@/lib/room-logic");
   const window = sessionWindow({
     ...webinar,
     duration_seconds: webinar.video_sources?.duration_seconds || webinar.duration_seconds || 0,
+    start_delay_seconds: startDelaySeconds(webinar.chat_settings),
   });
   if (window.startMs === null) return true;
   if (window.endedMs !== null) return true;

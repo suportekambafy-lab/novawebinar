@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   COUNTDOWN_OFF,
+  startDelaySeconds,
   activeOffer,
   offerDeadlinePassed,
   isGroupLink,
@@ -638,5 +639,15 @@ describe("temporizador da aula", () => {
     expect(liveSettings({ live: { timer: { on: true, start: -5, end: 60 } } }).timer.on).toBe(
       false,
     );
+  });
+});
+
+describe("startDelaySeconds", () => {
+  it("lê a contagem depois de começar das definições da sala", () => {
+    expect(startDelaySeconds({ live: { countdown: { on: false, afterOn: true, after: 10 } } })).toBe(600);
+    expect(startDelaySeconds({ live: { countdown: { on: true, afterOn: false, after: 10 } } })).toBe(0);
+    expect(startDelaySeconds({ live: { countdown: null } })).toBe(0);
+    expect(startDelaySeconds({ live: "x" })).toBe(0);
+    expect(startDelaySeconds(null)).toBe(0);
   });
 });

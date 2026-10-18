@@ -59,6 +59,48 @@ describe("repetição automática", () => {
   });
 });
 
+describe("contagem depois de começar", () => {
+  // O caso do teste A/B do leilão: repete às 20:30, vídeo de 3083 s, 10 min de contagem depois da hora.
+  const daily = {
+    recurrence_enabled: true,
+    recurrence_pattern: "daily",
+    recurrence_times: ["19:00"],
+    recurrence_end_time: "",
+    timezone: "UTC",
+    duration_seconds: 3083,
+    start_delay_seconds: 600,
+  };
+
+  it("a sessão acaba o vídeo depois de a contagem acabar, não à duração do vídeo", () => {
+    const window = sessionWindow(daily, start + 60_000);
+    expect(window).toMatchObject({ startMs: start, endMs: start + (600 + 3083) * 1000, live: true });
+    // Aos 3083 s desde a hora o vídeo ainda vai a 2483 s: a sessão continua.
+    expect(webinarLifecycle(daily, start + 3083 * 1000)).toMatchObject({ state: "live" });
+    expect(webinarLifecycle(daily, start + 3683 * 1000)).toMatchObject({ state: "scheduled", lastEndedMs: start + 3683 * 1000 });
+  });
+
+  it("data única: o fim pela duração também conta a contagem", () => {
+    const window = sessionWindow({ ...single, start_delay_seconds: 300 }, start);
+    expect(window.endMs).toBe(start + H + 300_000);
+  });
+
+  it("uma hora de fim marcada antes de o vídeo acabar não o corta", () => {
+    const early = { ...single, session_end_time: "20:00", start_delay_seconds: 600 };
+    expect(sessionWindow(early, start).endMs).toBe(start + H + 600_000);
+    const late = { ...single, session_end_time: "21:30", start_delay_seconds: 600 };
+    expect(sessionWindow(late, start).endMs).toBe(start + 2.5 * H);
+  });
+
+  it("sem contagem, tudo fica como estava", () => {
+    expect(sessionWindow({ ...single, session_end_time: "19:30" }, start).endMs).toBe(start + H / 2);
+    expect(sessionWindow({ ...single, start_delay_seconds: 0 }, start).endMs).toBe(start + H);
+  });
+
+  it("sem duração conhecida não se inventa o fim", () => {
+    expect(sessionWindow({ ...single, duration_seconds: 0, start_delay_seconds: 600 }, start).endMs).toBeNull();
+  });
+});
+
 describe("regra do fim, igual à do varrimento da base de dados", () => {
   it("termina exactamente à hora prevista", () => {
     expect(sessionState(start, start + H, start + H - 1)).toBe("live");

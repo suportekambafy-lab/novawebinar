@@ -529,6 +529,17 @@ export function roomCountdown(
   };
 }
 
+/**
+ * Os segundos da contagem depois de começar, lidos de `chat_settings`: o vídeo arranca este tempo depois
+ * da hora marcada, e a sessão tem de acabar outro tanto mais tarde (senão corta o fim do vídeo).
+ */
+export function startDelaySeconds(chatSettings: unknown): number {
+  const live = (chatSettings as { live?: unknown } | null)?.live;
+  const raw = typeof live === "object" && live !== null ? (live as { countdown?: unknown }).countdown : null;
+  const countdown = parseCountdown(raw);
+  return countdown?.afterOn ? countdown.after * 60 : 0;
+}
+
 export const OFFER_COLOR_DEFAULT = "#E8440C";
 /** As sugestões ao lado do seletor: laranja da marca, vermelho, verde, azul e roxo. */
 export const OFFER_COLOR_SUGGESTIONS = [

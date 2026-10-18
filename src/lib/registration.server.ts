@@ -11,7 +11,7 @@ import { normalizeName, normalizePhone, originAllowed, parseRegistration, RateLi
 import { originalRegistration } from "@/lib/room-viewer.server";
 
 export const WEBINAR_REGISTRATION_COLUMNS =
-  "id, organization_id, status, slug, public_title, internal_name, webhook_url, webhook_enabled, schedule_mode, scheduled_at, session_end_time, recurrence_enabled, recurrence_pattern, recurrence_weekday, recurrence_start_time, recurrence_end_time, recurrence_days, recurrence_times, jit_interval_minutes, jit_skip_night, timezone, duration_seconds, entry_fields, registration_collect_phone, registration_require_phone, replay_enabled, easy_access, video_sources(duration_seconds)";
+  "id, organization_id, status, slug, public_title, internal_name, webhook_url, webhook_enabled, schedule_mode, scheduled_at, session_end_time, recurrence_enabled, recurrence_pattern, recurrence_weekday, recurrence_start_time, recurrence_end_time, recurrence_days, recurrence_times, jit_interval_minutes, jit_skip_night, timezone, duration_seconds, entry_fields, registration_collect_phone, registration_require_phone, replay_enabled, easy_access, chat_settings, video_sources(duration_seconds)";
 
 export async function loadRegistrationWebinar(id: string) {
   const { data, error } = await supabaseAdmin
@@ -91,8 +91,12 @@ export async function openRegistrationSession(
 ) {
   if (mode !== "live" || teste) return null;
   const { sessionWindow } = await import("@/lib/schedule");
-  const duration = webinar.video_sources?.duration_seconds || webinar.duration_seconds;
-  const window = sessionWindow({ ...webinar, duration_seconds: duration });
+  const { startDelaySeconds } = await import("@/lib/room-logic");
+  const delay = startDelaySeconds(webinar.chat_settings);
+  const video = webinar.video_sources?.duration_seconds || webinar.duration_seconds;
+  const window = sessionWindow({ ...webinar, duration_seconds: video, start_delay_seconds: delay });
+  // A sessão dura o vídeo mais a contagem depois de começar (o vídeo arranca mais tarde).
+  const duration = video ? video + delay : 0;
   if (window.startMs === null) return null;
   // Data única que já terminou: quem chega agora não entra na sessão encerrada (fica como o
   // replay, sem sessão). A repetição e o just in time devolvem sempre a sessão actual ou a próxima.
