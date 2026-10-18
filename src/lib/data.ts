@@ -593,6 +593,12 @@ export function useAutomationRun(id: string | undefined) {
 }
 
 /** Arquivar desliga e tira da lista; as execuções ficam. Restaurar volta a mostrar, desligada. */
+/** Arquivar um fluxo desliga as automações dele: escondidas, continuavam a enviar (e em duplicado com um fluxo novo). */
+export async function deactivateWorkflowAutomations(workflowId: string) {
+  const { error } = await supabase.from("automations").update({ active: false }).eq("workflow_id", workflowId);
+  if (error) throw error;
+}
+
 export async function setAutomationArchived(id: string, archived: boolean) {
   const { error } = await supabase
     .from("automations")
@@ -983,7 +989,9 @@ function contactsQuery(organizationId: string, f: Omit<ContactFilters, "page">) 
   // Vírgulas e parênteses partem o filtro `or` do PostgREST.
   const term = f.search.replace(/[,()*%"\\]/g, " ").trim();
   if (term) q = q.or(`name.ilike.%${term}%,email.ilike.%${term}%,phone.ilike.%${term}%`);
-  return q.order("last_seen_at", { ascending: false });
+  // O id desempata: com muitos «nunca visto» (nulos), a ordem entre páginas mudava e a exportação
+  // repetia uns contactos e saltava outros.
+  return q.order("last_seen_at", { ascending: false }).order("id");
 }
 
 export function useContacts(organizationId: string | undefined, filters: ContactFilters) {

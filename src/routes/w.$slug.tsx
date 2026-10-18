@@ -384,6 +384,17 @@ export function PublicRoom({
     retry: 1,
     queryFn: () => fetchViewerState({ data: { token: viewer!.token } }),
   });
+  // Passou para a sessão seguinte com uma inscrição nova: a sala troca de credencial e esquece a posição
+  // da sessão anterior (senão a oferta, os comentários e as compras dessa posição apareciam logo à entrada).
+  const movedToken = viewerState.data?.token;
+  useEffect(() => {
+    if (!movedToken || !viewer || movedToken === viewer.token) return;
+    const next = { token: movedToken, name: viewer.name };
+    rememberViewer(viewerKey, next);
+    setResumeSeconds(null);
+    setResumePeakSeconds(null);
+    setViewer(next);
+  }, [movedToken, viewer, viewerKey]);
   const plan: ViewerPlan =
     data && viewer && !testMode && !equipa && roomMode === "live"
       ? viewerPlan(viewerState.data, {

@@ -94,7 +94,9 @@ export function agentOutcome(input: {
   const passes = alwaysHuman || passesToTeam(agent, personAsked ? PASS_PERSON : PASS_UNKNOWN);
   // Motivo desligado: a resposta, se existir, segue como se o modelo tivesse decidido responder.
   const wantsAnswer = decision.decision === "RESPOND" || (!passes && hasAnswer);
-  const autoSend = !alwaysHuman && wantsAnswer && (mode === "automatico" ? true : mode === "hibrido" ? confident : false);
+  // Sem texto não se envia nada (uma mensagem vazia dava a pergunta por resolvida): vira caso para a equipa.
+  const autoSend =
+    !alwaysHuman && wantsAnswer && hasAnswer && (mode === "automatico" ? true : mode === "hibrido" ? confident : false);
   // Copiloto: a equipa aprova cada resposta; não é um caso, é uma sugestão à espera. O que não passa à equipa fica igual.
   const suggestionOnly = !alwaysHuman && !autoSend && wantsAnswer && hasAnswer && (mode === "copiloto" || !passes);
   const ignore = !alwaysHuman && (decision.decision === "IGNORE" || (!passes && !hasAnswer));

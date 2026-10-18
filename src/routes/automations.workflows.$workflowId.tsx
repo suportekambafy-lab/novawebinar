@@ -22,6 +22,7 @@ import {
   addModelAutomations,
   addWorkflowAutomation,
   saveWorkflow,
+  deactivateWorkflowAutomations,
   setAutomationArchived,
   setWorkflowWebinar,
   updateAutomation,
@@ -543,6 +544,7 @@ function WorkflowConfig({
   };
   const archive = async () => {
     try {
+      await deactivateWorkflowAutomations(workflow.id);
       await saveWorkflow(workflow.id, { archived_at: new Date().toISOString() });
       invalidate(["workflows"]);
       toast.success("Fluxo arquivado. As automações e as execuções ficam guardadas.");

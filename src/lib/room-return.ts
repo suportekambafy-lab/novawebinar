@@ -8,6 +8,11 @@ export type ViewerState = {
   session: { startsAt: string; endsAt: string | null } | null;
   watchedSeconds: number;
   bought: boolean;
+  /**
+   * Passou para a sessão seguinte: a credencial da inscrição nova nessa sessão. A anterior fica como estava
+   * (o que viu conta nessa sessão); a sala troca de credencial e começa sem a posição antiga.
+   */
+  token?: string;
 };
 
 export type ViewerPlan =

@@ -113,10 +113,41 @@ async function moveIfEnded(participantId: string, state: ViewerState): Promise<V
     .eq("id", sessionId)
     .maybeSingle();
   if (!session || session.starts_at === state.session.startsAt) return null;
-  const { error } = await supabaseAdmin
+  // Uma inscrição nova na sessão seguinte, com os dados da pessoa (não se muda a antiga): o que viu fica na
+  // sessão em que viu, e a sessão nova não herda «assistiu», tempo visto nem cliques que não são dela.
+  const { data: old } = await supabaseAdmin
     .from("participants")
-    .update({ webinar_session_id: sessionId })
-    .eq("id", participantId);
-  if (error) return null;
-  return { ...state, session: { startsAt: session.starts_at, endsAt: session.ended_at ?? session.ends_at } };
+    .select(
+      "webinar_id, organization_id, name, email, phone, device, city, country, country_code, utm_source, utm_medium, utm_campaign, utm_content, utm_term, referrer, registration_source, form_id, consent_at, answers",
+    )
+    .eq("id", participantId)
+    .maybeSingle();
+  if (!old) return null;
+  const { roomToken } = await import("@/lib/public-room.server");
+  const moved = (id: string) => ({
+    ...state,
+    session: { startsAt: session.starts_at, endsAt: session.ended_at ?? session.ends_at },
+    watchedSeconds: 0,
+    token: roomToken(id),
+  });
+  // Já tem inscrição nessa sessão (outra visita, um browser que não guardou a credencial): usa-se essa.
+  if (old.email || old.phone) {
+    let same = supabaseAdmin
+      .from("participants")
+      .select("id")
+      .eq("webinar_id", old.webinar_id)
+      .eq("webinar_session_id", sessionId)
+      .neq("id", participantId)
+      .limit(1);
+    same = old.email ? same.eq("email", old.email) : same.eq("phone", old.phone!);
+    const { data: existing } = await same;
+    if (existing?.[0]) return moved(existing[0].id);
+  }
+  const { data: created, error } = await supabaseAdmin
+    .from("participants")
+    .insert({ ...old, viewing_mode: "live", webinar_session_id: sessionId })
+    .select("id")
+    .single();
+  if (error || !created) return null;
+  return moved(created.id);
 }

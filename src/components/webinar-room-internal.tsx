@@ -148,7 +148,8 @@ export function InternalWebinarRoom({
         cta_end_seconds: webinar.cta_end_seconds,
         video_url: webinar.video_sources?.source_url ?? null,
         video_provider: webinar.video_sources?.provider ?? null,
-        duration_seconds: webinar.video_sources?.duration_seconds ?? webinar.duration_seconds,
+        // Como em toda a parte: um vídeo sem duração lida (0) usa a do webinar.
+        duration_seconds: webinar.video_sources?.duration_seconds || webinar.duration_seconds,
       }}
     />
   );
