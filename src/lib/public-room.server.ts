@@ -122,14 +122,19 @@ export type RoomPayload = Awaited<ReturnType<typeof buildRoom>>;
  * A sala de um endereço. Primeiro um webinar com esse slug; senão um teste A/B com esse endereço, que
  * entrega a variante desta pessoa (ver ab-tests/assign.server) sem o endereço mudar.
  */
-export async function loadPublicRoom(slug: string, meta: import("@/lib/ab-tests/assign.server").AssignmentMeta = {}, preview?: string | null) {
+export async function loadPublicRoom(
+  slug: string,
+  meta: import("@/lib/ab-tests/assign.server").AssignmentMeta = {},
+  preview?: string | null,
+  person: import("@/lib/ab-tests/assign.server").KnownPerson = {},
+) {
   const bySlug = await cachedRoom(`slug:${slug}`, async () => {
     const row = await readRoomRow("slug", slug);
     return row ? buildRoom(row) : null;
   });
   if (bySlug) return bySlug;
   const { resolveTestSlug } = await import("@/lib/ab-tests/assign.server");
-  const resolved = await resolveTestSlug(slug, meta, preview);
+  const resolved = await resolveTestSlug(slug, meta, preview, person);
   if (!resolved) return null;
   const byId = await cachedRoom(`id:${resolved.webinarId}`, async () => {
     const row = await readRoomRow("id", resolved.webinarId);

@@ -15,6 +15,8 @@ const slugSchema = z.object({
   utm_content: z.string().trim().max(120).optional(),
   /** Pré-visualização de uma variante de um teste A/B («A», «B»…), sem contar como visita. */
   variante: z.string().trim().max(2).optional(),
+  /** O e-mail que o link traz (links dos e-mails e do WhatsApp): num teste A/B, a variante que o lead já viu. */
+  email: z.string().trim().max(160).optional(),
 });
 
 const joinSchema = z.object({
@@ -41,6 +43,8 @@ const joinSchema = z.object({
   referrer: z.string().trim().max(200).optional(),
   /** Armadilha para robôs: um campo invisível que uma pessoa nunca preenche. */
   website: z.string().max(200).optional(),
+  /** Entrada pelo link de um teste A/B: o servidor reconhece o lead e devolve-o à variante que já viu. */
+  abTestId: z.string().uuid().optional(),
 });
 
 /** A credencial que joinPublicRoom entrega: o id da participação assinado pelo servidor. */
@@ -135,7 +139,7 @@ export const getPublicRoom = createServerFn({ method: "GET" })
       utmMedium: data.utm_medium,
       utmCampaign: data.utm_campaign,
       utmContent: data.utm_content,
-    }, data.variante);
+    }, data.variante, { email: data.email ?? null });
   });
 
 /** Deduz dispositivo e localização a partir do pedido quando o navegador não os envia. */
@@ -192,7 +196,7 @@ export const joinPublicRoom = createServerFn({ method: "POST" })
     if (data.website?.trim()) throw new Error("Não foi possível entrar na sala.");
     const fallback = await requestAudienceMeta();
 
-    const webinar = await loadRegistrationWebinar(data.webinarId).catch(() => null);
+    let webinar = await loadRegistrationWebinar(data.webinarId).catch(() => null);
     if (!webinar) throw new Error("Webinar indisponível.");
     if (webinar.status === "draft" && !data.teste) throw new Error("Webinar indisponível.");
     if (!roomPerTarget.allow(webinar.id)) throw new Error(RATE_LIMITED);
@@ -220,6 +224,24 @@ export const joinPublicRoom = createServerFn({ method: "POST" })
     if (!entry.ok) throw new Error(entry.message);
     // O mesmo formato da captura externa («+244923456789»): assim a mesma pessoa é reconhecida nos dois caminhos.
     const phone = entry.phone ? (normalizePhone(entry.phone) ?? entry.phone) : entry.phone;
+
+    // Teste A/B: um lead que já viu outra variante (noutro aparelho, sem o cookie) volta a essa, ao vivo ou no
+    // replay. Sem registo dele, fica a variante que o tráfego lhe deu.
+    let switched = false;
+    if (data.abTestId && !data.teste) {
+      const { variantSwitchFor } = await import("@/lib/ab-tests/assign.server");
+      const other = await variantSwitchFor(data.abTestId, webinar.id, { email: entry.email, phone });
+      const next = other ? await loadRegistrationWebinar(other).catch(() => null) : null;
+      if (
+        next &&
+        next.organization_id === webinar.organization_id &&
+        next.status !== "draft" &&
+        (data.mode !== "replay" || (await replayOpen(next)))
+      ) {
+        webinar = next;
+        switched = true;
+      }
+    }
 
     // Inscrição ao vivo num webinar com horário: fica ligada à sessão global, com a
     // mesma janela que a sala mostra (o mesmo caminho da captura externa).
@@ -256,7 +278,7 @@ export const joinPublicRoom = createServerFn({ method: "POST" })
       await linkAssignment({ webinarId: webinar.id, participantId: participant.id, email: entry.email });
     }
     const { roomToken } = await import("@/lib/public-room.server");
-    return { token: roomToken(participant.id), name: participant.name };
+    return { token: roomToken(participant.id), name: participant.name, webinarId: webinar.id, switched };
   });
 
 export const sendPublicRoomMessage = createServerFn({ method: "POST" })

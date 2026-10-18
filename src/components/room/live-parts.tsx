@@ -166,11 +166,14 @@ function Avatar({ host, size }: { host: LiveHost; size: number }) {
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase())
     .join("");
+  const [brokenPhoto, setBrokenPhoto] = useState<string | null>(null);
+  // Uma foto que não abre (apagada, de um projecto antigo) dá as iniciais, nunca uma imagem partida.
+  const photo = host.avatarUrl && host.avatarUrl !== brokenPhoto ? host.avatarUrl : null;
   // Sem borda branca, como no Instagram: a foto ligeiramente ampliada corta um aro que venha na
   // própria imagem, e um contorno quase invisível separa uma foto escura do vídeo.
-  return host.avatarUrl ? (
+  return photo ? (
     <span className="block shrink-0 overflow-hidden rounded-full outline -outline-offset-1 outline-white/10" style={{ width: size, height: size }}>
-      <img src={host.avatarUrl} alt="" className="block size-full scale-[1.08] object-cover" />
+      <img src={photo} alt="" onError={() => setBrokenPhoto(photo)} className="block size-full scale-[1.08] object-cover" />
     </span>
   ) : (
     <span

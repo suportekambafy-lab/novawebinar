@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { formatSessionStart } from "@/lib/schedule";
 import { detectDevice, lookupPlace, type GeoPlace } from "@/lib/live-presence";
 import { leadSource } from "@/lib/contacts";
@@ -55,6 +55,10 @@ function roomUtm(search: Record<string, unknown>) {
     // Pré-visualização de uma variante de um teste A/B: só para o organizador ver as duas.
     ...(typeof search["variante"] === "string" && search["variante"]
       ? { variante: String(search["variante"]).slice(0, 2) }
+      : {}),
+    // O e-mail dos links dos e-mails e do WhatsApp: num teste A/B, o lead volta à variante que já viu.
+    ...(typeof search["email"] === "string" && search["email"]
+      ? { email: String(search["email"]).slice(0, 160) }
       : {}),
   };
 }
@@ -269,6 +273,13 @@ export function PublicRoom({
   // Sala de teste: por cima do que está guardado, o que o organizador está a mudar no editor (mesmo sem
   // guardar), ao vivo. A sala pública nunca lê o rascunho.
   const draft = useRoomDraft(testMode ? loaded?.webinar.id : null);
+  const queryClient = useQueryClient();
+  // Pelo link de um teste A/B (não a pré-visualização): o servidor reconhece o lead ao entrar.
+  const abTestId = loaded?.abTest && !loaded.abTest.preview ? loaded.abTest.id : undefined;
+  /** O servidor passou o lead para a variante que ele já tinha visto: a sala recarrega com esse webinar. */
+  const afterJoin = (result: { switched?: boolean }) => {
+    if (result.switched) void queryClient.invalidateQueries({ queryKey: ["public-room", slug] });
+  };
   const data = useMemo(
     () =>
       loaded && draft ? { ...loaded, webinar: applyRoomDraft(loaded.webinar, draft) } : loaded,
@@ -849,6 +860,7 @@ export function PublicRoom({
             mode: roomMode,
             teste: testMode,
             ...(values["website"] ? { website: values["website"] } : {}),
+            ...(abTestId ? { abTestId } : {}),
             ...audienceMeta(),
           },
         });
@@ -856,6 +868,7 @@ export function PublicRoom({
         rememberViewer(viewerKey, next);
         if (!testMode) trackPixels("lead");
         setViewer(next);
+        afterJoin(result);
       } catch (cause) {
         const message = cause instanceof Error && cause.message.length < 120 ? cause.message : "";
         setError(
@@ -869,8 +882,10 @@ export function PublicRoom({
     };
 
     // A página: o título com «Ao vivo», os campos e o botão. Quem preenche entra logo na sala.
-    const live = entryLiveLabel(startMs, webinar.timezone, Date.now());
-    const elapsed = startMs !== null && startMs <= Date.now() ? (Date.now() - startMs) / 1000 : 0;
+    // No link do replay não há hora: a gravação está disponível já, nunca «Começa às…».
+    const replayEntry = effectiveMode === "replay";
+    const live = replayEntry ? { live: true, label: "Replay" } : entryLiveLabel(startMs, webinar.timezone, Date.now());
+    const elapsed = !replayEntry && startMs !== null && startMs <= Date.now() ? (Date.now() - startMs) / 1000 : 0;
     return (
       <EntryScreen
         className="min-h-dvh"

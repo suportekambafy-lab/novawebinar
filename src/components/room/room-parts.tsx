@@ -103,6 +103,9 @@ export function RoomTitle({
   foldable?: boolean | undefined;
 }) {
   const [folded, setFolded] = useState(false);
+  const [brokenPhoto, setBrokenPhoto] = useState<string | null>(null);
+  // Uma foto que não abre (apagada, de um projecto antigo) dá as iniciais, nunca uma imagem partida.
+  const hostPhoto = host.avatarUrl && host.avatarUrl !== brokenPhoto ? host.avatarUrl : null;
   const hl = (key: string) =>
     highlight === key ? "outline outline-2 outline-offset-4 outline-[#E8440C] shadow-[0_0_0_10px_rgba(232,68,12,.25)]" : "";
   const initials = host.name
@@ -158,10 +161,11 @@ export function RoomTitle({
         <div className={cn("flex items-center", compact ? "gap-2.5" : "mt-4 gap-3.5", hl("host"))}>
           {/* O + Seguir fica logo a seguir ao nome, como no Instagram e no YouTube, e não no outro lado do ecrã. */}
           <button type="button" onClick={onHost} disabled={!onHost} className="flex min-w-0 items-center gap-[inherit] text-left">
-          {host.avatarUrl ? (
+          {hostPhoto ? (
             <img
-              src={host.avatarUrl}
+              src={hostPhoto}
               alt=""
+              onError={() => setBrokenPhoto(hostPhoto)}
               className={cn("shrink-0 rounded-full object-cover ring-1 ring-room-line", compact ? "size-10" : "size-12")}
             />
           ) : (
@@ -748,10 +752,18 @@ export function ChatLine({
       .slice(0, 2)
       .map((p) => p[0]?.toUpperCase())
       .join("") || "?";
+  const [brokenPhoto, setBrokenPhoto] = useState<string | null>(null);
+  // Uma foto que não abre (apagada, de um projecto antigo) dá as iniciais, nunca uma imagem partida.
+  const photo = avatarUrl && avatarUrl !== brokenPhoto ? avatarUrl : null;
   return (
     <div className={cn("flex items-start", tight ? "gap-2" : "gap-2.5")}>
-      {avatarUrl ? (
-        <img src={avatarUrl} alt="" className={cn("shrink-0 rounded-full object-cover", tight ? "size-6" : big ? "size-8" : "size-7")} />
+      {photo ? (
+        <img
+          src={photo}
+          alt=""
+          onError={() => setBrokenPhoto(photo)}
+          className={cn("shrink-0 rounded-full object-cover", tight ? "size-6" : big ? "size-8" : "size-7")}
+        />
       ) : (
         <span
           className={cn(

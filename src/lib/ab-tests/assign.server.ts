@@ -85,6 +85,51 @@ export type AssignmentMeta = {
   utmTerm?: string | null | undefined;
 };
 
+/** Quem é a pessoa, quando o link ou o formulário o dizem: e-mail e/ou WhatsApp. */
+export type KnownPerson = { email?: string | null | undefined; phone?: string | null | undefined };
+
+const realEmail = (email: string | null | undefined) => {
+  const e = (email ?? "").trim().toLowerCase();
+  return e && !e.endsWith("@sala.local") && e.length <= 160 ? e : null;
+};
+
+/**
+ * A variante que este lead já teve neste teste, reconhecido pelo e-mail ou pelo WhatsApp (outro aparelho, o
+ * browser do WhatsApp ou do e-mail, sem o cookie): primeiro a atribuição com o e-mail dele, depois a inscrição
+ * mais recente num dos webinars do teste. null quando não há registo: aí a variante é a do tráfego.
+ */
+export async function rememberedVariant<V extends { id: string; webinar_id: string | null }>(
+  test: { id: string; variants: V[] },
+  person: KnownPerson,
+): Promise<V | null> {
+  const email = realEmail(person.email);
+  const phone = (person.phone ?? "").trim() || null;
+  if (!email && !phone) return null;
+  const escaped = (value: string) => value.replace(/[\\%_]/g, (c) => `\\${c}`);
+  if (email) {
+    const { data } = await supabaseAdmin
+      .from("ab_test_assignments")
+      .select("variant_id")
+      .eq("ab_test_id", test.id)
+      .ilike("email", escaped(email))
+      .order("assigned_at", { ascending: false })
+      .limit(1);
+    const hit = test.variants.find((v) => v.id === data?.[0]?.variant_id);
+    if (hit) return hit;
+  }
+  const webinars = test.variants.map((v) => v.webinar_id).filter((id): id is string => Boolean(id));
+  if (!webinars.length) return null;
+  let query = supabaseAdmin
+    .from("participants")
+    .select("webinar_id")
+    .in("webinar_id", webinars)
+    .order("joined_at", { ascending: false })
+    .limit(1);
+  query = email ? query.ilike("email", escaped(email)) : query.eq("phone", phone!);
+  const { data } = await query;
+  return test.variants.find((v) => v.webinar_id === data?.[0]?.webinar_id) ?? null;
+}
+
 export type Resolved = { testId: string; variantId: string; webinarId: string; visitor: string; preview: boolean };
 
 /**
@@ -93,7 +138,13 @@ export type Resolved = { testId: string; variantId: string; webinarId: string; v
  * mantém-na e quem chega de novo vê a primeira (o controlo), sem ficar registado.
  * Com `preview` («A», «B»…), mostra essa variante sem atribuir nada: é para o organizador ver as duas.
  */
-export async function resolveTestSlug(slug: string, meta: AssignmentMeta = {}, preview?: string | null): Promise<Resolved | null> {
+export async function resolveTestSlug(
+  slug: string,
+  meta: AssignmentMeta = {},
+  preview?: string | null,
+  /** O lead que o link identifica (links dos e-mails e do WhatsApp): volta à variante que já viu. */
+  person: KnownPerson = {},
+): Promise<Resolved | null> {
   const test = await findTestBySlug(slug);
   if (!test) return null;
   const visitor = await visitorId();
@@ -117,14 +168,19 @@ export async function resolveTestSlug(slug: string, meta: AssignmentMeta = {}, p
       .eq("ab_test_id", test.id)
       .eq("visitor_id", visitor)
       .maybeSingle();
-    const variant = (existing && test.variants.find((v) => v.id === existing.variant_id)) || control;
+    const variant =
+      (existing && test.variants.find((v) => v.id === existing.variant_id)) ||
+      (await rememberedVariant(test, person).catch(() => null)) ||
+      control;
     return { testId: test.id, variantId: variant.id, webinarId: variant.webinar_id!, visitor, preview: false };
   }
 
   // Ativo: uma só ida à base. A função ab_assign guarda a escolha ou, se a pessoa já tinha variante, devolve essa.
 
+  // Um lead já conhecido (o link traz o e-mail dele) volta à variante que viu; só sem registo é pelo tráfego.
+  const known = await rememberedVariant(test, person).catch(() => null);
   const bucket = test.assignment_mode === "legacy" ? Math.floor(Math.random() * 100) : bucketOf(visitor, test.id);
-  const chosen = pickVariant(test.variants, bucket);
+  const chosen = known ?? pickVariant(test.variants, bucket);
   const { data: result, error } = await supabaseAdmin.rpc("ab_assign", {
     p_test: test.id,
     p_org: test.organization_id,
@@ -148,6 +204,60 @@ export async function resolveTestSlug(slug: string, meta: AssignmentMeta = {}, p
       : chosen.id;
   const variant = test.variants.find((v) => v.id === assignedId) ?? chosen;
   return { testId: test.id, variantId: variant.id, webinarId: variant.webinar_id!, visitor, preview: false };
+}
+
+/**
+ * Ao preencher o formulário pelo link de um teste: se este lead já tinha visto outra variante (outro aparelho,
+ * sem o cookie), devolve o webinar dessa variante e passa a atribuição deste aparelho para ela, para a sala
+ * abrir o webinar que ele já tinha (o replay do que viu ao vivo). null quando fica onde está.
+ */
+export async function variantSwitchFor(testId: string, webinarId: string, person: KnownPerson): Promise<string | null> {
+  try {
+    const { data: test } = await supabaseAdmin
+      .from("ab_tests")
+      .select("id, organization_id, status, applied_variant_id")
+      .eq("id", testId)
+      .maybeSingle();
+    // Com vencedora aplicada, toda a gente vê a vencedora.
+    if (!test || test.applied_variant_id || !["active", "paused", "completed"].includes(test.status)) return null;
+    const { data: variants } = await supabaseAdmin
+      .from("ab_test_variants")
+      .select("id, webinar_id")
+      .eq("ab_test_id", testId);
+    const list = (variants ?? []).filter((v) => v.webinar_id);
+    if (!list.some((v) => v.webinar_id === webinarId)) return null;
+    const known = await rememberedVariant({ id: testId, variants: list }, person);
+    if (!known?.webinar_id || known.webinar_id === webinarId) return null;
+    const visitor = await visitorId();
+    const { data: moved } = await supabaseAdmin
+      .from("ab_test_assignments")
+      .update({ variant_id: known.id })
+      .eq("ab_test_id", testId)
+      .eq("visitor_id", visitor)
+      .select("id");
+    if (!moved?.length) {
+      await supabaseAdmin.rpc("ab_assign", {
+        p_test: testId,
+        p_org: test.organization_id,
+        p_visitor: visitor,
+        p_variant: known.id,
+        p_webinar: known.webinar_id,
+        p_device: "",
+        p_country: "",
+        p_referrer: "",
+        p_utm_source: "",
+        p_utm_medium: "",
+        p_utm_campaign: "",
+        p_utm_content: "",
+        p_utm_term: "",
+      });
+    }
+    return known.webinar_id;
+  } catch (error) {
+    // Nada disto pode travar a entrada: fica na variante que já estava a ver.
+    console.error("[ab] reconhecer o lead falhou", error);
+    return null;
+  }
 }
 
 /**
