@@ -262,7 +262,7 @@ export function InboxList({
                     {item.name}
                   </span>
                   {item.participantId && online?.has(item.participantId) && (
-                    <span className="shrink-0 rounded-pill bg-success-soft px-1.5 py-px text-[11px] font-medium tabular-nums text-success">
+                    <span className="shrink-0 rounded-pill bg-success-soft px-1.5 py-px text-xs font-medium tabular-nums text-success">
                       Na live · {videoClock(online.get(item.participantId) ?? 0)}
                     </span>
                   )}
