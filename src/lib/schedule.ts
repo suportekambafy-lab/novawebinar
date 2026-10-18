@@ -232,8 +232,9 @@ export function sessionWindow(webinar: ScheduleInput, nowMs = Date.now()): Sessi
       if (end) {
         const day = zoneParts(startMs, timezone);
         endMs = zonedTimeToMs(day.year, day.month, day.day, end.hour, end.minute, timezone);
-        // Se a hora de fim for anterior à de início, a sessão termina no dia seguinte.
-        if (endMs <= startMs) endMs += 24 * 60 * 60 * 1000;
+        // Se a hora de fim for anterior à de início, a sessão termina no dia seguinte (calculado no fuso: numa
+        // noite de mudança de hora, somar 24 h errava uma hora).
+        if (endMs <= startMs) endMs = zonedTimeToMs(day.year, day.month, day.day + 1, end.hour, end.minute, timezone);
         endMs = fitVideo(startMs, endMs);
       } else if (duration) {
         endMs = startMs + duration;

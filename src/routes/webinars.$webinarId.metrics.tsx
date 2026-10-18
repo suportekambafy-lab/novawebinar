@@ -309,7 +309,7 @@ function WebinarMetricsPage() {
       const { data, error } = await supabase
         .from("webinars")
         .select(
-          "id, organization_id, public_title, internal_name, duration_seconds, cta_start_seconds, pitch_seconds, status, timezone, schedule_mode, scheduled_at, session_end_time, recurrence_enabled, recurrence_pattern, recurrence_weekday, recurrence_start_time, recurrence_end_time, jit_interval_minutes, video_sources(duration_seconds)",
+          "id, organization_id, public_title, internal_name, duration_seconds, cta_start_seconds, pitch_seconds, status, timezone, schedule_mode, scheduled_at, session_end_time, recurrence_enabled, recurrence_pattern, recurrence_weekday, recurrence_start_time, recurrence_end_time, recurrence_times, recurrence_days, jit_interval_minutes, jit_skip_night, chat_settings, video_sources(duration_seconds)",
         )
         .eq("id", webinarId)
         .maybeSingle();

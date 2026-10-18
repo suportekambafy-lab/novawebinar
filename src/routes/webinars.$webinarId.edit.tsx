@@ -770,6 +770,8 @@ function EditWebinar() {
       jit_skip_night: form.jit_skip_night,
       timezone: form.timezone,
       duration_seconds: duration,
+      // A contagem depois de começar atrasa o fim: guardar durante esse tempo já não grava «terminado».
+      start_delay_seconds: form.live.countdown?.afterOn ? (form.live.countdown.after ?? 0) * 60 : 0,
     },
     Date.now(),
   );

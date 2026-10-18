@@ -153,3 +153,16 @@ describe("just in time sem noites", () => {
     expect(sessionWindow(jit, day).startMs).toBe(Date.parse("2026-10-12T14:15:00Z"));
   });
 });
+
+describe("hora de fim no dia seguinte, na noite de mudança de hora", () => {
+  it("Lisboa, 28→29 de março: começa às 23:00 e acaba às 03:00 locais (02:00 UTC)", () => {
+    const night = {
+      schedule_mode: "scheduled",
+      scheduled_at: "2026-03-28T23:00:00Z",
+      session_end_time: "03:00",
+      timezone: "Europe/Lisbon",
+      duration_seconds: 3600,
+    };
+    expect(sessionWindow(night, Date.parse("2026-03-28T23:30:00Z")).endMs).toBe(Date.parse("2026-03-29T02:00:00Z"));
+  });
+});
