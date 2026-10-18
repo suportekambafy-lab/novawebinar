@@ -33,6 +33,7 @@ import {
   useStaff,
   useSupportConversations,
   useOpenSessions,
+  useOnlineParticipants,
   useSupportInvalidate,
   useSupportRealtime,
   useSupportSetup,
@@ -173,6 +174,7 @@ function SupportPage() {
   // «Sessão atual»: só as conversas de quem está inscrito na sessão de agora (ou a acabada de terminar).
   const [currentOnly, setCurrentOnly] = useState(false);
   const { data: openSessions = [] } = useOpenSessions(scope, currentOnly);
+  const { data: online } = useOnlineParticipants(scope);
   const [search, setSearch] = useState("");
   // Vindo de uma ligação (ficha dos Contactos), abre logo a conversa, também no telemóvel.
   const [step, setStep] = useState<InboxStep>(requested ? "chat" : "list");
@@ -338,6 +340,7 @@ function SupportPage() {
               onWebinar={setWebinarId}
               currentOnly={currentOnly}
               onCurrentOnly={setCurrentOnly}
+              online={online}
               onSelect={select}
             />
           }

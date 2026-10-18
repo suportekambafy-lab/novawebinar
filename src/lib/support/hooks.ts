@@ -153,6 +153,36 @@ export function useSupportConversations(organizationId: string | undefined) {
     },
   });
 }
+/** Uma pessoa está na live quando a sala deu sinal (de 30 em 30 s, a ver) há menos disto. */
+export const ONLINE_WINDOW_MS = 90_000;
+
+/**
+ * Quem está na live agora, com o minuto do vídeo em que vai: para o vendedor saber, na conversa, se a
+ * pessoa está a ver e em que parte (antes ou depois da oferta). Lido de 15 em 15 s.
+ */
+export function useOnlineParticipants(organizationId: string | undefined) {
+  return useQuery({
+    queryKey: ["support", "online", organizationId],
+    enabled: Boolean(organizationId),
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+    queryFn: async () => {
+      const since = new Date(Date.now() - ONLINE_WINDOW_MS).toISOString();
+      const { data, error } = await supabase
+        .from("participants")
+        .select("id, watched_seconds, last_progress_at")
+        .eq("organization_id", organizationId!)
+        .gte("last_progress_at", since)
+        .order("id")
+        .limit(1000);
+      if (error) throw error;
+      const online = new Map<string, number>();
+      for (const row of data ?? []) online.set(row.id, row.watched_seconds ?? 0);
+      return online;
+    },
+  });
+}
+
 /**
  * As sessões que o filtro «Sessão atual» considera: as por terminar e as que terminaram nas últimas horas
  * (ver `currentSessionIds`). Revistas de minuto a minuto, para a sessão seguinte entrar sozinha.

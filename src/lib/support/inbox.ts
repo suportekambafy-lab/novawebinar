@@ -34,6 +34,8 @@ export type InboxItem = {
   webinarTitle: string | null;
   /** A sessão em que a pessoa se inscreveu (o filtro «Sessão atual»); null no replay e sem horário. */
   sessionId?: string | null | undefined;
+  /** A participação da conversa: com ela se sabe se a pessoa está na live agora. */
+  participantId?: string | null | undefined;
   state: InboxState;
   intent: string | null;
   /** Só existe com um caso aberto. */
@@ -90,6 +92,7 @@ export function toInboxItem(
     needs_human: boolean;
     ai_paused: boolean;
     webinar_id: string | null;
+    participant_id?: string | null;
     participants?: { name: string | null; webinar_session_id?: string | null } | null;
     webinars?: { public_title: string } | null;
   },
@@ -112,6 +115,7 @@ export function toInboxItem(
     webinarId: c.webinar_id,
     webinarTitle: c.webinars?.public_title ?? null,
     sessionId: c.participants?.webinar_session_id ?? null,
+    participantId: c.participant_id ?? null,
     state: inboxState(c, open),
     intent,
     priority: open?.priority ?? null,

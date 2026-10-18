@@ -52,11 +52,14 @@ export function PersonPhoto({
   photo,
   channel,
   size = 44,
+  online,
 }: {
   name: string;
   photo?: string | null | undefined;
   channel?: string | undefined;
   size?: number;
+  /** Está na live agora: um ponto verde em cima, como no WhatsApp. */
+  online?: boolean | undefined;
 }) {
   return (
     <span className="relative inline-flex shrink-0" style={{ width: size, height: size }}>
@@ -79,8 +82,25 @@ export function PersonPhoto({
           <ChannelLogo channel={channel} className="size-[68%]" />
         </span>
       )}
+      {online && (
+        <span
+          className="absolute -right-0.5 -top-0.5 rounded-full bg-success shadow-[0_0_0_2px_var(--color-card)]"
+          style={{ width: Math.round(size * 0.28), height: Math.round(size * 0.28) }}
+          title="Na live agora"
+          aria-label="Na live agora"
+        />
+      )}
     </span>
   );
+}
+
+/** O minuto do vídeo: «35:12», ou «1:05:12» passada a hora. */
+export function videoClock(seconds: number) {
+  const s = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const r = String(s % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${r}` : `${m}:${r}`;
 }
 
 /* ---------- Etiquetas ---------- */
@@ -110,6 +130,7 @@ export function InboxList({
   onWebinar,
   currentOnly,
   onCurrentOnly,
+  online,
   onSelect,
 }: {
   items: InboxItem[];
@@ -125,6 +146,8 @@ export function InboxList({
   /** Sem ela (o exemplo), não há filtro de sessão. */
   currentOnly?: boolean | undefined;
   onCurrentOnly?: ((value: boolean) => void) | undefined;
+  /** Quem está na live agora (participação → minuto do vídeo em que vai). */
+  online?: Map<string, number> | undefined;
   onSelect: (id: string) => void;
 }) {
   return (
@@ -222,7 +245,12 @@ export function InboxList({
                 activeId === item.id ? "@2xl:bg-gray-150" : "hover:bg-gray-100",
               )}
             >
-              <PersonPhoto name={item.name} photo={item.photo} channel={item.channel} />
+              <PersonPhoto
+                name={item.name}
+                photo={item.photo}
+                channel={item.channel}
+                online={Boolean(item.participantId && online?.has(item.participantId))}
+              />
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2">
                   <span
@@ -233,6 +261,11 @@ export function InboxList({
                   >
                     {item.name}
                   </span>
+                  {item.participantId && online?.has(item.participantId) && (
+                    <span className="shrink-0 rounded-pill bg-success-soft px-1.5 py-px text-[11px] font-medium tabular-nums text-success">
+                      Na live · {videoClock(online.get(item.participantId) ?? 0)}
+                    </span>
+                  )}
                   <span
                     className={cn(
                       "ml-auto shrink-0 text-[12px] tabular-nums",

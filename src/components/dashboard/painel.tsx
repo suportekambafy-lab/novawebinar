@@ -177,6 +177,11 @@ export type HeroData = {
   stats: { registered: number; attended: number; buyers: number; registeredToday: number } | null;
   /** Pessoas na sala agora (presença em tempo real). */
   liveNow: number;
+  /**
+   * Ao vivo: onde vai o vídeo, para o vendedor saber em que parte da aula está a sala (e quando abre a
+   * oferta). `videoStartMs` já conta a contagem depois de começar.
+   */
+  clock?: { videoStartMs: number; durationSeconds: number; offerSeconds: number | null } | null | undefined;
   /** O que falta (vídeo, automações, horário), no máximo 3, com a etapa onde se resolve. */
   issues: HeroIssue[];
 };
@@ -478,6 +483,81 @@ export function HeroCarousel({
   );
 }
 
+/** «35:12», ou «1:05:12» passada a hora. */
+function clockText(seconds: number) {
+  const s = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const r = String(s % 60).padStart(2, "0");
+  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${r}` : `${m}:${r}`;
+}
+
+/** O minuto da live a correr, segundo a segundo, com a barra do vídeo e a hora da oferta. */
+export function LiveClock({
+  videoStartMs,
+  durationSeconds,
+  offerSeconds,
+}: {
+  videoStartMs: number;
+  durationSeconds: number;
+  offerSeconds: number | null;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const position = (now - videoStartMs) / 1000;
+  if (position < 0)
+    return (
+      <p className="text-[15px] text-white/80" aria-live="polite">
+        Contagem na sala: o vídeo começa daqui a{" "}
+        <span className="font-semibold tabular-nums text-white">{clockText(-position)}</span>
+      </p>
+    );
+  const at = durationSeconds > 0 ? Math.min(position, durationSeconds) : position;
+  const share = durationSeconds > 0 ? Math.min(100, (at / durationSeconds) * 100) : 0;
+  const offer = offerSeconds !== null && offerSeconds > 0 ? offerSeconds : null;
+  return (
+    <div className="flex max-w-md flex-col gap-2" aria-label="Onde vai a live">
+      <div className="flex items-baseline gap-2">
+        <span className="text-[13px] font-medium uppercase tracking-wider text-white/60">A live vai em</span>
+        <span className="text-[28px] font-semibold tabular-nums leading-none">{clockText(at)}</span>
+        {durationSeconds > 0 && (
+          <span className="text-[15px] tabular-nums text-white/60">/ {clockText(durationSeconds)}</span>
+        )}
+      </div>
+      {durationSeconds > 0 && (
+        <div className="relative h-1.5 overflow-hidden rounded-full bg-white/15">
+          <div className="absolute inset-y-0 left-0 rounded-full bg-live" style={{ width: `${share}%` }} />
+          {offer !== null && offer < durationSeconds && (
+            <span
+              className="absolute inset-y-0 w-0.5 bg-[#FFC46B]"
+              style={{ left: `${(offer / durationSeconds) * 100}%` }}
+              title={`Oferta aos ${clockText(offer)}`}
+            />
+          )}
+        </div>
+      )}
+      {offer !== null && (
+        <p className="text-[14px] text-white/75">
+          {at < offer ? (
+            <>
+              A oferta abre daqui a{" "}
+              <span className="font-semibold tabular-nums text-[#FFC46B]">{clockText(offer - at)}</span> (aos{" "}
+              {clockText(offer)})
+            </>
+          ) : (
+            <>
+              <span className="font-semibold text-[#FFC46B]">Oferta aberta</span> desde os {clockText(offer)}
+            </>
+          )}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function Hero({
   hero,
   loading,
@@ -555,6 +635,8 @@ export function Hero({
                 )}
               </p>
             </div>
+
+            {live && hero.clock && <LiveClock {...hero.clock} />}
 
             {(live || (hero.stats && hero.stats.registered > 0)) && (
               <div className="flex flex-wrap gap-x-8 gap-y-4">

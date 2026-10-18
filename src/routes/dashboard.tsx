@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { startDelaySeconds } from "@/lib/room-logic";
 import { NOT_TEST_ROOM } from "@/lib/test-room";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -180,6 +181,15 @@ function Dashboard() {
       image: imageOf(w),
       stats: statsOf(w.id),
       liveNow: nowCount(viewers.filter((v) => v.webinarId === w.id).length, roomNow.byWebinar.get(w.id)?.total ?? 0),
+      // Ao vivo: o vídeo arranca à hora da sessão mais a contagem depois de começar (como na sala).
+      clock:
+        kind === "live" && session
+          ? {
+              videoStartMs: session.startMs + startDelaySeconds(w.chat_settings) * 1000,
+              durationSeconds: w.video_sources?.duration_seconds || w.duration_seconds || 0,
+              offerSeconds: w.cta_start_seconds ?? null,
+            }
+          : null,
       issues: heroIssues({
         hasVideo: Boolean(w.video_source_id),
         workflows: heroAutomations.data?.workflows.length ?? null,

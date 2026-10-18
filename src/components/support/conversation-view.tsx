@@ -30,6 +30,7 @@ import {
   useAgentAnalysis,
   useContactContext,
   useConversationMessages,
+  useOnlineParticipants,
   useSupportInvalidate,
   type StaffMember,
   type SupportConversation,
@@ -51,7 +52,7 @@ import { cn } from "@/lib/utils";
 import { clockLabel } from "@/lib/webinar-metrics";
 import { AiAvatar, hourLabel } from "./badges";
 import { CaseActions, TransferMenu, useRunCase } from "./case-tools";
-import { channelName, ExampleTag, PersonPhoto } from "./inbox";
+import { channelName, ExampleTag, PersonPhoto, videoClock } from "./inbox";
 
 /* ---------- Desenho ---------- */
 
@@ -124,6 +125,7 @@ export function ConversationPane({
   name,
   photo,
   channel,
+  liveAt,
   example,
   contactLine,
   status,
@@ -146,6 +148,8 @@ export function ConversationPane({
   name: string;
   photo?: string | null | undefined;
   channel: string;
+  /** Está na live agora: o minuto do vídeo em que vai (null fora da live). */
+  liveAt?: number | null | undefined;
   example?: boolean | undefined;
   /** Uma linha por baixo do nome: o webinar e o local. O resto está no contacto. */
   contactLine: string[];
@@ -214,10 +218,15 @@ export function ConversationPane({
             title="Ver o contacto"
             className="flex min-w-[10.5rem] flex-1 cursor-pointer items-center gap-3 rounded-lg text-left"
           >
-            <PersonPhoto name={name} photo={photo} channel={channel} size={44} />
+            <PersonPhoto name={name} photo={photo} channel={channel} size={44} online={liveAt != null} />
             <span className="min-w-0">
               <span className="flex items-center gap-2">
                 <span className="truncate text-[16px] font-semibold">{name}</span>
+                {liveAt != null && (
+                  <span className="shrink-0 rounded-pill bg-success-soft px-2 py-0.5 text-xs font-medium tabular-nums text-success">
+                    Na live · {videoClock(liveAt)}
+                  </span>
+                )}
                 {/* Com espaço, a faixa do exemplo já está à vista por cima. */}
                 {example && (
                   <span className="@2xl:hidden">
@@ -651,6 +660,8 @@ export function ConversationView({
 }) {
   const { data: rows = [] } = useConversationMessages(conversation.id);
   const { data: analysis } = useAgentAnalysis(conversation.id);
+  // A mesma leitura da lista (mesma chave): se a pessoa está na live e em que minuto.
+  const { data: online } = useOnlineParticipants(conversation.organization_id);
   const participant = conversation.participants;
   // A mesma leitura do painel do contacto: fica em cache, não se repete.
   const { data: detail } = useContactContext(
@@ -857,6 +868,7 @@ export function ConversationView({
       key={conversation.id}
       name={name}
       channel={conversation.channel}
+      liveAt={conversation.participant_id ? (online?.get(conversation.participant_id) ?? null) : null}
       contactLine={[conversation.webinars?.public_title ?? "", detail?.place ?? ""].filter(
         Boolean,
       )}
