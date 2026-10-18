@@ -5,6 +5,7 @@
  * uma vez por webinar, os passos depois de «Assistiram» só contam quem assistiu) são as de
  * `participant-facts.ts`.
  */
+import { NOT_TEST_ROOM } from "@/lib/test-room";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
@@ -245,7 +246,8 @@ export function useAnalytics(
           let q = supabase
             .from("participant_facts")
             .select(`${FACT_COLUMNS}, joined_at, device, country, city, webinar_title`, { count: "exact" })
-            .eq("organization_id", organizationId!);
+            .eq("organization_id", organizationId!)
+            .or(NOT_TEST_ROOM);
           if (webinarId) q = q.eq("webinar_id", webinarId);
           if (range) q = q.gte("joined_at", range.from).lt("joined_at", range.to);
           return q.order("participant_id").range(from, to);

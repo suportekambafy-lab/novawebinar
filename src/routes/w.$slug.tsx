@@ -1039,7 +1039,7 @@ export function PublicRoom({
       startsAt={roomStartsAt}
       viewerName={asTeam?.name ?? viewer?.name ?? ""}
       // A equipa não entra na presença: não conta na Vista ao vivo.
-      organizationId={asTeam ? null : webinar.organization_id}
+      organizationId={asTeam || testMode ? null : webinar.organization_id}
       team={asTeam}
       teamMessages={teamChat.messages}
       comments={comments}

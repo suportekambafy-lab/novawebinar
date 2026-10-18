@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { NOT_TEST_ROOM } from "@/lib/test-room";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -128,6 +129,7 @@ function Dashboard() {
           .select(`${FACT_COLUMNS}, joined_at`, { count: "exact" })
           .eq("organization_id", orgId!)
           .in("webinar_id", statIds)
+          .or(NOT_TEST_ROOM)
           .order("participant_id")
           .range(from, to),
       ),
@@ -225,7 +227,8 @@ function Dashboard() {
             supabase
               .from("participant_facts")
               .select(`${FACT_COLUMNS}, device, country`, { count: "exact" })
-              .eq("organization_id", orgId!),
+              .eq("organization_id", orgId!)
+              .or(NOT_TEST_ROOM),
             "joined_at",
           )
             .order("participant_id")
@@ -315,6 +318,7 @@ function Dashboard() {
             { count: "exact" },
           )
           .eq("organization_id", orgId!)
+          .or(NOT_TEST_ROOM)
           .or(
             `joined_at.gte."${todayIso}",first_progress_at.gte."${todayIso}",last_progress_at.gte."${todayIso}"`,
           )
@@ -331,17 +335,18 @@ function Dashboard() {
     enabled: Boolean(orgId) && monthStart !== null,
     queryFn: async () => {
       const end = new Date(month!.year, month!.month + 1, 1).toISOString();
-      // ponytail: até 1000 sessões em dois meses; acima disso, fetchAll.
-      const { data, error } = await supabase
-        .from("webinar_sessions")
-        .select("id, webinar_id, starts_at")
-        .eq("organization_id", orgId!)
-        .gte("starts_at", monthStart!)
-        .lt("starts_at", end)
-        .order("starts_at")
-        .limit(1000);
-      if (error) throw error;
-      return data ?? [];
+      // Página a página: um just in time de 15 em 15 minutos passa as 1000 sessões em dois meses.
+      return fetchAll((from, to) =>
+        supabase
+          .from("webinar_sessions")
+          .select("id, webinar_id, starts_at", { count: "exact" })
+          .eq("organization_id", orgId!)
+          .gte("starts_at", monthStart!)
+          .lt("starts_at", end)
+          .order("starts_at")
+          .order("id")
+          .range(from, to),
+      );
     },
   });
 

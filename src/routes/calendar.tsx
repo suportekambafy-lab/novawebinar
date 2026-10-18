@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { NOT_TEST_ROOM } from "@/lib/test-room";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
@@ -83,6 +84,7 @@ function CalendarPage() {
               count: "exact",
             })
             .eq("organization_id", orgId!)
+            .or(NOT_TEST_ROOM)
             .not("webinar_session_id", "is", null)
             .order("participant_id")
             .range(from, to),

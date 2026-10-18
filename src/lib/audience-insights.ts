@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { NOT_TEST_ROOM } from "@/lib/test-room";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
 import { rangeKey, type DateRange } from "@/lib/date-range";
@@ -53,7 +54,8 @@ export function useAudienceInsights(
                   .select(`${FACT_COLUMNS}, joined_at, device, country`, {
                     count: "exact",
                   })
-                  .eq("organization_id", organizationId!),
+                  .eq("organization_id", organizationId!)
+                  .or(NOT_TEST_ROOM),
               ),
               "joined_at",
             )
@@ -65,11 +67,22 @@ export function useAudienceInsights(
             .from("webinars")
             .select("id, scheduled_at")
             .eq("organization_id", organizationId!),
-          supabase
-            .from("webinar_sessions")
-            .select("webinar_id, starts_at")
-            .eq("organization_id", organizationId!)
-            .limit(2000),
+          // As sessões do webinar (ou da conta) no período, todas: antes eram 1000 quaisquer da conta inteira e
+          // os dias de um webinar podiam faltar.
+          fetchAll((from, to) =>
+            period(
+              scope(
+                supabase
+                  .from("webinar_sessions")
+                  .select("id, webinar_id, starts_at", { count: "exact" })
+                  .eq("organization_id", organizationId!),
+              ),
+              "starts_at",
+            )
+              .order("starts_at")
+              .order("id")
+              .range(from, to),
+          ).then((data) => ({ data })),
         ]);
 
       // Pessoas, uma vez por webinar; depois de "Assistiram", cada passo só conta

@@ -1,4 +1,5 @@
 import { keepPreviousData, useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { NOT_TEST_ROOM } from "@/lib/test-room";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
 import { LEDGER_LIMIT } from "@/lib/credits";
@@ -705,6 +706,7 @@ export function useWebinarJourneyCounts(webinarId: string | undefined | null) {
           .from("participant_facts")
           .select("person_id, first_progress_at, actual_watch_seconds, attended, saw_offer, clicked, checkout_started, purchased, payment_failed, checkout_abandoned", { count: "exact" })
           .eq("webinar_id", webinarId!)
+          .or(NOT_TEST_ROOM)
           .order("participant_id")
           .range(from, to),
       );

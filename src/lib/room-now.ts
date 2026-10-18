@@ -5,6 +5,8 @@
  * Supabase, que já falhou a meio de uma sessão; os batimentos chegam com até 30 s de atraso mas
  * nunca se perdem. O número que se mostra é o maior dos dois, e é o mesmo em todo o painel.
  */
+import { NOT_TEST_ROOM } from "@/lib/test-room";
+import { fetchAll } from "@/lib/fetch-all";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { LiveNow, LiveSession } from "./analytics-live";
@@ -95,14 +97,19 @@ export function useRoomNow(organizationId: string | null | undefined): RoomNow {
     refetchIntervalInBackground: false,
     queryFn: async () => {
       const nowMs = Date.now();
-      const { data, error } = await supabase
-        .from("participant_facts")
-        .select("person_id, webinar_id, webinar_title, viewing_mode, device, last_progress_at")
-        .eq("organization_id", organizationId!)
-        .gte("last_progress_at", new Date(nowMs - HEARTBEAT_WINDOW_MS).toISOString())
-        .limit(5000);
-      if (error) throw error;
-      return roomNowFrom((data ?? []) as HeartbeatRow[], nowMs);
+      // Página a página: o servidor corta cada resposta em 1000 linhas e a sala cheia parava nos 1000.
+      const since = new Date(nowMs - HEARTBEAT_WINDOW_MS).toISOString();
+      const data = await fetchAll((from, to) =>
+        supabase
+          .from("participant_facts")
+          .select("person_id, webinar_id, webinar_title, viewing_mode, device, last_progress_at", { count: "exact" })
+          .eq("organization_id", organizationId!)
+          .or(NOT_TEST_ROOM)
+          .gte("last_progress_at", since)
+          .order("participant_id")
+          .range(from, to),
+      );
+      return roomNowFrom(data as HeartbeatRow[], nowMs);
     },
   });
   return query.data ?? NONE;

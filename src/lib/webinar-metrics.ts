@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { NOT_TEST_ROOM } from "@/lib/test-room";
 import { fetchAll } from "@/lib/fetch-all";
 import type { DateRange } from "@/lib/date-range";
 import { clockLabel } from "@/lib/engagement-analysis";
@@ -182,7 +183,8 @@ export async function fetchWebinarMetrics(
           .from("participant_facts")
           .select(PARTICIPANT_COLUMNS, { count: "exact" })
           .eq("organization_id", organizationId)
-          .eq("webinar_id", webinarId),
+          .eq("webinar_id", webinarId)
+          .or(NOT_TEST_ROOM),
         "joined_at",
       )
         .order("joined_at", { ascending: false })

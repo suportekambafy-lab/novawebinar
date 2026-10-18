@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { fetchAll } from "@/lib/fetch-all";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Copy, MessageCircle, Plus, Trash2 } from "lucide-react";
@@ -96,16 +97,19 @@ function useAgentToday(organizationId: string | undefined) {
     queryFn: async () => {
       const start = new Date();
       start.setHours(0, 0, 0, 0);
-      // ponytail: até 1000 eventos por dia (limite do PostgREST); com mais, uma função na base que conte.
-      const { data, error } = await supabase
-        .from("activity_events")
-        .select("name, conversation_id, occurred_at")
-        .eq("organization_id", organizationId!)
-        .in("name", ["ai_resolution", "ai_escalation"])
-        .gte("occurred_at", start.toISOString())
-        .limit(1000);
-      if (error) throw error;
-      return agentToday(data ?? []);
+      // Página a página: num dia com muitas conversas passavam-se os 1000 eventos e o número ficava curto.
+      const data = await fetchAll((from, to) =>
+        supabase
+          .from("activity_events")
+          .select("name, conversation_id, occurred_at", { count: "exact" })
+          .eq("organization_id", organizationId!)
+          .in("name", ["ai_resolution", "ai_escalation"])
+          .gte("occurred_at", start.toISOString())
+          .order("occurred_at")
+          .order("id")
+          .range(from, to),
+      );
+      return agentToday(data);
     },
   });
 }
