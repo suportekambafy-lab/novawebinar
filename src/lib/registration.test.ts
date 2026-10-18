@@ -495,3 +495,16 @@ describe("withoutRepeatedDial", () => {
     expect(withoutRepeatedDial("")).toBe("");
   });
 });
+
+describe("jitShownSlot com as noites de fora", () => {
+  it("aceita as 07:00 do fuso mesmo fora da grelha do intervalo", async () => {
+    const { jitShownSlot } = await import("./registration.server");
+    // 07:00 em Calcutá (UTC+5:30) = 01:30 UTC: fora da grelha de 20 minutos contada desde UTC.
+    const seven = Date.parse("2026-10-18T01:30:00Z");
+    const webinar = { schedule_mode: "jit", jit_interval_minutes: 20, jit_skip_night: true, timezone: "Asia/Kolkata" };
+    expect(seven % (20 * 60_000)).not.toBe(0);
+    expect(jitShownSlot(webinar, 3600, seven, seven + 5 * 60_000)).toBe(seven);
+    // Sem as noites de fora, uma hora fora da grelha não é um começo de sessão.
+    expect(jitShownSlot({ ...webinar, jit_skip_night: false }, 3600, seven, seven + 5 * 60_000)).toBeNull();
+  });
+});

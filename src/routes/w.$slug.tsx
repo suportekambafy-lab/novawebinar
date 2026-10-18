@@ -23,6 +23,7 @@ import { useRoomTeam, type TeamRole } from "@/lib/room-team";
 import { checkTeamRoomToken, getTeamRoomToken } from "@/lib/room-team.functions";
 import { recordRoomHearts } from "@/lib/room-reactions.functions";
 import { getViewerState } from "@/lib/room-viewer.functions";
+import { clockOffset, setClockOffset } from "@/lib/server-clock";
 import { viewerPlan, type ViewerPlan } from "@/lib/room-return";
 import { useDataSaver } from "@/lib/room-data-saver";
 import { applyRoomDraft, useRoomDraft } from "@/lib/room-draft";
@@ -32,6 +33,7 @@ import { preliveTitle } from "@/lib/prelive-templates";
 
 import {
   getPublicRoom,
+  getServerNow,
   joinPublicRoom,
   getPublicRoomMessages,
   joinOfferGroup,
@@ -274,6 +276,14 @@ export function PublicRoom({
   // guardar), ao vivo. A sala pública nunca lê o rascunho.
   const draft = useRoomDraft(testMode ? loaded?.webinar.id : null);
   const queryClient = useQueryClient();
+  // Uma vez por visita: a diferença entre o relógio deste aparelho e o do servidor (ver server-clock).
+  const fetchServerNow = useServerFn(getServerNow);
+  useEffect(() => {
+    const sentAt = Date.now();
+    void fetchServerNow()
+      .then((r) => setClockOffset(clockOffset(r.now, sentAt, Date.now())))
+      .catch(() => undefined);
+  }, [fetchServerNow]);
   // Pelo link de um teste A/B (não a pré-visualização): o servidor reconhece o lead ao entrar.
   const abTestId = loaded?.abTest && !loaded.abTest.preview ? loaded.abTest.id : undefined;
   /** O servidor passou o lead para a variante que ele já tinha visto: a sala recarrega com esse webinar. */
@@ -805,6 +815,42 @@ export function PublicRoom({
       </main>
     );
 
+  // Data única que já acabou: quem chega pelo link da live não vê «Ao vivo» nem se inscreve numa sessão que
+  // já não existe (contava como lead e disparava os avisos); vê o fim e, havendo, a gravação.
+  const singleDateEnded =
+    plan.kind === "global" &&
+    roomMode === "live" &&
+    !testMode &&
+    !webinar.recurrence_enabled &&
+    webinar.schedule_mode !== "jit" &&
+    Boolean(webinar.session_end) &&
+    Date.parse(webinar.session_end!) <= Date.now();
+  if (singleDateEnded && !asTeam)
+    return (
+      <main
+        className={`room-ambient flex min-h-dvh items-center justify-center px-6 text-center ${themeClass}`}
+      >
+        <div className="max-w-md space-y-4">
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-room-subtle">
+            Transmissão terminou
+          </p>
+          <h1 className="text-2xl font-black text-room-text sm:text-3xl">{webinar.public_title}</h1>
+          <p className="text-sm leading-relaxed text-room-subtle">
+            Esta sessão ({formatSessionStart(Date.parse(webinar.session_start ?? webinar.session_end!), webinar.timezone)}) já terminou
+            {webinar.replay_enabled ? "." : " e esta aula não fica gravada."}
+          </p>
+          {webinar.replay_enabled ? (
+            <a
+              href={`/w/${slug}?replay=1`}
+              className="inline-flex h-12 items-center justify-center rounded-xl bg-primary px-6 text-sm font-bold text-white"
+            >
+              Ver a gravação
+            </a>
+          ) : null}
+        </div>
+      </main>
+    );
+
   // O replay só existe pelo link do replay (?replay=1); o link de sempre é sempre a live (ou a espera por ela).
   const effectiveMode = roomMode === "replay" && !testMode && !webinar.replay_enabled ? "live" : roomMode;
 
@@ -872,6 +918,10 @@ export function PublicRoom({
             teste: testMode,
             ...(values["website"] ? { website: values["website"] } : {}),
             ...(abTestId ? { abTestId } : {}),
+            // Just in time: a sessão que a página mostrou «Ao vivo», mesmo que o formulário demore a preencher.
+            ...(webinar.schedule_mode === "jit" && startMs !== null && startMs <= Date.now()
+              ? { shownStartMs: Math.round(startMs) }
+              : {}),
             ...audienceMeta(),
           },
         });

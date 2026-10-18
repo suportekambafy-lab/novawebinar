@@ -7,6 +7,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { leadSource } from "@/lib/contacts";
 import { fieldApiKey, parseEntryFields, validateEntry } from "@/lib/entry-fields";
+import { safeZone, zoneParts } from "@/lib/schedule";
 import { normalizeName, normalizePhone, withoutRepeatedDial, originAllowed, parseRegistration, RateLimiter, type RegistrationError } from "@/lib/registration";
 import { originalRegistration } from "@/lib/room-viewer.server";
 
@@ -70,14 +71,22 @@ function countryNameFromIso(code: string): string {
  * intervalo) e essa sessão ainda estiver a decorrer. Qualquer outro valor é ignorado (null).
  */
 export function jitShownSlot(
-  webinar: { schedule_mode?: string | null; jit_interval_minutes?: number | null },
+  webinar: { schedule_mode?: string | null; jit_interval_minutes?: number | null; jit_skip_night?: boolean | null; timezone?: string | null },
   durationSeconds: number,
   shownStartMs: number | null,
   nowMs: number,
 ): number | null {
   if (webinar.schedule_mode !== "jit" || shownStartMs === null || !Number.isFinite(shownStartMs)) return null;
   const interval = Math.max(5, webinar.jit_interval_minutes ?? 15) * 60_000;
-  if (shownStartMs % interval !== 0 || shownStartMs > nowMs) return null;
+  if (shownStartMs > nowMs) return null;
+  // Um começo de sessão: múltiplo do intervalo, ou as 07:00 do fuso quando as noites estão de fora (essas
+  // não caem na grelha do intervalo quando o fuso não está a horas certas de UTC).
+  const onGrid = shownStartMs % interval === 0;
+  if (!onGrid) {
+    if (!webinar.jit_skip_night) return null;
+    const local = zoneParts(shownStartMs, safeZone(webinar.timezone));
+    if (local.hour !== 7 || local.minute !== 0 || local.second !== 0) return null;
+  }
   const endMs = shownStartMs + Math.max(0, durationSeconds) * 1000;
   return durationSeconds > 0 && nowMs < endMs ? shownStartMs : null;
 }

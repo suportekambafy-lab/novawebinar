@@ -45,6 +45,8 @@ const joinSchema = z.object({
   website: z.string().max(200).optional(),
   /** Entrada pelo link de um teste A/B: o servidor reconhece o lead e devolve-o à variante que já viu. */
   abTestId: z.string().uuid().optional(),
+  /** A hora de início que a página mostrou («Ao vivo»): no just in time, a pessoa fica nessa sessão. */
+  shownStartMs: z.number().int().positive().optional(),
 });
 
 /** A credencial que joinPublicRoom entrega: o id da participação assinado pelo servidor. */
@@ -245,7 +247,7 @@ export const joinPublicRoom = createServerFn({ method: "POST" })
 
     // Inscrição ao vivo num webinar com horário: fica ligada à sessão global, com a
     // mesma janela que a sala mostra (o mesmo caminho da captura externa).
-    const sessionId = await openRegistrationSession(webinar, data.mode, Boolean(data.teste));
+    const sessionId = await openRegistrationSession(webinar, data.mode, Boolean(data.teste), data.shownStartMs ?? null);
     const { participant, error } = await createRegistration(
       webinar,
       {
@@ -497,3 +499,6 @@ export const getRoomLiveCount = createServerFn({ method: "GET" })
     value.catch(() => liveCounts.delete(data.webinarId));
     return value;
   });
+
+/** A hora do servidor: a sala acerta o relógio do telemóvel por ela (ver server-clock). */
+export const getServerNow = createServerFn({ method: "GET" }).handler(async () => ({ now: Date.now() }));

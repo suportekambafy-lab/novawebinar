@@ -9,6 +9,7 @@ import {
   Volume2,
   X,
 } from "lucide-react";
+import { serverNow } from "@/lib/server-clock";
 import { useHearts, useLivePresence } from "@/lib/live-presence";
 import { useVideoShape, VideoPlayer } from "@/components/video-player";
 import { LessonTimer } from "@/components/room/lesson-timer";
@@ -572,7 +573,9 @@ export function WebinarRoom({
 
   // No replay a sala não tem hora; só a contagem à entrada a marca, até o vídeo arrancar.
   const scheduled = (mode === "live" || entryCounting) && startMs !== null;
-  const elapsed = startMs === null ? 0 : (now - startMs) / 1000;
+  // A hora marcada vem do servidor: compara-se com a hora do servidor (o relógio do telemóvel pode estar
+  // adiantado ou atrasado). A contagem à entrada nasceu do relógio do browser e segue esse.
+  const elapsed = startMs === null ? 0 : ((entryCounting ? now : serverNow(now)) - startMs) / 1000;
   const waiting = scheduled && elapsed < 0;
   const untilStart = Math.max(0, Math.round(-elapsed));
   const embedLike = /youtube|youtu\.be|vimeo|mediadelivery|pandavideo|\/embed\/|player\./i.test(
