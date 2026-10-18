@@ -48,7 +48,8 @@ import {
   type DraftComment,
   type TranscriptSegment,
 } from "@/lib/ai-comment-jobs";
-import { getWebinarAnalysis, getWebinarTranscript, saveWebinarTranscript } from "@/lib/ai-comments.functions";
+import { getWebinarAnalysis, getWebinarTranscript, measureVideoSource, saveWebinarTranscript } from "@/lib/ai-comments.functions";
+import { syncOpenSessions } from "@/lib/session-sync.functions";
 import { getAgent } from "@/lib/ai-agent/agent.functions";
 import { activationBlockers, channelStatus, readSteps } from "@/lib/workflow";
 import { reviewIssues, reviewSummary, type ReviewFix, type ReviewIssue } from "@/lib/webinar-review";
@@ -399,6 +400,18 @@ function EditWebinar() {
   // O vídeo de fundo da contagem antes de começar, para a pré-visualização.
   const countdownVideo = videoSources.find((v) => v.id === form.live.countdown?.background.video) ?? null;
   const duration = selectedVideo?.duration_seconds || webinar?.duration_seconds || 0;
+  // Um vídeo guardado sem duração (links HLS e Bunny de antes desta medição): mede-se uma vez ao abrir.
+  const measuredRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selectedVideo || selectedVideo.duration_seconds || !selectedVideo.source_url) return;
+    if (measuredRef.current === selectedVideo.id) return;
+    measuredRef.current = selectedVideo.id;
+    void measureVideoSource({ data: { videoSourceId: selectedVideo.id } })
+      .then((r) => {
+        if (r.duration) invalidate(["video-sources"]);
+      })
+      .catch(() => undefined);
+  }, [selectedVideo]);
   const [transcript, setTranscript] = useState<TranscriptSegment[]>([]);
   const { data: savedTranscript } = useQuery({
     queryKey: ["webinar-transcript", webinarId],
@@ -934,6 +947,8 @@ function EditWebinar() {
         return false;
       }
       loadedUpdatedAtRef.current = savedRow.updated_at;
+      // As sessões ainda abertas passam a acabar à hora certa com o que acabou de ser guardado.
+      void syncOpenSessions({ data: { webinarId } }).catch(() => undefined);
       const productOk = await saveProduct();
       const audienceOk = await saveAudience();
       invalidate(["webinar", "webinars"]);
@@ -1014,11 +1029,26 @@ function EditWebinar() {
   /** O vídeo escolhido grava logo: o resto das etapas (e a transcrição) dependem dele. */
   const persistVideo = async (id: string) => {
     set({ video_source_id: id });
-    const { error } = await supabase.from("webinars").update({ video_source_id: id }).eq("id", webinarId);
+    // Com a mesma guarda do Guardar: a versão carregada e uma versão nova, para outro separador não escrever
+    // por cima do vídeo sem dar por isso.
+    const loaded = loadedUpdatedAtRef.current ?? webinar?.updated_at ?? null;
+    let write = supabase
+      .from("webinars")
+      .update({ video_source_id: id, updated_at: new Date().toISOString() })
+      .eq("id", webinarId);
+    if (loaded) write = write.eq("updated_at", loaded);
+    const { data: rows, error } = await write.select("updated_at");
     if (error) {
       toast.error(friendlyError(error, "O vídeo foi escolhido mas não ficou gravado. Carregue em Guardar."));
       return;
     }
+    if (!rows?.length) {
+      toast.error("Este webinar foi alterado entretanto noutro separador ou por outra pessoa. Recarregue a página para escolher o vídeo.");
+      return;
+    }
+    loadedUpdatedAtRef.current = rows[0]!.updated_at;
+    // O vídeo novo muda o fim das sessões ainda abertas.
+    void syncOpenSessions({ data: { webinarId } }).catch(() => undefined);
     setSavedSnapshot((prev) => (prev ? JSON.stringify({ ...JSON.parse(prev), video_source_id: id }) : prev));
     invalidate(["webinar"]);
   };
@@ -1060,9 +1090,11 @@ function EditWebinar() {
       toast.error(friendlyError(error));
       return false;
     }
+    // HLS, Bunny e leitores embebidos: o browser não lê a duração, mede-a o servidor pelo manifesto.
+    const measured = detected || (await measureVideoSource({ data: { videoSourceId: data.id } }).then((r) => r.duration).catch(() => 0));
     invalidate(["video-sources"]);
     await persistVideo(data.id);
-    toast.success(detected ? "Vídeo escolhido e guardado." : "Vídeo escolhido. Não conseguimos ler a duração: confirme na Biblioteca.");
+    toast.success(measured ? "Vídeo escolhido e guardado." : "Vídeo escolhido. Não conseguimos ler a duração do vídeo.");
     return true;
   };
 

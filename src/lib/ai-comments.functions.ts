@@ -449,6 +449,13 @@ export async function probeWebinarVideoImpl(supabase: any, data: any) {
         .from("webinars")
         .update({ duration_seconds: measured })
         .eq("id", data.webinarId);
+      // Toda a plataforma lê primeiro a duração do vídeo: guardada só no webinar, a sala continuava a usar a
+      // do vídeo (errada ou 0) e a sessão acabava antes do fim.
+      const { data: row } = await supabase.from("webinars").select("video_source_id").eq("id", data.webinarId).maybeSingle();
+      if (row?.video_source_id) {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        await supabaseAdmin.from("video_sources").update({ duration_seconds: measured }).eq("id", row.video_source_id);
+      }
     }
     return { ok: true as const, duration: measured || duration, reason: "" };
   } catch (error) {
@@ -2641,3 +2648,26 @@ export async function syncCommentsWithSpeechImpl(supabase: any, data: any) {
 
   return { updates, usedSeconds: Array.from(used) };
 }
+
+/**
+ * Mede um vídeo da biblioteca (HLS, Bunny, página com o vídeo) e grava a duração. O browser não lê a
+ * duração de um .m3u8 nem de um leitor embebido: estes vídeos ficavam com 0 e a sessão sem fim certo.
+ */
+export const measureVideoSource = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => z.object({ videoSourceId: z.string().uuid() }).parse(data))
+  .handler(async ({ data, context }) => {
+    // Lido com a sessão de quem pede: só um vídeo da organização dele.
+    const { data: source } = await context.supabase
+      .from("video_sources")
+      .select("id, source_url, duration_seconds")
+      .eq("id", data.videoSourceId)
+      .maybeSingle();
+    if (!source?.source_url) return { duration: source?.duration_seconds ?? 0 };
+    const measured = await measureDuration(source.source_url).catch(() => 0);
+    if (measured > 0 && measured !== source.duration_seconds) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      await supabaseAdmin.from("video_sources").update({ duration_seconds: measured }).eq("id", source.id);
+    }
+    return { duration: measured || source.duration_seconds || 0 };
+  });

@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { measureVideoSource } from "@/lib/ai-comments.functions";
 import {
   formatDuration,
   providerLabels,
@@ -67,17 +68,23 @@ function LibraryPage() {
       return;
     }
     setUrlError(null);
-    const { error } = await supabase.from("video_sources").insert({
-      organization_id: workspace.organizationId,
-      name: form.name.trim(),
-      provider: form.provider,
-      source_url: url,
-      duration_seconds: Math.round((Number(form.minutes) || 0) * 60),
-    });
+    const { data: created, error } = await supabase
+      .from("video_sources")
+      .insert({
+        organization_id: workspace.organizationId,
+        name: form.name.trim(),
+        provider: form.provider,
+        source_url: url,
+        duration_seconds: Math.round((Number(form.minutes) || 0) * 60),
+      })
+      .select("id")
+      .single();
     if (error) {
       toast.error(friendlyError(error));
       return;
     }
+    // A duração real vem do próprio vídeo (o manifesto HLS ou o leitor): mede-a o servidor e corrige a escrita.
+    await measureVideoSource({ data: { videoSourceId: created.id } }).catch(() => undefined);
     setForm({ name: "", provider: "hls", source_url: "", minutes: "" });
     setOpen(false);
     invalidate(["video-sources"]);
@@ -85,12 +92,25 @@ function LibraryPage() {
   };
 
   const remove = async (id: string) => {
+    // Apagar um vídeo tira-o de todos os webinars que o usam (ficam sem vídeo): pergunta-se antes, com os nomes.
+    const { data: using } = await supabase
+      .from("webinars")
+      .select("public_title, internal_name")
+      .eq("video_source_id", id)
+      .limit(20);
+    const names = (using ?? []).map((w) => w.public_title || w.internal_name).filter(Boolean);
+    const question = names.length
+      ? `Este vídeo está em ${names.length === 1 ? "1 webinar" : `${names.length} webinars`}: ${names.join(", ")}.\nApagado, esses webinars ficam sem vídeo. Apagar mesmo?`
+      : "Apagar este vídeo da biblioteca?";
+    if (!window.confirm(question)) return;
     const { error } = await supabase.from("video_sources").delete().eq("id", id);
     if (error) {
       toast.error(friendlyError(error));
       return;
     }
     invalidate(["video-sources"]);
+    invalidate(["webinars"]);
+    invalidate(["webinar"]);
   };
 
   return (
