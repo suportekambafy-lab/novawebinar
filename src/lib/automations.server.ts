@@ -234,6 +234,7 @@ async function groupAlreadySent(
   run: Run,
   nodeId: string,
   send: Send,
+  slot: number,
   status: "delivered" | "simulated",
 ) {
   if (!run.webinar_session_id && !run.webinar_id) return false;
@@ -248,7 +249,8 @@ async function groupAlreadySent(
       JSON.stringify([
         {
           node: nodeId,
-          sends: [{ channel: send.channel, target: "group", to: send.group ?? null, status }],
+          // Pela posição no passo: mudar o nome do grupo a meio da sessão já não o faz receber outra vez.
+          sends: [{ channel: send.channel, target: "group", slot, status }],
         },
       ]),
     )
@@ -316,7 +318,25 @@ async function executeAction(
     entry.outcome = `A mensagem usa ${noLink.join(", ")}`;
     return { ok: false, transient: false, result: null, error: entry.outcome, entry };
   }
-  for (const send of node.sends) {
+  // Os envios deste passo que já saíram numa tentativa anterior (guardados no resultado da falha passageira):
+  // a nova tentativa não os repete. Antes, uma falha no grupo voltava a mandar o WhatsApp à pessoa.
+  const previous = (run.result ?? null) as { partial?: { node?: string; done?: number[] } } | null;
+  const alreadyDone = new Set(previous?.partial?.node === node.id ? (previous.partial.done ?? []) : []);
+  const done: number[] = [];
+  const failures: string[] = [];
+  /** Uma falha passageira: a execução volta a tentar este passo, sem repetir o que já saiu. */
+  const retryLater = (error: string, http_status: number | null) => ({
+    ok: false,
+    transient: true,
+    result: { action: "steps", node: node.id, http_status, partial: { node: node.id, done: [...alreadyDone, ...done] } } as Json,
+    error,
+    entry,
+  });
+  for (const [slot, send] of node.sends.entries()) {
+    if (alreadyDone.has(slot)) {
+      entry.sends!.push({ channel: send.channel, target: send.target, to: null, status: "delivered", slot, error: "Já enviada na tentativa anterior" });
+      continue;
+    }
     const missing = sendMissing(send);
     if (missing.length) {
       entry.outcome = `Mensagem por configurar (falta ${missing.join(", ")})`;
@@ -334,6 +354,7 @@ async function executeAction(
           to: null,
           status: "skipped",
           error: noPhone ? "Sem telefone" : "Sem e-mail",
+          slot,
         });
         continue;
       }
@@ -362,16 +383,24 @@ async function executeAction(
         status: delivery.ok ? (delivery.sandbox ? "simulated" : "delivered") : "failed",
         http_status: delivery.status,
         error: delivery.error,
+        slot,
       });
       if (!delivery.ok) {
-        entry.outcome = delivery.error ?? "O webhook falhou";
-        return { ok: false, transient: delivery.transient, result: { action: "steps", node: node.id, http_status: delivery.status }, error: entry.outcome, entry };
+        const why = delivery.error ?? "O webhook falhou";
+        if (delivery.transient) {
+          entry.outcome = why;
+          return retryLater(why, delivery.status);
+        }
+        // Falha definitiva deste envio: fica registada e o resto segue (a sequência da pessoa não pára).
+        failures.push(why);
+        continue;
       }
+      done.push(slot);
       continue;
     }
     if (send.channel === "whatsapp" && !isTest) {
-      if (send.target === "group" && (await groupAlreadySent(run, node.id, send, "delivered"))) {
-        entry.sends!.push({ channel: "whatsapp", target: "group", to, status: "shared" });
+      if (send.target === "group" && (await groupAlreadySent(run, node.id, send, slot, "delivered"))) {
+        entry.sends!.push({ channel: "whatsapp", target: "group", to, status: "shared", slot });
         continue;
       }
       await holdLock(run);
@@ -387,35 +416,47 @@ async function executeAction(
         status: delivery.ok ? "delivered" : "failed",
         http_status: delivery.status,
         error: delivery.error,
+        slot,
       });
       if (!delivery.ok) {
-        entry.outcome = delivery.error ?? "O WhatsApp falhou";
-        return {
-          ok: false,
-          transient: delivery.transient,
-          result: { action: "steps", node: node.id, http_status: delivery.status },
-          error: entry.outcome,
-          entry,
-        };
+        const why = delivery.error ?? "O WhatsApp falhou";
+        if (delivery.transient) {
+          entry.outcome = why;
+          return retryLater(why, delivery.status);
+        }
+        // O canal por configurar não é um destinatário: a execução falha com o motivo, como antes.
+        if (delivery.config) {
+          entry.outcome = why;
+          return { ok: false, transient: false, result: { action: "steps", node: node.id, http_status: delivery.status }, error: why, entry };
+        }
+        // Número inválido, fora do grupo: este envio falha, os outros e os passos seguintes saem.
+        failures.push(why);
+        continue;
       }
+      done.push(slot);
       continue;
     }
     if (!isTest) {
       entry.outcome = `Sem fornecedor de ${send.channel} configurado`;
       return { ok: false, transient: false, result: null, error: entry.outcome, entry };
     }
-    if (send.target === "group" && (await groupAlreadySent(run, node.id, send, "simulated"))) {
-      entry.sends!.push({ channel: send.channel, target: "group", to, status: "shared" });
+    if (send.target === "group" && (await groupAlreadySent(run, node.id, send, slot, "simulated"))) {
+      entry.sends!.push({ channel: send.channel, target: "group", to, status: "shared", slot });
       continue;
     }
-    entry.sends!.push({ channel: send.channel, target: send.target, to, status: "simulated" });
+    entry.sends!.push({ channel: send.channel, target: send.target, to, status: "simulated", slot });
+    done.push(slot);
     // Conta de teste: fica a mensagem que teria saído, para se ver na execução.
     (entry as LogEntry & { preview?: unknown[] }).preview = [
       ...(((entry as LogEntry & { preview?: unknown[] }).preview ?? []) as unknown[]),
       { channel: send.channel, subject: renderMessage(send.subject, sendVars) || null, message: renderMessage(send.message, sendVars) },
     ];
   }
-  entry.outcome = isTest ? "Enviada (simulado: nada saiu da plataforma)" : "Enviada";
+  entry.outcome = failures.length
+    ? `Enviada, com ${failures.length === 1 ? "um envio falhado" : `${failures.length} envios falhados`}: ${failures.join("; ")}`
+    : isTest
+      ? "Enviada (simulado: nada saiu da plataforma)"
+      : "Enviada";
   return {
     ok: true,
     transient: false,

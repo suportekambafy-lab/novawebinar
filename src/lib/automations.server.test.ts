@@ -295,8 +295,8 @@ describe("automações com passos (workflow)", () => {
     expect(step).toMatchObject({ _status: "next", _cursor: "m2" });
     const log = step["_log"] as { sends?: { channel: string; target: string; status: string; to: string | null }[]; preview?: { subject: string }[] }[];
     expect(log[0]!.sends).toEqual([
-      { channel: "email", target: "contact", to: "an…com", status: "simulated" },
-      { channel: "whatsapp", target: "group", to: "Webinar IA", status: "simulated" },
+      { channel: "email", target: "contact", to: "an…com", status: "simulated", slot: 0 },
+      { channel: "whatsapp", target: "group", to: "Webinar IA", status: "simulated", slot: 1 },
     ]);
     expect(log[0]!.preview![0]!.subject).toBe("Olá Ana");
     expect(Date.parse(step["_scheduled_for"] as string) - Date.now()).toBeGreaterThan(119 * 60_000);
@@ -314,9 +314,10 @@ describe("automações com passos (workflow)", () => {
     expect(log[0]!.sends!.map((s) => `${s.target}:${s.status}`)).toEqual(["contact:simulated", "group:shared"]);
     // steps_log é jsonb: o filtro vai em JSON (um array JS iria como array do Postgres e falhava).
     const contains = filters.find((f) => f.table === "automation_runs" && f.name === "contains")!;
-    // Só conta o envio que saiu (aqui, simulado): um que falhou não impede o seguinte.
+    // Só conta o envio que saiu (aqui, simulado): um que falhou não impede o seguinte. O grupo reconhece-se
+    // pela posição do envio no passo (slot), não pelo nome, que pode mudar.
     expect(JSON.parse(contains.args[1] as string)).toEqual([
-      { node: "m", sends: [{ channel: "whatsapp", target: "group", to: "Webinar IA", status: "simulated" }] },
+      { node: "m", sends: [{ channel: "whatsapp", target: "group", slot: 1, status: "simulated" }] },
     ]);
   });
 
@@ -400,7 +401,7 @@ describe("WhatsApp não oficial (WAHA)", () => {
     const step = advances()[0]!;
     expect(step).toMatchObject({ _status: "done" });
     expect((step["_log"] as { sends: unknown[] }[])[0]!.sends).toEqual([
-      { channel: "whatsapp", target: "contact", to: "92…789", status: "delivered", http_status: 200, error: null },
+      { channel: "whatsapp", target: "contact", to: "92…789", status: "delivered", http_status: 200, error: null, slot: 0 },
     ]);
   });
 
@@ -418,6 +419,61 @@ describe("WhatsApp não oficial (WAHA)", () => {
     await runDueAutomations();
     expect(call(0).url).toBe("https://waha.exemplo.com/api/org_1/groups?exclude=participants");
     expect(call(1).body).toEqual({ session: "org_1", chatId: "222@g.us", text: "Olá Ana" });
+    expect(advances()[0]).toMatchObject({ _status: "done" });
+  });
+
+  /** Um passo com dois envios: à pessoa e ao grupo. */
+  const twoSends = (run: Record<string, unknown> = {}) => {
+    oneSend({ target: "contact" });
+    const auto = (answers["automations"] as { data: { steps: { nodes: { sends: unknown[] }[] } } }).data;
+    auto.steps.nodes[0]!.sends = [
+      { channel: "whatsapp", target: "contact", message: "Olá {{primeiro_nome}}" },
+      { channel: "whatsapp", target: "group", group: "222@g.us", message: "Começou" },
+    ];
+    answers["rpc.claim_automation_runs"] = [
+      { data: [{ ...RUN, occurrence_key: "purchase_approved:p1", cursor: "m", guards: [], steps_log: [], ...run }], error: null },
+    ] as never;
+  };
+
+  it("o grupo falha por um momento: a nova tentativa não repete a mensagem à pessoa", async () => {
+    twoSends();
+    fetchMock
+      .mockResolvedValueOnce(new Response("ok", { status: 200 }))
+      .mockResolvedValueOnce(new Response("ocupado", { status: 503 }));
+    await runDueAutomations();
+    // Falha passageira: volta a tentar, com o envio à pessoa marcado como feito.
+    expect(finishes()[0]).toMatchObject({ _ok: false, _transient: true });
+    expect((finishes()[0]!["_result"] as { partial: unknown }).partial).toEqual({ node: "m", done: [0] });
+  });
+
+  it("na nova tentativa, só sai o que faltava", async () => {
+    twoSends({ result: { action: "steps", node: "m", partial: { node: "m", done: [0] } } });
+    await runDueAutomations();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(call(0).body).toEqual({ session: "org_1", chatId: "222@g.us", text: "Começou" });
+    const step = advances()[0]!;
+    expect(step).toMatchObject({ _status: "done" });
+    const sends = (step["_log"] as { sends: { status: string; error?: string | null }[] }[])[0]!.sends;
+    expect(sends.map((x) => x.status)).toEqual(["delivered", "delivered"]);
+    expect(sends[0]!.error).toBe("Já enviada na tentativa anterior");
+  });
+
+  it("um número inválido não pára a sequência: o envio falha, o resto sai", async () => {
+    answers["contacts"] = { data: { id: "contact-1", name: "Ana Silva", email: null, phone: "12" }, error: null };
+    twoSends();
+    await runDueAutomations();
+    const step = advances()[0]!;
+    expect(step).toMatchObject({ _status: "done" });
+    const sends = (step["_log"] as { sends: { status: string }[]; outcome: string }[])[0]!;
+    expect(sends.sends.map((x) => x.status)).toEqual(["failed", "delivered"]);
+    expect(sends.outcome).toMatch(/um envio falhado/);
+  });
+
+  it("sem resposta a tempo do servidor: não se reenvia (a mensagem pode ter saído)", async () => {
+    oneSend({ target: "contact" });
+    fetchMock.mockRejectedValueOnce(Object.assign(new Error("timeout"), { name: "TimeoutError" }));
+    await runDueAutomations();
+    expect(finishes()).toHaveLength(0);
     expect(advances()[0]).toMatchObject({ _status: "done" });
   });
 

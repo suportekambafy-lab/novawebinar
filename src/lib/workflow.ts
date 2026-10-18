@@ -367,7 +367,8 @@ export type LogEntry = {
   at: string;
   outcome: string;
   /** Envios de uma mensagem: canal, destino, estado. */
-  sends?: { channel: Channel; target: Target; to: string | null; status: "simulated" | "delivered" | "failed" | "shared" | "skipped"; http_status?: number | null; error?: string | null }[];
+  /** `slot`: a posição do envio no passo (o grupo reconhece-se por ela, não pelo nome, que pode mudar). */
+  sends?: { channel: Channel; target: Target; to: string | null; status: "simulated" | "delivered" | "failed" | "shared" | "skipped"; http_status?: number | null; error?: string | null; slot?: number }[];
   /** Resultado de um ramo. */
   branch?: "yes" | "no";
 };

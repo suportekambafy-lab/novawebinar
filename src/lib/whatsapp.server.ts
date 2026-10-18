@@ -23,6 +23,8 @@ export type WhatsappDelivery = {
   transient: boolean;
   status: number | null;
   error: string | null;
+  /** Falta configurar o canal (servidor, ligação): nada sai para ninguém até se corrigir. */
+  config?: boolean;
 };
 
 const fail = (
@@ -67,7 +69,7 @@ export async function sendWhatsapp(
   text: string,
 ): Promise<WhatsappDelivery> {
   if (!process.env["WAHA_URL"])
-    return fail("O servidor de WhatsApp (WAHA) não está ligado à plataforma.");
+    return { ...fail("O servidor de WhatsApp (WAHA) não está ligado à plataforma."), config: true };
   const { data: row, error } = await supabaseAdmin
     .from("integrations")
     .select("provider, enabled, settings")
@@ -76,7 +78,7 @@ export async function sendWhatsapp(
     .maybeSingle();
   if (error) return fail(`WhatsApp: ${error.message}`, true);
   if (!whatsappReady(row ?? undefined))
-    return fail("O WhatsApp não oficial não está ligado (Integrações › Canais).");
+    return { ...fail("O WhatsApp não oficial não está ligado (Integrações › Canais)."), config: true };
   const settings = row!.settings as Record<string, string>;
   const session = settings["session"]!;
 
@@ -90,10 +92,19 @@ export async function sendWhatsapp(
       if (!number) return fail("O contacto não tem um número de WhatsApp válido.");
       chatId = `${number}@c.us`;
     }
-    const res = await waha("/api/sendText", {
-      method: "POST",
-      body: JSON.stringify({ session, chatId, text }),
-    });
+    let res: Response;
+    try {
+      res = await waha("/api/sendText", {
+        method: "POST",
+        body: JSON.stringify({ session, chatId, text }),
+      });
+    } catch (err) {
+      // O pedido saiu e a resposta não chegou a tempo: a mensagem pode ter sido entregue. Não se volta a
+      // tentar (repetia a mesma mensagem à pessoa); fica registada como enviada, sem confirmação.
+      if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError"))
+        return { ok: true, transient: false, status: null, error: "Sem confirmação do servidor de WhatsApp a tempo: não se reenvia para não repetir." };
+      throw err;
+    }
     if (res.ok) return { ok: true, transient: false, status: res.status, error: null };
     const detail = (await res.text()).slice(0, 200);
     return fail(
