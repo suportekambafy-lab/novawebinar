@@ -4,6 +4,7 @@ import {
   countTabs,
   inboxState,
   sortInbox,
+  currentSessionIds,
   toInboxItem,
   webinarFilters,
   type InboxItem,
@@ -19,6 +20,7 @@ const item = (id: string, over: Partial<InboxItem> = {}): InboxItem => ({
   at: "2026-10-08T10:00:00Z",
   webinarId: "w1",
   webinarTitle: "Fórmula Digital",
+  sessionId: null,
   state: "ai",
   intent: null,
   priority: null,
@@ -51,35 +53,30 @@ describe("caixa do atendimento", () => {
       item("agente", { state: "ai", lastFrom: "ai", at: "2026-10-08T11:00:00Z" }),
     ];
     expect(countTabs(items)).toEqual({ all: 3, new: 1, ai: 1, attending: 0 });
-    expect(sortInbox(items).map((i) => i.id)).toEqual(["espera", "pausa", "agente"]);
+    expect(sortInbox(items).map((i) => i.id)).toEqual(["pausa", "agente", "espera"]);
   });
 
-  it("ordena por prioridade: prazo, urgência, vendas, por responder", () => {
+  it("a mensagem mais recente fica sempre em cima, seja qual for o estado ou a prioridade", () => {
     const sorted = sortInbox([
-      item("agente-recente", { at: "2026-10-08T11:00:00Z" }),
-      item("agente-venda", { hot: true, at: "2026-10-08T09:00:00Z" }),
-      item("normal", { state: "new", priority: "normal", sla: "ok" }),
-      item("atrasado", { state: "attending", priority: "low", sla: "breached" }),
-      item("alta", { state: "new", priority: "high", sla: "ok" }),
-      item("respondido", { state: "new", priority: "high", sla: "ok", lastFrom: "team" }),
+      item("antiga-urgente", { state: "new", priority: "high", sla: "breached", at: "2026-10-08T09:00:00Z" }),
+      item("recente-agente", { state: "ai", at: "2026-10-08T11:00:00Z" }),
+      item("meio", { state: "attending", at: "2026-10-08T10:00:00Z" }),
     ]).map((i) => i.id);
-    expect(sorted).toEqual([
-      "atrasado",
-      "alta",
-      "respondido",
-      "normal",
-      "agente-venda",
-      "agente-recente",
-    ]);
+    expect(sorted).toEqual(["recente-agente", "meio", "antiga-urgente"]);
   });
 
-  it("entre iguais à espera, quem espera há mais tempo primeiro; sem ninguém antes de quem já tem pessoa", () => {
-    const sorted = sortInbox([
-      item("depois", { state: "new", at: "2026-10-08T10:05:00Z" }),
-      item("antes", { state: "new", at: "2026-10-08T10:00:00Z" }),
-      item("com-pessoa", { state: "attending", at: "2026-10-08T09:00:00Z" }),
-    ]).map((i) => i.id);
-    expect(sorted).toEqual(["antes", "depois", "com-pessoa"]);
+  it("sessão atual: a que decorre ou a próxima de cada webinar, e as que acabaram há menos de 3 h", () => {
+    const now = Date.parse("2026-10-18T21:00:00Z");
+    const ids = currentSessionIds(
+      [
+        { id: "ontem", webinar_id: "w1", starts_at: "2026-10-17T19:30:00Z", ended_at: "2026-10-17T21:00:00Z" },
+        { id: "hoje", webinar_id: "w1", starts_at: "2026-10-18T19:30:00Z", ended_at: null },
+        { id: "amanha", webinar_id: "w1", starts_at: "2026-10-19T19:30:00Z", ended_at: null },
+        { id: "acabou-agora", webinar_id: "w2", starts_at: "2026-10-18T18:00:00Z", ended_at: "2026-10-18T19:30:00Z" },
+      ],
+      now,
+    );
+    expect([...ids].sort()).toEqual(["acabou-agora", "hoje"]);
   });
 
   it("sem caso, lê a intenção na última mensagem do contacto", () => {

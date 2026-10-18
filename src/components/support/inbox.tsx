@@ -108,6 +108,8 @@ export function InboxList({
   webinars,
   webinarId,
   onWebinar,
+  currentOnly,
+  onCurrentOnly,
   onSelect,
 }: {
   items: InboxItem[];
@@ -120,6 +122,9 @@ export function InboxList({
   webinars: { id: string; title: string }[];
   webinarId: string | null;
   onWebinar: (id: string | null) => void;
+  /** Sem ela (o exemplo), não há filtro de sessão. */
+  currentOnly?: boolean | undefined;
+  onCurrentOnly?: ((value: boolean) => void) | undefined;
   onSelect: (id: string) => void;
 }) {
   return (
@@ -172,6 +177,16 @@ export function InboxList({
             className="h-10 pl-9"
           />
         </div>
+        {onCurrentOnly && (
+          <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none]" aria-label="Filtrar por sessão">
+            <FilterChip active={!currentOnly} onClick={() => onCurrentOnly(false)}>
+              Todas as sessões
+            </FilterChip>
+            <FilterChip active={Boolean(currentOnly)} onClick={() => onCurrentOnly(true)}>
+              Sessão atual
+            </FilterChip>
+          </div>
+        )}
         {webinars.length > 1 && (
           <div
             className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none]"

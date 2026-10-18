@@ -1,7 +1,6 @@
 /**
  * A caixa do Atendimento: em que separador fica cada conversa e por que ordem
- * aparece. Primeiro quem precisa de uma pessoa, do mais urgente para o menos
- * urgente; as vendas que o agente qualificou passam à frente das outras dúvidas.
+ * aparece (a mensagem mais recente em cima).
  */
 import { keywordIntents } from "./classify";
 import { priorityRank, slaState, type CaseRow, type SlaState } from "./model";
@@ -33,6 +32,8 @@ export type InboxItem = {
   at: string;
   webinarId: string | null;
   webinarTitle: string | null;
+  /** A sessão em que a pessoa se inscreveu (o filtro «Sessão atual»); null no replay e sem horário. */
+  sessionId?: string | null | undefined;
   state: InboxState;
   intent: string | null;
   /** Só existe com um caso aberto. */
@@ -89,7 +90,7 @@ export function toInboxItem(
     needs_human: boolean;
     ai_paused: boolean;
     webinar_id: string | null;
-    participants?: { name: string | null } | null;
+    participants?: { name: string | null; webinar_session_id?: string | null } | null;
     webinars?: { public_title: string } | null;
   },
   open: OpenCase | null,
@@ -110,6 +111,7 @@ export function toInboxItem(
     at: c.last_message_at,
     webinarId: c.webinar_id,
     webinarTitle: c.webinars?.public_title ?? null,
+    sessionId: c.participants?.webinar_session_id ?? null,
     state: inboxState(c, open),
     intent,
     priority: open?.priority ?? null,
@@ -137,28 +139,11 @@ export function countTabs(items: InboxItem[]): Record<InboxTab, number> {
 const SLA_RANK: Record<SlaState, number> = { breached: 0, risk: 1, ok: 2, none: 3, met: 3 };
 
 /**
- * A ordem da caixa:
- * 1. quem precisa de uma pessoa, antes do que o agente está a tratar (ou tem em pausa);
- * 2. prazo ultrapassado, depois em risco;
- * 3. prioridade do caso;
- * 4. vendas (intenção de compra) antes das outras dúvidas;
- * 5. por responder (a última mensagem é do contacto);
- * 6. sem responsável antes de quem já tem uma pessoa;
- * 7. à espera: quem espera há mais tempo primeiro; o resto, o mais recente primeiro.
+ * A ordem da caixa: a mensagem mais recente sempre em cima (como no WhatsApp). Quem precisa de uma pessoa
+ * vê-se no separador Novas e pelos selos de prazo e prioridade, não pela posição na lista.
  */
 export function compareInbox(a: InboxItem, b: InboxItem) {
-  const person = (i: InboxItem) => (i.state === "ai" || i.state === "paused" ? 1 : 0);
-  const unanswered = (i: InboxItem) => (i.lastFrom === "contact" ? 0 : 1);
-  const waiting = person(a) === 0 && unanswered(a) === 0;
-  return (
-    person(a) - person(b) ||
-    SLA_RANK[a.sla] - SLA_RANK[b.sla] ||
-    priorityRank(a.priority ?? "normal") - priorityRank(b.priority ?? "normal") ||
-    Number(b.hot) - Number(a.hot) ||
-    unanswered(a) - unanswered(b) ||
-    Number(a.state !== "new") - Number(b.state !== "new") ||
-    (waiting ? a.at.localeCompare(b.at) : b.at.localeCompare(a.at))
-  );
+  return b.at.localeCompare(a.at) || a.id.localeCompare(b.id);
 }
 
 export function sortInbox(items: InboxItem[]) {
@@ -207,4 +192,30 @@ export function agentToday(
   let resolved = 0;
   for (const [id, at] of lastAnswer) if ((lastPass.get(id) ?? "") < at) resolved += 1;
   return { resolved, escalated: lastPass.size };
+}
+
+/** Fim de uma sessão há pouco: as conversas de quem escreve logo a seguir à live ainda são «da sessão atual». */
+export const RECENT_SESSION_MS = 3 * 3600_000;
+
+/**
+ * As sessões atuais: de cada webinar, a que está a decorrer ou a próxima (ainda por terminar), e as que
+ * terminaram há menos de 3 horas.
+ */
+export function currentSessionIds(
+  sessions: { id: string; webinar_id: string; starts_at: string; ended_at: string | null }[],
+  now = Date.now(),
+): Set<string> {
+  const ids = new Set<string>();
+  const next = new Map<string, { id: string; at: number }>();
+  for (const s of sessions) {
+    if (s.ended_at) {
+      if (now - Date.parse(s.ended_at) <= RECENT_SESSION_MS) ids.add(s.id);
+      continue;
+    }
+    const at = Date.parse(s.starts_at);
+    const seen = next.get(s.webinar_id);
+    if (!seen || at < seen.at) next.set(s.webinar_id, { id: s.id, at });
+  }
+  for (const { id } of next.values()) ids.add(id);
+  return ids;
 }

@@ -32,6 +32,7 @@ import {
   useSkills,
   useStaff,
   useSupportConversations,
+  useOpenSessions,
   useSupportInvalidate,
   useSupportRealtime,
   useSupportSetup,
@@ -42,6 +43,7 @@ import {
   inTab,
   matchesSearch,
   sortInbox,
+  currentSessionIds,
   toInboxItem,
   webinarFilters,
   type InboxTab,
@@ -168,6 +170,9 @@ function SupportPage() {
 
   const [tab, setTab] = useState<InboxTab>("all");
   const [webinarId, setWebinarId] = useState<string | null>(null);
+  // «Sessão atual»: só as conversas de quem está inscrito na sessão de agora (ou a acabada de terminar).
+  const [currentOnly, setCurrentOnly] = useState(false);
+  const { data: openSessions = [] } = useOpenSessions(scope, currentOnly);
   const [search, setSearch] = useState("");
   // Vindo de uma ligação (ficha dos Contactos), abre logo a conversa, também no telemóvel.
   const [step, setStep] = useState<InboxStep>(requested ? "chat" : "list");
@@ -206,7 +211,10 @@ function SupportPage() {
     });
   }, [conversations, openCases, departments, staff, tick]);
 
-  const scoped = items.filter((i) => !webinarId || i.webinarId === webinarId);
+  const current = useMemo(() => currentSessionIds(openSessions), [openSessions, tick]);
+  const scoped = items.filter(
+    (i) => (!webinarId || i.webinarId === webinarId) && (!currentOnly || (i.sessionId ? current.has(i.sessionId) : false)),
+  );
   const visible = sortInbox(scoped.filter((i) => inTab(i, tab) && matchesSearch(i, search)));
   const active = items.find((i) => i.id === requested) ?? visible[0] ?? null;
   const activeConversation = conversations.find((c) => c.id === active?.id);
@@ -328,6 +336,8 @@ function SupportPage() {
               webinars={webinarFilters(items)}
               webinarId={webinarId}
               onWebinar={setWebinarId}
+              currentOnly={currentOnly}
+              onCurrentOnly={setCurrentOnly}
               onSelect={select}
             />
           }

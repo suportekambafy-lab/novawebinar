@@ -134,7 +134,7 @@ export async function setMyStatus(organizationId: string, status: StaffStatus) {
 /* ---------- Conversas ---------- */
 
 const CONVERSATION_COLUMNS =
-  "*, participants(name, email, phone, contact_id), webinars(public_title)";
+  "*, participants(name, email, phone, contact_id, webinar_session_id), webinars(public_title)";
 
 export function useSupportConversations(organizationId: string | undefined) {
   return useQuery({
@@ -153,6 +153,30 @@ export function useSupportConversations(organizationId: string | undefined) {
     },
   });
 }
+/**
+ * As sessões que o filtro «Sessão atual» considera: as por terminar e as que terminaram nas últimas horas
+ * (ver `currentSessionIds`). Revistas de minuto a minuto, para a sessão seguinte entrar sozinha.
+ */
+export function useOpenSessions(organizationId: string | undefined, enabled: boolean) {
+  return useQuery({
+    queryKey: ["support", "open-sessions", organizationId],
+    enabled: Boolean(organizationId) && enabled,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const since = new Date(Date.now() - 6 * 3600_000).toISOString();
+      const { data, error } = await supabase
+        .from("webinar_sessions")
+        .select("id, webinar_id, starts_at, ended_at")
+        .eq("organization_id", organizationId!)
+        .or(`ended_at.is.null,ended_at.gte.${since}`)
+        .order("starts_at")
+        .limit(500);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
 export type SupportConversation = NonNullable<
   ReturnType<typeof useSupportConversations>["data"]
 >[number];
