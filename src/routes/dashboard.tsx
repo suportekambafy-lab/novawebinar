@@ -23,6 +23,7 @@ import {
   heroIssues,
   periodStart,
   pickHero,
+  type HeroKind,
   todaySummary,
   whenLabel,
   type Period,
@@ -114,11 +115,27 @@ function Dashboard() {
   );
   // O mesmo pedido (e a mesma cache) que o editor usa para avisar das automações em falta.
   const heroAutomations = useWebinarAutomations(picked?.webinar.id);
+  // As outras lives a decorrer agora: cada uma tem o seu slide no destaque, a seguir à primeira.
+  const otherLives = useMemo(
+    () =>
+      now === null || picked?.kind !== "live"
+        ? []
+        : list
+            .filter((w) => w.id !== picked.webinar.id)
+            .map((w) => ({ webinar: w, lifecycle: lifecycleOf(w, now) }))
+            .filter((x) => x.lifecycle.kind === "session" && x.lifecycle.state === "live"),
+    [list, now, picked],
+  );
   // Os rascunhos ficam na página Webinars.
   const recentList = useMemo(() => list.filter((w) => w.status !== "draft").slice(0, 4), [list]);
   const statIds = useMemo(
-    () => [...new Set([picked?.webinar.id, ...recentList.map((w) => w.id)].filter(Boolean) as string[])],
-    [picked, recentList],
+    () =>
+      [
+        ...new Set(
+          [picked?.webinar.id, ...otherLives.map((x) => x.webinar.id), ...recentList.map((w) => w.id)].filter(Boolean) as string[],
+        ),
+      ],
+    [picked, otherLives, recentList],
   );
   const perWebinar = useQuery({
     queryKey: ["dashboard", "webinars", orgId, statIds.join(",")],
@@ -145,9 +162,9 @@ function Dashboard() {
     return { registered: s.registered, attended: s.attended, buyers: s.buyers, registeredToday: today.size };
   };
 
-  let hero: HeroData | null = null;
-  if (picked && now !== null) {
-    const { webinar: w, lifecycle: l, kind } = picked;
+  /** O slide de um webinar no destaque (o escolhido e cada uma das outras lives a decorrer). */
+  const heroOf = (w: W, l: WebinarLifecycle, kind: HeroKind, nowMs: number, workflows: number | null): HeroData => {
+    const now = nowMs;
     const session = l.kind === "session" ? l : null;
     const when =
       kind === "live" && session
@@ -155,7 +172,7 @@ function Dashboard() {
         : kind === "next" && session
           ? whenLabel(session.startMs, w.timezone, now)
           : null;
-    hero = {
+    return {
       id: w.id,
       slug: w.slug,
       title: titleOf(w),
@@ -192,11 +209,29 @@ function Dashboard() {
           : null,
       issues: heroIssues({
         hasVideo: Boolean(w.video_source_id),
-        workflows: heroAutomations.data?.workflows.length ?? null,
+        workflows,
         lifecycle: l,
       }),
     };
-  }
+  };
+
+  const hero: HeroData | null =
+    picked && now !== null
+      ? heroOf(picked.webinar, picked.lifecycle, picked.kind, now, heroAutomations.data?.workflows.length ?? null)
+      : null;
+  const heroes: HeroData[] =
+    hero && now !== null ? [hero, ...otherLives.map((x) => heroOf(x.webinar, x.lifecycle, "live", now, null))] : [];
+  // O banner «Ao vivo geral»: com mais de uma live ao mesmo tempo, ou um teste A/B a correr.
+  const runningTests = (abTests ?? []).filter((t) => t.test.status === "active").length;
+  const liveHeroes = heroes.filter((h) => h.kind === "live");
+  const overview =
+    liveHeroes.length > 1 || runningTests > 0
+      ? {
+          lives: liveHeroes.map((h) => ({ id: h.id, title: h.title, liveNow: h.liveNow })),
+          inRoom: liveHeroes.reduce((sum, h) => sum + h.liveNow, 0),
+          tests: runningTests,
+        }
+      : null;
 
   const recent: RecentWebinar[] | null =
     now === null || isLoading
@@ -397,11 +432,8 @@ function Dashboard() {
       <SyncJobsOverview className="mb-4" />
       <DashboardView
         hero={hero}
-        abTests={abTests}
-        imageOfWebinar={(id) => {
-          const w = list.find((x) => x.id === id);
-          return w ? imageOf(w) : null;
-        }}
+        heroes={heroes}
+        overview={overview}
         heroLoading={loadingWebinars}
         hasWebinars={list.length > 0}
         onCopyLink={copyLink}

@@ -32,10 +32,6 @@ import { cloneElement, useEffect, useState, type ReactElement, type ReactNode } 
 import { Avatar, TintIcon } from "@/components/ds";
 import { posterFromUrl } from "@/components/video-thumb";
 import { Button } from "@/components/ui/button";
-import { activeHeroTests } from "@/components/dashboard/ab-hero-card";
-import { pct, variantColor } from "@/components/ab-tests/parts";
-import { formatMeasure, measureOf, objectiveInfo, VERDICT_LABEL, type Objective } from "@/lib/ab-tests/stats";
-import type { AbTestSummary } from "@/lib/ab-tests/ab-tests.functions";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { DayEntry } from "@/lib/agenda";
 import { zoneParts } from "@/lib/schedule";
@@ -237,141 +233,73 @@ function HeroStat({ value, label, extra }: { value: number; label: string; extra
   );
 }
 
-/** Um teste A/B a correr, como um banner do hero: as variantes lado a lado, quem vai à frente e a ligação. */
-/**
- * O fundo do slide de um teste A/B: não é a capa do webinar (essa é do 1.º slide). As variantes lado a lado,
- * cada uma com a capa do seu webinar tingida na cor da variante e a letra em grande, e «VS» ao meio.
- */
-function AbBackdrop({
-  variants,
-  imageOfWebinar,
-  leadId,
-}: {
-  variants: AbTestSummary["metrics"]["variants"];
-  imageOfWebinar?: ((webinarId: string) => HeroData["image"] | null) | undefined;
-  leadId: string | null;
-}) {
-  return (
-    <div aria-hidden className="absolute inset-0">
-      <div className="absolute inset-0 bg-[radial-gradient(70%_120%_at_90%_0%,rgba(91,214,138,.22),transparent_60%),radial-gradient(60%_90%_at_100%_100%,rgba(0,114,245,.25),transparent_70%)]" />
-      <div className="absolute inset-y-0 right-0 flex w-full md:w-[62%]">
-        {variants.map((v, i) => {
-          const image = v.webinarId ? imageOfWebinar?.(v.webinarId) : null;
-          const poster = image ? image.cover || posterFromUrl(image.video) : null;
-          return (
-            <div
-              key={v.id}
-              className="relative min-w-0 flex-1 overflow-hidden"
-              style={i > 0 ? { clipPath: "polygon(12% 0, 100% 0, 100% 100%, 0 100%)", marginLeft: "-6%" } : undefined}
-            >
-              {poster && <img src={poster} alt="" className="size-full scale-105 object-cover grayscale-[35%]" />}
-              <div className="absolute inset-0 mix-blend-multiply" style={{ background: variantColor(v.position), opacity: 0.55 }} />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(10,10,10,.1),rgba(10,10,10,.7))]" />
-              <span
-                className={cn(
-                  "absolute top-4 right-5 text-[64px] leading-none font-black tracking-tight text-white/25 sm:text-[96px]",
-                  v.id === leadId && "text-white/45",
-                )}
-              >
-                {v.label}
-              </span>
-            </div>
-          );
-        })}
-        {variants.length === 2 && (
-          <span className="absolute top-1/2 left-1/2 grid size-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-[#0a0a0a]/80 text-[12px] font-bold tracking-wider text-white ring-1 ring-white/25 backdrop-blur">
-            VS
-          </span>
-        )}
-      </div>
-      <div className="absolute inset-0 bg-[linear-gradient(0deg,#0a0a0a_38%,rgba(10,10,10,.5)_70%,rgba(10,10,10,.15))] md:bg-[linear-gradient(90deg,#0a0a0a_0%,#0a0a0a_32%,rgba(10,10,10,.6)_52%,rgba(10,10,10,0)_75%)]" />
-    </div>
-  );
-}
+/** O banner «Ao vivo geral»: as lives a decorrer, quantas pessoas em cada, e a ligação à Vista ao vivo. */
+export type LiveOverview = {
+  lives: { id: string; title: string; liveNow: number }[];
+  inRoom: number;
+  /** Testes A/B a correr agora. */
+  tests: number;
+};
 
-function AbHeroSlide({
-  summary,
-  imageOfWebinar,
-  onCopyLink,
-}: {
-  summary: AbTestSummary;
-  imageOfWebinar?: ((webinarId: string) => HeroData["image"] | null) | undefined;
-  onCopyLink: (slug: string) => void;
-}) {
-  const { test, metrics, evaluation } = summary;
-  const objective = test.objective as Objective;
-  const total = metrics.variants.reduce((sum, v) => sum + v.visitors, 0);
-  const best = evaluation.best;
-  const comparison = evaluation.comparison;
-  const confident = evaluation.verdict === "consistent";
+function OverviewSlide({ overview }: { overview: LiveOverview }) {
+  const { lives, inRoom, tests } = overview;
   return (
     <section className="relative isolate flex h-full min-h-[420px] min-w-0 flex-col justify-end overflow-hidden rounded-card bg-[#0a0a0a] text-white md:min-h-[360px]">
-      <AbBackdrop variants={metrics.variants} imageOfWebinar={imageOfWebinar} leadId={best?.id ?? null} />
-      <div className="relative flex flex-col gap-6 p-5 pb-12 sm:p-8 sm:pb-12 md:max-w-[680px] md:p-10 md:pb-12">
+      {/* Fundo próprio: o vermelho do «ao vivo» a sair do canto, sem a capa de nenhum webinar. */}
+      <div
+        aria-hidden
+        className="absolute inset-0 -z-10"
+        style={{
+          background:
+            "radial-gradient(120% 90% at 100% 0%, rgba(255,59,48,0.45) 0%, rgba(255,59,48,0.08) 45%, transparent 70%), radial-gradient(80% 80% at 0% 100%, rgba(232,68,12,0.25) 0%, transparent 60%), #0a0a0a",
+        }}
+      />
+      <div className="relative flex flex-col gap-6 p-5 pb-12 sm:p-8 sm:pb-12 md:max-w-[640px] md:p-10 md:pb-12">
         <div className="flex flex-col gap-3">
-          <span className="inline-flex w-fit items-center gap-1.5 rounded-pill bg-white/12 px-2.5 py-1 text-[12px] font-medium backdrop-blur">
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-pill bg-live px-2.5 py-1 text-[12px] font-medium text-white">
             <span className="relative flex size-2">
-              <span className="absolute inset-0 animate-ping rounded-full bg-[#5BD68A]/70 motion-reduce:animate-none" />
-              <span className="relative size-2 rounded-full bg-[#5BD68A]" />
+              <span className="absolute inset-0 animate-ping rounded-full bg-white/70" />
+              <span className="relative size-2 rounded-full bg-white" />
             </span>
-            Teste A/B a correr
+            Ao vivo geral
           </span>
-          <h2 className="line-clamp-2 text-[28px] leading-[1.08] font-semibold tracking-[var(--tracking-display)] sm:text-[40px]">
-            {test.name}
+          <h2 className="text-[28px] leading-[1.08] font-semibold tracking-[var(--tracking-display)] sm:text-[40px]">
+            {lives.length > 1
+              ? `${lives.length} lives a decorrer agora`
+              : lives.length === 1
+                ? "1 live a decorrer agora"
+                : "Todas as salas num só ecrã"}
           </h2>
           <p className="text-[15px] text-white/75">
-            <span className="font-medium text-white">{objectiveInfo(objective).label}</span>
-            {" · "}
-            {total > 0 ? `${nf.format(total)} visitantes` : "à espera dos primeiros visitantes"}
+            {tests > 0 && (
+              <>
+                {tests === 1 ? "1 teste A/B a correr" : `${tests} testes A/B a correr`}
+                {lives.length > 0 ? " · " : ""}
+              </>
+            )}
+            {lives.length > 0 && (
+              <>
+                <span className="font-medium text-white">{nf.format(inRoom)}</span> na sala agora, somando todas
+              </>
+            )}
           </p>
         </div>
-
-        <div className="flex flex-wrap gap-x-8 gap-y-4">
-          {metrics.variants.map((v) => {
-            const share = total > 0 ? v.visitors / total : 0;
-            return (
-              <div key={v.id} className="min-w-[8.5rem]">
-                <p className="flex items-baseline gap-2 text-[26px] leading-none font-semibold tracking-[var(--tracking-display)] sm:text-[30px]">
-                  {formatMeasure(measureOf(v, objective))}
-                  {best?.id === v.id && (
-                    <Trophy className="size-4 self-center text-[#FFC46B]" strokeWidth={2} aria-label="à frente" />
-                  )}
-                </p>
-                <p className="mt-1.5 flex items-center gap-1.5 text-[12px] text-white/60">
-                  <span className="size-2 rounded-full" style={{ background: variantColor(v.position) }} aria-hidden />
-                  Variante {v.label} · {nf.format(v.visitors)} ({total > 0 ? pct(share, 0) : "—"})
-                </p>
-                <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/12" aria-hidden>
-                  <div className="h-full rounded-full" style={{ width: `${Math.round(share * 100)}%`, background: variantColor(v.position) }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <p className={cn("text-[14px]", confident ? "text-[#5BD68A]" : "text-white/75")}>
-          {VERDICT_LABEL[evaluation.verdict]}
-          {best && comparison
-            ? ` · ${best.label} ${Number.isFinite(comparison.lift) ? `${comparison.lift >= 0 ? "+" : ""}${pct(comparison.lift, 0)}` : "à frente"} com ${Math.round(comparison.confidence)}% de confiança`
-            : ""}
-        </p>
-
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap [&>*:first-child]:col-span-2">
+        {lives.length > 0 && (
+          <ul className="flex flex-col gap-2">
+            {lives.slice(0, 4).map((live) => (
+              <li key={live.id} className="flex items-center gap-3 text-[15px]">
+                <span className="size-2 shrink-0 rounded-full bg-live" aria-hidden />
+                <span className="min-w-0 flex-1 truncate">{live.title}</span>
+                <span className="shrink-0 tabular-nums text-white/75">{nf.format(live.liveNow)} na sala</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div>
           <Button asChild size="lg" className="bg-white text-[#0a0a0a] hover:bg-white/85">
-            <Link to="/ab-tests/$testId" params={{ testId: test.id }}>
-              Ver teste <ArrowRight />
+            <Link to="/live-view">
+              Ver ao vivo geral <ArrowRight />
             </Link>
-          </Button>
-          <Button
-            size="lg"
-            variant="ghost"
-            className="bg-white/10 text-white hover:bg-white/20"
-            onClick={() => onCopyLink(test.slug)}
-          >
-            <Link2 /> Copiar link
-          </Button>
-          <Button asChild size="lg" variant="ghost" className="bg-white/10 text-white hover:bg-white/20">
-            <Link to="/ab-tests">Todos os testes</Link>
           </Button>
         </div>
       </div>
@@ -379,29 +307,25 @@ function AbHeroSlide({
   );
 }
 
-/**
- * O hero do Painel em slides: o webinar em destaque e, a seguir, cada teste A/B a correr. Passa sozinho de
- * 7 em 7 segundos (pára com o rato por cima, com o foco lá dentro, ou com «reduzir movimento»); os pontos
- * e as setas mudam à mão. Os slides ocupam a mesma célula: a altura é a do maior, sem saltos.
- */
 export function HeroCarousel({
-  hero,
+  heroes,
+  overview,
   loading,
   hasWebinars,
   onCopyLink,
-  abTests,
-  imageOfWebinar,
 }: {
-  hero: HeroData | null;
+  /** Um slide por webinar: o primeiro é o destaque; os outros, as outras lives a decorrer. */
+  heroes: HeroData[];
+  overview: LiveOverview | null;
   loading: boolean;
   hasWebinars: boolean;
   onCopyLink: (slug: string) => void;
-  abTests?: AbTestSummary[] | undefined;
-  /** A imagem de um webinar da conta (a capa da variante que vai à frente serve de fundo ao teste). */
-  imageOfWebinar?: ((webinarId: string) => HeroData["image"] | null) | undefined;
 }) {
-  const tests = loading ? [] : activeHeroTests(abTests, hero?.id ?? null);
-  const count = 1 + tests.length;
+  const slides: ({ kind: "hero"; hero: HeroData | null } | { kind: "overview"; overview: LiveOverview })[] = [
+    ...(heroes.length ? heroes.map((hero) => ({ kind: "hero" as const, hero })) : [{ kind: "hero" as const, hero: null }]),
+    ...(!loading && overview ? [{ kind: "overview" as const, overview }] : []),
+  ];
+  const count = slides.length;
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const current = Math.min(index, count - 1);
@@ -425,9 +349,9 @@ export function HeroCarousel({
       aria-roledescription={count > 1 ? "carrossel" : undefined}
     >
       <div className="grid">
-        {[0, ...tests.map((_, i) => i + 1)].map((i) => (
+        {slides.map((slide, i) => (
           <div
-            key={i}
+            key={slide.kind === "hero" ? (slide.hero?.id ?? "vazio") : "overview"}
             className={cn(
               "[grid-area:1/1] min-w-0 transition-opacity duration-500 motion-reduce:transition-none",
               i === current ? "opacity-100" : "pointer-events-none opacity-0",
@@ -435,10 +359,10 @@ export function HeroCarousel({
             aria-hidden={i !== current}
             {...(i !== current ? { inert: true } : {})}
           >
-            {i === 0 ? (
-              <Hero hero={hero} loading={loading} hasWebinars={hasWebinars} onCopyLink={onCopyLink} />
+            {slide.kind === "hero" ? (
+              <Hero hero={slide.hero} loading={loading} hasWebinars={hasWebinars} onCopyLink={onCopyLink} />
             ) : (
-              <AbHeroSlide summary={tests[i - 1]!} imageOfWebinar={imageOfWebinar} onCopyLink={onCopyLink} />
+              <OverviewSlide overview={slide.overview} />
             )}
           </div>
         ))}
@@ -454,13 +378,13 @@ export function HeroCarousel({
             <ChevronLeft className="size-4" />
           </button>
           <div className="flex items-center gap-1.5" role="tablist" aria-label="Destaques">
-            {Array.from({ length: count }, (_, i) => (
+            {slides.map((slide, i) => (
               <button
                 key={i}
                 type="button"
                 role="tab"
                 aria-selected={i === current}
-                aria-label={i === 0 ? "Webinar em destaque" : `Teste A/B ${i}`}
+                aria-label={slide.kind === "overview" ? "Ao vivo geral" : (slide.hero?.title ?? "Webinar em destaque")}
                 onClick={() => go(i)}
                 className={cn(
                   "h-1.5 rounded-full transition-all duration-300",
@@ -1558,11 +1482,12 @@ export function DashboardView({
   agenda,
   today,
   recent,
-  abTests,
-  imageOfWebinar,
+  heroes,
+  overview,
 }: {
-  abTests?: AbTestSummary[] | undefined;
-  imageOfWebinar?: ((webinarId: string) => HeroData["image"] | null) | undefined;
+  /** As outras lives a decorrer (depois do destaque); vazio sem live. */
+  heroes?: HeroData[] | undefined;
+  overview?: LiveOverview | null | undefined;
   hero: HeroData | null;
   heroLoading: boolean;
   hasWebinars: boolean;
@@ -1581,12 +1506,11 @@ export function DashboardView({
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <HeroCarousel
-        hero={hero}
+        heroes={heroes?.length ? heroes : hero ? [hero] : []}
+        overview={overview ?? null}
         loading={heroLoading}
         hasWebinars={hasWebinars}
         onCopyLink={onCopyLink}
-        abTests={abTests}
-        imageOfWebinar={imageOfWebinar}
       />
 
       <div className="grid min-w-0 grid-cols-1 gap-3 lg:grid-cols-12">
