@@ -22,6 +22,14 @@ import salaOfertaTelemovel from "@/assets/landing/sala-oferta-telemovel.webp";
 import salaReplay from "@/assets/landing/sala-replay.webp";
 import salaVendas from "@/assets/landing/sala-vendas.webp";
 import salaVendasTelemovel from "@/assets/landing/sala-vendas-telemovel.webp";
+import liveVerticalTelemovel from "@/assets/landing/live-vertical-telemovel.webp";
+import liveVerticalOfertaTelemovel from "@/assets/landing/live-vertical-oferta-telemovel.webp";
+import salaRoxoVendasTelemovel from "@/assets/landing/sala-roxo-vendas-telemovel.webp";
+import salaVerdeTelemovel from "@/assets/landing/sala-verde-telemovel.webp";
+import salaAzulVendas from "@/assets/landing/sala-azul-vendas.webp";
+import salaVerdeOferta from "@/assets/landing/sala-verde-oferta.webp";
+import salaRoxo from "@/assets/landing/sala-roxo.webp";
+import liveVerticalOferta from "@/assets/landing/live-vertical-oferta.webp";
 
 export type ShotKind =
   | "sala"
@@ -37,32 +45,123 @@ export type ShotKind =
   | "analises"
   | "atendimento"
   | "fluxo"
-  | "painel";
+  | "painel"
+  | "sala-azul-vendas"
+  | "sala-verde-oferta"
+  | "sala-roxo"
+  | "live-vertical-oferta";
 
-export type PhoneShotKind = "sala" | "sala-oferta" | "sala-vendas";
+export type PhoneShotKind =
+  | "sala"
+  | "sala-oferta"
+  | "sala-vendas"
+  | "live-vertical"
+  | "live-vertical-oferta"
+  | "sala-roxo-vendas"
+  | "sala-verde";
 
 /** Computador: 1600×1000 (a sala) ou 1600×1000 (o painel); tudo foi capturado a 1440×900. */
 const DESKTOP: Record<ShotKind, { src: string; alt: string }> = {
-  sala: { src: salaAoVivo, alt: "A sala ao vivo do Novawebinar: o vídeo com o selo «Ao vivo», o número de pessoas e o chat a acompanhar" },
-  "sala-oferta": { src: salaOferta, alt: "A sala ao vivo com a oferta aberta ao lado do chat: produto, preço, contagem e botão de compra" },
-  "sala-vendas": { src: salaVendas, alt: "A sala ao vivo com um aviso de compra por cima do vídeo e no chat" },
-  "sala-replay": { src: salaReplay, alt: "A sala em replay, com o selo «Replay» e o chat da sessão" },
-  inscricao: { src: inscricao, alt: "A página de inscrição de uma aula: capa, barra de vagas, nome, e-mail e WhatsApp" },
-  "editor-agenda": { src: editorAgenda, alt: "O editor na etapa Agenda: uma data, repetir, just in time ou sempre disponível, com a sala de espera ao lado" },
-  "editor-chat": { src: editorChat, alt: "O editor na etapa Chat: os comentários simulados, o país do lançamento e a pré-visualização da sala" },
-  "editor-oferta": { src: editorOferta, alt: "O editor na etapa Oferta: produto, preço e o momento em que entra" },
-  "editor-vendas": { src: editorVendas, alt: "O editor na etapa Vendas: os avisos de compra que aparecem na sala" },
-  metricas: { src: metricas, alt: "As métricas de um webinar: inscritos, assistiram, tempo assistido, oferta, cliques, compras e conversão" },
-  analises: { src: analises, alt: "A página de análises: inscrições, presença e vendas por webinar, aparelho e país" },
-  atendimento: { src: atendimento, alt: "O Atendimento: as conversas privadas, o Agente IA a sugerir uma resposta e os botões para assumir ou transferir" },
-  fluxo: { src: fluxo, alt: "O desenho do fluxo de automações: inscrição, grupo de WhatsApp, aquecimento, lembretes e mensagens" },
+  sala: {
+    src: salaAoVivo,
+    alt: "A sala ao vivo do Novawebinar: o vídeo com o selo «Ao vivo», o número de pessoas e o chat a acompanhar",
+  },
+  "sala-oferta": {
+    src: salaOferta,
+    alt: "A sala ao vivo com a oferta aberta ao lado do chat: produto, preço, contagem e botão de compra",
+  },
+  "sala-vendas": {
+    src: salaVendas,
+    alt: "A sala ao vivo com um aviso de compra por cima do vídeo e no chat",
+  },
+  "sala-replay": {
+    src: salaReplay,
+    alt: "A sala em replay, com o selo «Replay» e o chat da sessão",
+  },
+  inscricao: {
+    src: inscricao,
+    alt: "A página de inscrição de uma aula: capa, barra de vagas, nome, e-mail e WhatsApp",
+  },
+  "editor-agenda": {
+    src: editorAgenda,
+    alt: "O editor na etapa Agenda: uma data, repetir, just in time ou sempre disponível, com a sala de espera ao lado",
+  },
+  "editor-chat": {
+    src: editorChat,
+    alt: "O editor na etapa Chat: os comentários simulados, o país do lançamento e a pré-visualização da sala",
+  },
+  "editor-oferta": {
+    src: editorOferta,
+    alt: "O editor na etapa Oferta: produto, preço e o momento em que entra",
+  },
+  "editor-vendas": {
+    src: editorVendas,
+    alt: "O editor na etapa Vendas: os avisos de compra que aparecem na sala",
+  },
+  metricas: {
+    src: metricas,
+    alt: "As métricas de um webinar: inscritos, assistiram, tempo assistido, oferta, cliques, compras e conversão",
+  },
+  analises: {
+    src: analises,
+    alt: "A página de análises: inscrições, presença e vendas por webinar, aparelho e país",
+  },
+  atendimento: {
+    src: atendimento,
+    alt: "O Atendimento: as conversas privadas, o Agente IA a sugerir uma resposta e os botões para assumir ou transferir",
+  },
+  fluxo: {
+    src: fluxo,
+    alt: "O desenho do fluxo de automações: inscrição, grupo de WhatsApp, aquecimento, lembretes e mensagens",
+  },
   painel: { src: painel, alt: "O painel: o próximo webinar, a agenda do mês e quem entrou hoje" },
+  "sala-azul-vendas": {
+    src: salaAzulVendas,
+    alt: "A sala ao vivo de uma masterclass, com a oferta aberta e um aviso de compra no chat",
+  },
+  "sala-verde-oferta": {
+    src: salaVerdeOferta,
+    alt: "A sala ao vivo de um workshop com a oferta aberta ao lado do chat",
+  },
+  "sala-roxo": {
+    src: salaRoxo,
+    alt: "A sala ao vivo de uma sessão especial, ao início, com o chat a encher",
+  },
+  "live-vertical-oferta": {
+    src: liveVerticalOferta,
+    alt: "O formato Live no computador: o vídeo ao alto ao centro, o chat e a oferta ao lado",
+  },
 };
 
 const PHONE: Record<PhoneShotKind, { src: string; alt: string }> = {
-  sala: { src: salaAoVivoTelemovel, alt: "A sala ao vivo no telemóvel: o vídeo em cima e o chat em baixo" },
-  "sala-oferta": { src: salaOfertaTelemovel, alt: "A sala no telemóvel com a oferta aberta por cima do chat" },
-  "sala-vendas": { src: salaVendasTelemovel, alt: "A sala no telemóvel com um aviso de compra no chat" },
+  sala: {
+    src: salaAoVivoTelemovel,
+    alt: "A sala ao vivo no telemóvel: o vídeo em cima e o chat em baixo",
+  },
+  "sala-oferta": {
+    src: salaOfertaTelemovel,
+    alt: "A sala no telemóvel com a oferta aberta por cima do chat",
+  },
+  "sala-vendas": {
+    src: salaVendasTelemovel,
+    alt: "A sala no telemóvel com um aviso de compra no chat",
+  },
+  "live-vertical": {
+    src: liveVerticalTelemovel,
+    alt: "O formato Live no telemóvel: o vídeo ao alto a encher o ecrã, o selo «Ao vivo» e o chat por cima",
+  },
+  "live-vertical-oferta": {
+    src: liveVerticalOfertaTelemovel,
+    alt: "O formato Live no telemóvel com a oferta num cartão por cima do vídeo: preço, contagem e botão",
+  },
+  "sala-roxo-vendas": {
+    src: salaRoxoVendasTelemovel,
+    alt: "A sala no telemóvel com um aviso de compra por cima do vídeo e no chat",
+  },
+  "sala-verde": {
+    src: salaVerdeTelemovel,
+    alt: "A sala no telemóvel ao início da sessão, com o chat a encher",
+  },
 };
 
 /** Uma captura do computador numa moldura de browser (barra com três pontos e o endereço). */
@@ -82,7 +181,9 @@ export function DesktopShot({
   return (
     <figure className={cn("site-browser", className)}>
       <div className="site-browser-bar" aria-hidden="true">
-        <span /><span /><span />
+        <span />
+        <span />
+        <span />
         <i>{address}</i>
       </div>
       <img

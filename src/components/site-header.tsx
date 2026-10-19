@@ -3,8 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Menu, X } from "lucide-react";
 import { landingFeatures } from "@/lib/landing-features";
 import iconAsset from "@/assets/brand/novawebinar-icon.png";
+import logoAsset from "@/assets/brand/novawebinar-logo.png";
 
-/** O símbolo oficial (o N vermelho, o mesmo do painel e do favicon) com o nome. */
+/**
+ * O logótipo oficial (o N vermelho com «nova webinar»); no telemóvel, com `compact`, só o símbolo.
+ * O ficheiro do logótipo tem margem à volta: a altura é maior do que a do símbolo para a marca ficar do
+ * mesmo tamanho.
+ */
 export function BrandMark({
   className = "",
   compact = false,
@@ -13,20 +18,25 @@ export function BrandMark({
   compact?: boolean;
 }) {
   return (
-    <span
-      className={`inline-flex items-center gap-2.5 text-[1.125rem] font-semibold tracking-[-0.02em] ${className}`}
-    >
+    <span className={`inline-flex items-center ${className}`}>
       <img
-        src={iconAsset}
-        width={32}
-        height={32}
-        alt=""
-        aria-hidden="true"
+        src={logoAsset}
+        width={900}
+        height={450}
+        alt="Novawebinar"
         draggable={false}
-        className="size-8 flex-none"
+        className={`h-16 w-auto ${compact ? "max-sm:hidden" : ""}`}
       />
-      {/* No telemóvel o cabeçalho mostra só o símbolo (o link tem o nome no aria-label). */}
-      <span className={compact ? "max-sm:sr-only" : ""}>Novawebinar</span>
+      {compact && (
+        <img
+          src={iconAsset}
+          width={32}
+          height={32}
+          alt="Novawebinar"
+          draggable={false}
+          className="size-8 flex-none sm:hidden"
+        />
+      )}
     </span>
   );
 }
@@ -64,7 +74,7 @@ export function SiteHeader() {
   return (
     <header data-site data-surface="base" className="site-header sticky top-0 z-50">
       <div className="site-wrap flex h-16 items-center gap-4 lg:gap-8">
-        <Link to="/" aria-label="Novawebinar, início" className="rounded-md">
+        <Link to="/" aria-label="Novawebinar, início" className="-ml-3 rounded-md">
           <BrandMark compact />
         </Link>
 

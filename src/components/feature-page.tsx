@@ -8,9 +8,9 @@ import { landingFeatures, type FeatureDefinition, type FeatureVisual } from "@/l
 /** Cada visual das funcionalidades é uma captura real do produto (landing/shots.tsx). */
 const SHOT: Record<FeatureVisual, ShotKind> = {
   schedule: "editor-agenda",
-  room: "sala",
-  sales: "sala-vendas",
-  offer: "sala-oferta",
+  room: "live-vertical-oferta",
+  sales: "sala-azul-vendas",
+  offer: "sala-verde-oferta",
   replay: "sala-replay",
   assistance: "atendimento",
   dashboard: "metricas",

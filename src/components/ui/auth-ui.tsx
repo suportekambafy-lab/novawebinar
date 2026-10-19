@@ -41,7 +41,7 @@ export function AuthUI({ children, topLink }: { children: ReactNode; topLink?: R
         className="hidden flex-col justify-center gap-10 p-12 lg:flex xl:p-16"
       >
         <div className="rounded-[var(--radius-panel)] bg-s-card p-6">
-          <DesktopShot kind="sala" />
+          <DesktopShot kind="sala-roxo" />
         </div>
         <p className="max-w-[18ch] text-site-h2">Grave uma vez. Apresente todos os dias.</p>
       </aside>

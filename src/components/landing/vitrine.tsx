@@ -21,9 +21,12 @@ import {
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useReducedMotion } from "motion/react";
 import salaAoVivo from "@/assets/landing/sala-ao-vivo.webp";
-import salaAoVivoTelemovel from "@/assets/landing/sala-ao-vivo-telemovel.webp";
 import salaReplay from "@/assets/landing/sala-replay.webp";
-import salaVendas from "@/assets/landing/sala-vendas.webp";
+import salaAzulVendas from "@/assets/landing/sala-azul-vendas.webp";
+import salaVerdeOferta from "@/assets/landing/sala-verde-oferta.webp";
+import salaRoxo from "@/assets/landing/sala-roxo.webp";
+import liveVerticalTelemovel from "@/assets/landing/live-vertical-telemovel.webp";
+import salaAzulVendasTelemovel from "@/assets/landing/sala-azul-vendas-telemovel.webp";
 import { CountUp } from "@/components/landing/motion";
 
 function Card({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
@@ -75,7 +78,7 @@ function JustInTime() {
           className="vt-b absolute inset-x-0 bottom-0 overflow-hidden rounded-[14px]"
           style={{ height: 300 }}
         >
-          <img src={salaAoVivo} alt="" className="vt-photo" loading="lazy" decoding="async" />
+          <img src={salaRoxo} alt="" className="vt-photo" loading="lazy" decoding="async" />
           <div className="vt-shade" />
           <div className="absolute left-3 top-3 flex items-center gap-2">
             <span className="vt-chip is-live">
@@ -132,6 +135,14 @@ function Replay() {
 function Metrics() {
   return (
     <Card icon={<LineChart />} title="Métricas de cada sessão">
+      <img
+        src={salaVerdeOferta}
+        alt=""
+        className="vt-photo opacity-70"
+        loading="lazy"
+        decoding="async"
+      />
+      <div className="vt-shade" />
       <div className="vt-body justify-start pt-1">
         <span className="vt-chip is-light ml-auto">
           <i className="vt-dot is-pulse text-[var(--accent-600)]" /> <b>1.261</b> ao vivo agora
@@ -191,7 +202,13 @@ function Notifications() {
   ];
   return (
     <Card icon={<Bell />} title="Avisos de venda">
-      <img src={salaVendas} alt="" className="vt-photo is-zoom" loading="lazy" decoding="async" />
+      <img
+        src={salaAzulVendas}
+        alt=""
+        className="vt-photo is-zoom"
+        loading="lazy"
+        decoding="async"
+      />
       <div className="vt-shade" />
       {sales.map(([title, who], i) => (
         <div
@@ -334,6 +351,14 @@ function AiChat() {
 function Support() {
   return (
     <Card icon={<Headset />} title="Atendimento ao vivo">
+      <img
+        src={salaAzulVendasTelemovel}
+        alt=""
+        className="vt-photo opacity-60"
+        loading="lazy"
+        decoding="async"
+      />
+      <div className="vt-shade" />
       <div className="vt-body">
         <div
           className="vt-msg vt-panel is-dark flex items-center gap-3"
@@ -428,7 +453,7 @@ function LivePhone() {
       <div className="absolute inset-x-0 top-14 flex justify-center">
         <figure className="site-phone w-[62%]" style={{ padding: 5, borderRadius: 26 }}>
           <img
-            src={salaAoVivoTelemovel}
+            src={liveVerticalTelemovel}
             alt=""
             width={600}
             height={1301}

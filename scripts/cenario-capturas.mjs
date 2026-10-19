@@ -10,6 +10,10 @@
  *
  * Os media (vídeo, capa, avatar) ficam em public/__teste-capturas (ignorado pelo git) e são servidos
  * pela aplicação local; por isso os endereços gravados só funcionam com a aplicação a correr.
+ * Para as capturas do site (src/assets/landing) cada webinar leva um vídeo diferente, gerado com o ffmpeg
+ * (fundos de estúdio abstractos: live-vertical.mp4 em 9:16, aula-azul/verde/roxo.mp4 em 16:9), ligado
+ * depois de criar: video_sources por vídeo, webinars.video_source_id, chat_settings.live.desk «vertical»
+ * no de 9:16, e os comentários, a oferta e as compras simuladas da sala copiados para os outros três.
  * A palavra-passe da utilizadora fica em .scratch/capturas.json (ignorado pelo git).
  * Lê o .env; nenhum segredo é impresso.
  */

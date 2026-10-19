@@ -140,14 +140,14 @@ const tabs = [
     slug: "oferta",
     title: "A oferta entra no momento certo.",
     copy: "Produto, preço e contagem aparecem na sala no segundo que definiu.",
-    visual: () => <DesktopShot kind="sala-oferta" />,
+    visual: () => <DesktopShot kind="sala-verde-oferta" />,
   },
   {
     label: "Vendas",
     slug: "vendas",
     title: "As compras aparecem na sala.",
     copy: "Os avisos de venda surgem no vídeo e no chat, um de cada vez.",
-    visual: () => <DesktopShot kind="sala-vendas" />,
+    visual: () => <DesktopShot kind="sala-azul-vendas" />,
   },
   {
     label: "Acompanhar",

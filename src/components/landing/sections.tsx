@@ -111,7 +111,7 @@ export function LiveSection() {
         >
           <div className="site-glow" aria-hidden="true" />
           <div className="mx-auto w-[72%] sm:w-[64%]">
-            <PhoneShot kind="sala" />
+            <PhoneShot kind="live-vertical-oferta" />
           </div>
           {[
             ["Vídeo vertical 9:16", "left-0 top-[18%]", 0],
