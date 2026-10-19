@@ -395,6 +395,44 @@ export function webhookStatus(raw: string): PaymentStatus | null {
   return null;
 }
 
+/**
+ * O que chega ao endereço antigo (/api/public/purchase-webhook). A Kambafy manda lá o seu formato
+ * (`event` + `data`, comprador na raiz e dentro de `data`): lê-se como no receptor da Kambafy. O formato
+ * antigo (buyer_name, buyer_email, amount) e as variações (name/email/phone na raiz ou em `data`) lêem-se
+ * com os mesmos atalhos. `missing`: o que faltou para ser uma venda, para a resposta dizer o que falta.
+ */
+export function legacyPurchaseEvent(body: Body): { event: NormalizedEvent; missing: string[] } {
+  if (text(pick(body, "event"))) {
+    const event = normalizeEvent("kambafy", body);
+    return { event, missing: event.kind === "purchase" && !event.email ? ["email"] : [] };
+  }
+  const email = text(pick(body, "buyer_email", "email", "data.customer_email", "data.email", "customer.email")) || null;
+  const name = text(pick(body, "buyer_name", "name", "data.customer_name", "data.name", "customer.name"));
+  const missing = [...(!email ? ["email"] : []), ...(!name ? ["name"] : [])];
+  const rawStatus = text(pick(body, "status", "data.status")).toLowerCase();
+  const status: PaymentStatus =
+    rawStatus === "refunded" || rawStatus === "chargeback"
+      ? "refunded"
+      : rawStatus === "pending" || rawStatus === "waiting_payment"
+        ? "pending"
+        : rawStatus === "failed" || rawStatus === "refused"
+          ? "failed"
+          : "approved";
+  return {
+    event: purchase(text(pick(body, "event_type", "type")) || "purchase", status, {
+      email,
+      name: name || email || "",
+      phone: text(pick(body, "buyer_phone", "phone", "data.customer_phone", "data.phone", "customer.phone")) || null,
+      product: text(pick(body, "product_name", "data.product_name", "product")),
+      amountValue: parseAmount(pick(body, "amount", "data.amount", "data.total", "data.total_price", "data.price", "total", "price")),
+      currency: currencyCode(pick(body, "currency", "data.currency")),
+      externalId: text(pick(body, "id", "order_id", "transaction_id", "data.order_id", "data.transaction_id")) || null,
+      productId: text(pick(body, "product_id", "data.product_id")) || null,
+    }),
+    missing,
+  };
+}
+
 export function normalizeEvent(provider: ProviderId, body: Body): NormalizedEvent {
   switch (provider) {
     case "kambafy": {

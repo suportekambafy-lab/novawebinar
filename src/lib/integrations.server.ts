@@ -5,7 +5,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { normalizeEvent, type ProviderId } from "@/lib/integrations";
+import { normalizeEvent, type NormalizedEvent, type ProviderId } from "@/lib/integrations";
 import { isHttpUrl } from "@/lib/utils";
 
 /** Compara segredos em tempo constante: o tamanho da diferença não se nota no relógio. */
@@ -90,6 +90,42 @@ function must<T>(result: { data: T; error: { message: string; code?: string } | 
   return result.data;
 }
 
+/** Em nome de quem a venda entra: a integração (quando existe) e o seu âmbito. */
+export type SaleContext = {
+  /** null quando a venda entra pelo endereço antigo sem integração ligada: fica o registo sem a integração. */
+  integrationId: string | null;
+  organizationId: string;
+  /** «legacy»: o formato antigo (buyer_name/buyer_email) no endereço antigo, sem plataforma conhecida. */
+  provider: ProviderId | "legacy";
+  /** O webinar da integração (âmbito «este webinar»), ou o do endereço antigo: a venda é-lhe atribuída sem adivinhar. */
+  webinarId: string | null;
+};
+
+export type SaleOutcome = {
+  response: Response;
+  purchaseId: string | null;
+  webinarId: string | null;
+  externalId: string | null;
+  /** A plataforma repetiu uma venda já registada (neste estado ou num posterior). */
+  duplicate: boolean;
+};
+
+/** O que fica em integration_events por cada pedido, aceite ou não. */
+function eventLogger(ctx: SaleContext, payload: string | null) {
+  return async (status: "accepted" | "rejected" | "ignored", reason: string, extra: Record<string, unknown> = {}) => {
+    const { error } = await supabaseAdmin.from("integration_events").insert({
+      organization_id: ctx.organizationId,
+      integration_id: ctx.integrationId,
+      provider: ctx.provider,
+      status,
+      reason,
+      payload,
+      ...extra,
+    });
+    if (error) console.error(`[webhook] registo por guardar (${status}): ${error.message}`);
+  };
+}
+
 export async function receiveIntegrationWebhook(key: string, request: Request): Promise<Response> {
   const found = await supabaseAdmin
     .from("integrations")
@@ -104,26 +140,16 @@ export async function receiveIntegrationWebhook(key: string, request: Request): 
   if (!integration) return new Response("Not found", { status: 404 });
 
   const provider = integration.provider as ProviderId;
+  const ctx: SaleContext = {
+    integrationId: integration.id,
+    organizationId: integration.organization_id,
+    provider,
+    webinarId: (integration as { webinar_id?: string | null }).webinar_id ?? null,
+  };
   const raw = await request.text();
   // O pedido em bruto só se guarda depois de verificado: fica com o registo do
   // evento, para a venda poder ser reprocessada.
-  let payload: string | null = null;
-  const log = async (
-    status: "accepted" | "rejected" | "ignored",
-    reason: string,
-    extra: Record<string, unknown> = {},
-  ) => {
-    const { error } = await supabaseAdmin.from("integration_events").insert({
-      organization_id: integration.organization_id,
-      integration_id: integration.id,
-      provider,
-      status,
-      reason,
-      payload,
-      ...extra,
-    });
-    if (error) console.error(`[webhook] registo por guardar (${status}): ${error.message}`);
-  };
+  const log = eventLogger(ctx, null);
 
   if (raw.length > 256_000) {
     await log("rejected", "Pedido demasiado grande.");
@@ -134,9 +160,8 @@ export async function receiveIntegrationWebhook(key: string, request: Request): 
     await log("rejected", refused);
     return new Response("Unauthorized", { status: 401 });
   }
-  payload = raw;
   if (!integration.enabled) {
-    await log("ignored", "A integração está desligada.");
+    await eventLogger(ctx, raw)("ignored", "A integração está desligada.");
     return Response.json({ ok: true });
   }
 
@@ -144,14 +169,33 @@ export async function receiveIntegrationWebhook(key: string, request: Request): 
   try {
     body = JSON.parse(raw);
   } catch {
-    await log("rejected", "O pedido não vem em JSON.");
+    await eventLogger(ctx, raw)("rejected", "O pedido não vem em JSON.");
     return new Response("Invalid JSON", { status: 400 });
   }
 
-  const event = normalizeEvent(provider, body);
+  return (await applySaleEvent(ctx, raw, normalizeEvent(provider, body))).response;
+}
+
+/**
+ * Regista uma venda já verificada (o pedido vem mesmo de quem diz): o contacto, a atribuição ao
+ * webinar, o estado que só avança, o teste A/B e o webhook de saída. O mesmo motor para o receptor de
+ * cada integração e para o endereço antigo, por isso a mesma venda a chegar pelos dois fica uma vez só
+ * (a chave única é organização + plataforma + id do pedido).
+ */
+export async function applySaleEvent(ctx: SaleContext, raw: string, event: NormalizedEvent): Promise<SaleOutcome> {
+  const provider = ctx.provider;
+  const log = eventLogger(ctx, raw);
+  const outcome = (response: Response, extra: Partial<SaleOutcome> = {}): SaleOutcome => ({
+    response,
+    purchaseId: null,
+    webinarId: null,
+    externalId: event.kind === "purchase" ? event.externalId : null,
+    duplicate: false,
+    ...extra,
+  });
   if (event.kind === "ignore") {
     await log("ignored", event.reason, { event_type: event.eventType });
-    return Response.json({ ok: true });
+    return outcome(Response.json({ ok: true }));
   }
   const summary = {
     event_type: event.eventType,
@@ -163,38 +207,41 @@ export async function receiveIntegrationWebhook(key: string, request: Request): 
   // Respondemos 200 para a plataforma não repetir um pedido que nunca vai servir.
   if (!event.email) {
     await log("rejected", "A venda não traz o email do comprador.", summary);
-    return Response.json({ ok: false });
+    return outcome(Response.json({ ok: false, error: "A venda não traz o email do comprador." }));
   }
   const sale = event;
   const email = event.email;
   // Sem id da plataforma, o próprio pedido é a chave: um reenvio igual cai em "já existe".
   const externalId = event.externalId ?? `body:${createHash("sha256").update(raw, "utf8").digest("hex").slice(0, 32)}`;
+  const touched = async () => {
+    if (!ctx.integrationId) return;
+    await supabaseAdmin.from("integrations").update({ last_event_at: new Date().toISOString() }).eq("id", ctx.integrationId);
+  };
 
-  const applyPurchase = async (): Promise<Response> => {
+  const applyPurchase = async (): Promise<SaleOutcome> => {
     const existing = must(
       await supabaseAdmin
         .from("real_purchase_events")
         .select("id, status, amount_value, currency, product_name, webinar_id")
-        .eq("organization_id", integration.organization_id)
+        .eq("organization_id", ctx.organizationId)
         .eq("provider", provider)
         .eq("external_id", externalId)
         .maybeSingle(),
       "venda por ler",
     );
-    const touched = () =>
-      supabaseAdmin.from("integrations").update({ last_event_at: new Date().toISOString() }).eq("id", integration.id);
 
     if (existing) {
       // O estado só avança (pendente → aprovada → reembolsada). Um reembolso muitas
       // vezes não traz valor nem produto: muda o estado e preenche o que faltar,
       // sem apagar o que a venda original trouxe nem mudar a atribuição.
       const before = existing.status as keyof typeof STATUS_RANK;
+      const known = { purchaseId: existing.id, webinarId: existing.webinar_id, externalId };
       if (STATUS_RANK[sale.status] <= STATUS_RANK[before]) {
         await log("ignored", "Este pagamento já estava registado neste estado ou num posterior.", {
           ...summary,
           purchase_id: existing.id,
         });
-        return Response.json({ ok: true });
+        return outcome(Response.json({ ok: true }), { ...known, duplicate: true });
       }
       // Só muda se ninguém o mudou entretanto; senão volta a ler.
       const updated = must(
@@ -215,7 +262,7 @@ export async function receiveIntegrationWebhook(key: string, request: Request): 
       if (sale.status === "approved") {
         const { attributePurchase } = await import("@/lib/ab-tests/assign.server");
         await attributePurchase({
-          organizationId: integration.organization_id,
+          organizationId: ctx.organizationId,
           buyerEmail: email,
           webinarId: existing.webinar_id,
           purchaseId: existing.id,
@@ -224,20 +271,20 @@ export async function receiveIntegrationWebhook(key: string, request: Request): 
         });
       }
       await Promise.all([log("accepted", "", { ...summary, purchase_id: existing.id }), touched()]);
-      await notifyOutgoing(integration.organization_id, OUTGOING_EVENT[sale.status], {
+      await notifyOutgoing(ctx.organizationId, OUTGOING_EVENT[sale.status], {
         email,
         external_id: sale.externalId,
         provider,
         webinar_id: existing.webinar_id,
       });
-      return Response.json({ ok: true });
+      return outcome(Response.json({ ok: true }), known);
     }
 
     // Sem contacto ou sem participações lidas, a venda ficaria solta e mal
     // atribuída: antes disso, devolve-se o pedido à plataforma.
     const contactId = must(
       await supabaseAdmin.rpc("upsert_contact", {
-        _organization_id: integration.organization_id,
+        _organization_id: ctx.organizationId,
         _name: sale.name,
         _email: email,
         _phone: sale.phone ?? "",
@@ -249,7 +296,7 @@ export async function receiveIntegrationWebhook(key: string, request: Request): 
     // webinar cuja oferta aponta para este produto; senão o último a que a pessoa
     // assistiu dentro da janela; senão nenhum.
     // O receptor de um webinar (Integrações, âmbito «este webinar») atribui-lhe a venda sem adivinhar.
-    const scopedWebinar = (integration as { webinar_id?: string | null }).webinar_id ?? null;
+    const scopedWebinar = ctx.webinarId;
     const [match] =
       contactId && !scopedWebinar
         ? (must(
@@ -275,7 +322,7 @@ export async function receiveIntegrationWebhook(key: string, request: Request): 
       await supabaseAdmin
         .from("real_purchase_events")
         .insert({
-          organization_id: integration.organization_id,
+          organization_id: ctx.organizationId,
           webinar_id: match?.webinar_id ?? null,
           contact_id: contactId ?? null,
           buyer_email: email,
@@ -299,7 +346,7 @@ export async function receiveIntegrationWebhook(key: string, request: Request): 
     if (sale.status === "approved" && saved?.id) {
       const { attributePurchase } = await import("@/lib/ab-tests/assign.server");
       await attributePurchase({
-        organizationId: integration.organization_id,
+        organizationId: ctx.organizationId,
         buyerEmail: email,
         webinarId: match?.webinar_id ?? null,
         purchaseId: saved.id,
@@ -308,7 +355,7 @@ export async function receiveIntegrationWebhook(key: string, request: Request): 
       });
     }
     await Promise.all([log("accepted", attribution, { ...summary, purchase_id: saved?.id ?? null }), touched()]);
-    await notifyOutgoing(integration.organization_id, OUTGOING_EVENT[sale.status], {
+    await notifyOutgoing(ctx.organizationId, OUTGOING_EVENT[sale.status], {
       email,
       name: sale.name,
       product: sale.product,
@@ -317,7 +364,11 @@ export async function receiveIntegrationWebhook(key: string, request: Request): 
       provider,
       webinar_id: match?.webinar_id ?? null,
     });
-    return Response.json({ ok: true });
+    return outcome(Response.json({ ok: true }), {
+      purchaseId: saved?.id ?? null,
+      webinarId: match?.webinar_id ?? null,
+      externalId,
+    });
   };
 
   // Dois envios em simultâneo: quem perde a corrida (índice único ou estado mudado entretanto)
@@ -330,7 +381,7 @@ export async function receiveIntegrationWebhook(key: string, request: Request): 
       // Nada do que falhou aqui é culpa do pedido: fica o registo e a plataforma repete.
       console.error("[webhook] falha a tratar a venda", error);
       await log("rejected", "Falha temporária do nosso lado. A plataforma vai repetir o envio.", summary);
-      return retryLater();
+      return outcome(retryLater());
     }
   }
 }
