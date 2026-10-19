@@ -931,3 +931,122 @@ html:has(.live-room-shell--fixed) body {
 .lp-feature-card > em svg { width: .85rem; height: .85rem; }
 
 /* Auth — landing-aligned */
+
+/* ---------- Landing: a vitrine do hero e as secções animadas (landing/vitrine.tsx, landing/sections.tsx) ----------
+   Cartões escuros que contam uma história em ciclo, só com CSS: a sessão a abrir, o replay a correr, as
+   vendas a entrar, o teste A/B a decidir. Tudo pára com «reduzir movimento». */
+@layer components {
+  [data-surface="accent"] { --s-bg: var(--accent-600); --s-card: rgba(255,255,255,.12); --s-text: #FFFFFF; --s-text-2: rgba(255,255,255,.82); --s-icon-bg: rgba(255,255,255,.16); --s-icon: #FFFFFF; --s-action: #FFFFFF; --s-action-text: var(--accent-700); --s-action-hover: var(--accent-50); --s-line: rgba(255,255,255,.2); --s-outline: rgba(255,255,255,.6); --s-focus: #FFFFFF; }
+
+  /* A fila de cartões: desliza com o dedo e encaixa em cada cartão; sem barra visível. */
+  .vt-track { display: flex; gap: 1rem; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; padding-inline: var(--gutter); padding-block: .5rem 1.5rem; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .vt-track::-webkit-scrollbar { display: none; }
+  .vt-card { position: relative; flex: none; width: min(78vw, 300px); height: 460px; overflow: hidden; border-radius: 22px; scroll-snap-align: center; color: #fff; background: radial-gradient(120% 70% at 85% 0%, color-mix(in oklab, var(--accent-600) 55%, #000) 0%, #141414 55%, #0b0b0b 100%); box-shadow: 0 24px 50px -28px rgba(0,0,0,.6); }
+  @media (min-width: 640px) { .vt-card { width: 320px; scroll-snap-align: start; } }
+  .vt-head { position: absolute; inset: 0 0 auto 0; z-index: 2; display: flex; align-items: center; gap: .6rem; padding: 1rem 1.1rem; font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+  .vt-head span { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; background: rgba(255,255,255,.14); backdrop-filter: blur(6px); }
+  .vt-head svg { width: 15px; height: 15px; stroke-width: 1.75; }
+  .vt-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+  .vt-photo.is-zoom { animation: vt-zoom 10s ease-in-out infinite alternate; }
+  .vt-shade { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.55) 0%, rgba(0,0,0,0) 35%, rgba(0,0,0,.1) 65%, rgba(0,0,0,.75) 100%); }
+  .vt-body { position: absolute; inset: 60px 1rem 1rem; display: flex; flex-direction: column; justify-content: flex-end; gap: .6rem; }
+  .vt-panel { border-radius: 14px; background: rgba(255,255,255,.96); color: var(--ds-gray-1000); padding: .85rem .95rem; box-shadow: 0 18px 40px -22px rgba(0,0,0,.6); }
+  .vt-panel.is-dark { background: rgba(20,20,20,.86); color: #fff; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.1); }
+  .vt-chip { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .6rem; border-radius: 999px; font-size: 12px; font-weight: 600; background: rgba(255,255,255,.14); backdrop-filter: blur(6px); }
+  .vt-chip.is-light { background: #fff; color: var(--ds-gray-1000); }
+  .vt-chip.is-live { background: var(--accent-600); color: #fff; }
+  .vt-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .vt-dot.is-pulse { animation: vt-pulse 1.4s ease infinite; }
+  .vt-dot.is-green { background: #4ade80; color: #4ade80; }
+  .vt-caption { font-size: 12px; color: rgba(255,255,255,.72); }
+  .vt-muted { color: var(--ds-gray-900); }
+  /* Falsos campos e botões dentro dos painéis. */
+  .vt-field { height: 28px; border: 1px solid var(--ds-gray-200); border-radius: 7px; padding-inline: .5rem; font-size: 12px; line-height: 26px; color: var(--ds-gray-900); background: #fff; }
+  .vt-btn { display: grid; place-items: center; height: 32px; border-radius: 8px; font-size: 12px; font-weight: 600; color: #fff; background: var(--accent-600); }
+  .vt-btn.is-green { background: #16a34a; }
+  /* O cursor que entra, carrega e sai (just in time). */
+  .vt-cursor { position: absolute; z-index: 3; width: 18px; height: 18px; filter: drop-shadow(0 2px 4px rgba(0,0,0,.5)); animation: vt-cursor 10s ease infinite; }
+  .vt-press { animation: vt-press 10s ease infinite; }
+  .vt-a { animation: vt-a 10s ease infinite; }
+  .vt-b { animation: vt-b 10s ease infinite; }
+  /* Replay: a barra a avançar; a oferta/painel a flutuar. */
+  .vt-bar { height: 6px; border-radius: 999px; background: var(--ds-gray-200); overflow: hidden; }
+  .vt-bar em { display: block; height: 100%; width: 55%; border-radius: 999px; background: var(--accent-600); animation: vt-bar 12s linear infinite; }
+  .vt-float { animation: vt-float 5s ease-in-out calc(var(--i, 0) * -.9s) infinite; }
+  /* Métricas: a linha a desenhar-se; a área a aparecer. */
+  .vt-trace { stroke-dasharray: 400; stroke-dashoffset: 400; animation: vt-trace 2.4s ease .4s forwards; }
+  .vt-fade-in { opacity: 0; animation: vt-in .5s ease calc(.3s + var(--i, 0) * .25s) forwards; }
+  /* Notificações de venda: três cartões a subir, um atrás do outro. */
+  .vt-notif { position: absolute; left: 1rem; right: 1rem; bottom: 1rem; opacity: 0; animation: vt-notif 6.6s ease calc(var(--i, 0) * 2.2s) infinite; }
+  /* Teste A/B: rostos a aparecer, barras a crescer, a vencedora a pulsar. */
+  .vt-face { animation: vt-pop 10.5s ease calc(var(--i, 0) * .9s) infinite both; }
+  .vt-grow { height: 100%; width: 0; border-radius: 4px 4px 0 0; background: rgba(255,255,255,.55); animation: vt-grow 1.6s cubic-bezier(.2,.8,.2,1) calc(.6s + var(--i, 0) * .2s) forwards; }
+  .vt-win { animation: vt-win 2s ease infinite; }
+  /* Chat com IA: pergunta, «a escrever», resposta, em três diálogos que se revezam. */
+  .vt-dialog { position: absolute; inset: 60px 1rem 1rem; display: flex; flex-direction: column; justify-content: flex-end; gap: .5rem; opacity: 0; animation: vt-dialog 15s ease calc(var(--i, 0) * 5s) infinite; }
+  .vt-dialog .vt-q { animation: vt-q 15s ease calc(var(--i, 0) * 5s) infinite; }
+  .vt-dialog .vt-typing { animation: vt-typing 15s ease calc(var(--i, 0) * 5s) infinite; }
+  .vt-dialog .vt-answer { opacity: 0; animation: vt-answer 15s ease calc(var(--i, 0) * 5s) infinite; }
+  .vt-typing i { display: inline-block; width: 5px; height: 5px; margin-right: 3px; border-radius: 50%; background: currentColor; animation: vt-bounce 1s ease calc(var(--j, 0) * .15s) infinite; }
+  /* Automações: as mensagens de WhatsApp a chegar, uma a uma, num ciclo. */
+  .vt-msg { opacity: 0; transform: translateY(8px); animation: vt-msg 11s ease calc(var(--i, 0) * 2s) infinite; }
+  /* Atendimento: o pedido a chegar e a ser atendido. */
+  .vt-ring { animation: vt-ring 2s ease infinite; }
+  /* Integrações: três colunas de fichas a subir sem fim (cada lista vem duplicada). */
+  .vt-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; height: 420px; overflow: hidden; -webkit-mask-image: linear-gradient(180deg, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(180deg, transparent, #000 12%, #000 88%, transparent); }
+  .vt-col { display: flex; flex-direction: column; gap: .75rem; animation: vt-rise var(--vel, 28s) linear infinite; }
+  .vt-col.is-down { animation-direction: reverse; }
+  .vt-tile { display: flex; align-items: center; gap: .6rem; padding: .8rem .9rem; border-radius: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.09); color: #fff; font-size: 13px; font-weight: 500; white-space: nowrap; }
+  .vt-tile img, .vt-tile span { width: 24px; height: 24px; border-radius: 6px; object-fit: cover; flex: none; }
+  .vt-tile span { display: grid; place-items: center; background: rgba(255,255,255,.12); }
+  .vt-tile svg { width: 14px; height: 14px; }
+  /* Funil: cada degrau alarga-se quando chega ao ecrã. */
+  .vt-funnel { --cut: 7%; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .vt-step { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 76px; color: #fff; clip-path: polygon(0 0, 100% 0, calc(100% - var(--cut)) 100%, var(--cut) 100%); transform-origin: center top; }
+  /* Como funciona: os cartões dos passos. */
+  .vt-steps { display: flex; gap: 1rem; overflow-x: auto; scroll-snap-type: x mandatory; scroll-behavior: smooth; scrollbar-width: none; padding-bottom: .5rem; }
+  .vt-steps::-webkit-scrollbar { display: none; }
+  .vt-step-card { flex: none; width: min(82vw, 290px); min-height: 330px; scroll-snap-align: start; border-radius: 18px; background: rgba(255,255,255,.96); color: var(--ds-gray-1000); padding: 1.4rem; box-shadow: 0 24px 50px -30px rgba(0,0,0,.6); }
+  .vt-step-card b { display: inline-grid; place-items: center; min-width: 2.6rem; height: 2.6rem; padding-inline: .5rem; border-radius: 10px; background: var(--accent-50); color: var(--accent-700); font-size: 15px; font-weight: 700; }
+  .vt-ctrl { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--s-line); color: var(--s-text); background: transparent; transition: background-color var(--duration-fast) ease-out; }
+  .vt-ctrl:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+  .vt-ctrl svg { width: 18px; height: 18px; }
+  .vt-dots { display: flex; align-items: center; gap: .4rem; }
+  .vt-dots button { width: 7px; height: 7px; border-radius: 999px; background: var(--ds-gray-300); transition: width .3s ease, background-color .3s ease; }
+  .vt-dots button[aria-selected="true"] { width: 24px; background: var(--accent-600); }
+  .vt-progress { position: relative; height: 2px; width: 140px; background: var(--s-line); }
+  .vt-progress em { position: absolute; inset: 0 auto 0 0; background: var(--accent-600); transition: width .4s ease; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vt-photo.is-zoom, .vt-cursor, .vt-press, .vt-a, .vt-b, .vt-bar em, .vt-float, .vt-dot.is-pulse, .vt-face, .vt-win, .vt-col, .vt-ring, .vt-typing i { animation: none; }
+    .vt-a { opacity: 0; } .vt-b, .vt-face { opacity: 1; transform: none; }
+    .vt-trace { stroke-dashoffset: 0; animation: none; }
+    .vt-fade-in, .vt-grow, .vt-dialog, .vt-answer, .vt-msg, .vt-notif { animation: none; opacity: 1; transform: none; }
+    .vt-grow { width: var(--pct); }
+    .vt-dialog:not(:last-child) { display: none; }
+    .vt-notif:not(:last-child) { display: none; }
+    .vt-typing { display: none; }
+  }
+}
+@keyframes vt-zoom { from { transform: scale(1.04); } to { transform: scale(1.14); } }
+@keyframes vt-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+@keyframes vt-cursor { 0%, 12% { opacity: 0; transform: translate(110px, 70px); } 18% { opacity: 1; } 30%, 36% { opacity: 1; transform: translate(0, 0); } 42%, 100% { opacity: 0; transform: translate(0, 0); } }
+@keyframes vt-press { 0%, 32% { transform: scale(1); } 34% { transform: scale(.95); } 36%, 100% { transform: scale(1); } }
+@keyframes vt-a { 0%, 46% { opacity: 1; } 50%, 94% { opacity: 0; } 98%, 100% { opacity: 1; } }
+@keyframes vt-b { 0%, 47% { opacity: 0; transform: scale(.96); } 52%, 92% { opacity: 1; transform: scale(1); } 96%, 100% { opacity: 0; transform: scale(.98); } }
+@keyframes vt-bar { from { width: 55%; } to { width: 100%; } }
+@keyframes vt-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes vt-trace { to { stroke-dashoffset: 0; } }
+@keyframes vt-in { to { opacity: 1; } }
+@keyframes vt-notif { 0% { opacity: 0; transform: translateY(14px); } 5% { opacity: 1; transform: translateY(0); } 33% { transform: translateY(-50px); } 66% { opacity: 1; transform: translateY(-100px); } 80%, 100% { opacity: 0; transform: translateY(-120px); } }
+@keyframes vt-pop { 0% { transform: scale(0); } 6% { transform: scale(1.15); } 10%, 88% { transform: scale(1); } 94%, 100% { transform: scale(0); } }
+@keyframes vt-grow { to { width: var(--pct); } }
+@keyframes vt-win { 0%, 100% { box-shadow: 0 0 0 0 rgba(74,222,128,.5); } 60% { box-shadow: 0 0 0 7px rgba(74,222,128,0); } }
+@keyframes vt-dialog { 0% { opacity: 0; } 1%, 30% { opacity: 1; } 33%, 100% { opacity: 0; } }
+@keyframes vt-q { 0% { transform: translateY(6px); } 2%, 100% { transform: none; } }
+@keyframes vt-typing { 0%, 3% { opacity: 0; } 4%, 12% { opacity: 1; } 13%, 100% { opacity: 0; } }
+@keyframes vt-answer { 0%, 13% { opacity: 0; transform: translateY(6px); } 15%, 100% { opacity: 1; transform: none; } }
+@keyframes vt-bounce { 0%, 100% { opacity: .5; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+@keyframes vt-msg { 0% { opacity: 0; transform: translateY(8px); } 4%, 80% { opacity: 1; transform: none; } 88%, 100% { opacity: 0; } }
+@keyframes vt-ring { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-600) 40%, transparent); } 50% { box-shadow: 0 0 0 8px transparent; } }
+@keyframes vt-rise { to { transform: translateY(-50%); } }

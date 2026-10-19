@@ -1,36 +1,39 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import {
-  ArrowRight,
-  Bell,
-  ChartLine,
-  ChevronDown,
-  CircleCheck,
-  MousePointerClick,
-  RotateCcw,
-  ShoppingBag,
-  Users,
-} from "lucide-react";
+import { ArrowRight, Bell, ChevronDown, CircleCheck, RotateCcw, ShoppingBag } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { EASE, Item, Parallax, Reveal, Stagger, Words } from "@/components/landing/motion";
-import { DesktopShot, PhoneShot } from "@/components/landing/shots";
+import { DesktopShot } from "@/components/landing/shots";
+import { Vitrine } from "@/components/landing/vitrine";
+import {
+  CheckoutsSection,
+  FinalCta,
+  FunnelSection,
+  IntegrationsSection,
+  Kicker,
+  LiveSection,
+  StepsSection,
+} from "@/components/landing/sections";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Novawebinar — grave uma vez, apresente todos os dias" },
+      { title: "Novawebinar — venda todos os dias com webinars que correm sozinhos" },
       {
         name: "description",
         content:
-          "Crie webinars automatizados com sessões recorrentes, chat programado, oferta e análise de retenção.",
+          "Grave uma vez e apresente à hora marcada, todos os dias ou no instante do clique. Agente IA no chat, vendas em tempo real, automações por WhatsApp e e-mail e as métricas de cada sessão.",
       },
-      { property: "og:title", content: "Novawebinar — grave uma vez, apresente todos os dias" },
+      {
+        property: "og:title",
+        content: "Novawebinar — venda todos os dias com webinars que correm sozinhos",
+      },
       {
         property: "og:description",
         content:
-          "Crie webinars automatizados com sessões recorrentes, chat programado, oferta e análise de retenção.",
+          "Grave uma vez e apresente à hora marcada, todos os dias ou no instante do clique. Agente IA no chat, vendas em tempo real, automações e métricas de cada sessão.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -171,7 +174,10 @@ function FeatureTabs() {
   const slide = reduced ? 0 : 28;
   return (
     <div className="mt-12">
-      <Reveal delay={0.1} className="-mx-[var(--gutter)] overflow-x-auto px-[var(--gutter)] [scrollbar-width:none]">
+      <Reveal
+        delay={0.1}
+        className="-mx-[var(--gutter)] overflow-x-auto px-[var(--gutter)] [scrollbar-width:none]"
+      >
         <div
           role="tablist"
           aria-label="Funcionalidades"
@@ -203,7 +209,9 @@ function FeatureTabs() {
                 <motion.span
                   layoutId="tab-pill"
                   className="site-tab-pill"
-                  transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 34 }}
+                  transition={
+                    reduced ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 34 }
+                  }
                 />
               )}
               {item.label}
@@ -272,16 +280,6 @@ const automations = [
   },
 ];
 
-const insights = [
-  { icon: Users, title: "Presença e replay", copy: "Quem entrou ao vivo e quem viu depois." },
-  {
-    icon: MousePointerClick,
-    title: "Cliques na oferta",
-    copy: "Quantas pessoas abriram a oferta e quando.",
-  },
-  { icon: ChartLine, title: "Retenção minuto a minuto", copy: "Onde a atenção sobe e onde cai." },
-];
-
 const questions = [
   [
     "Preciso de estar presente na sessão?",
@@ -303,9 +301,21 @@ const questions = [
     "Quem responde às mensagens privadas?",
     "A sua equipa, no Atendimento. O Agente ajuda com base no conteúdo e passa a conversa à equipa quando é preciso.",
   ],
+  [
+    "As vendas entram sozinhas?",
+    "Sim. Ligue a Kambafy, a Hotmart, a Kiwify, a Eduzz ou o Stripe (ou um webhook) e cada compra aprovada fica no webinar certo: na receita, no funil e nos avisos de venda da sala.",
+  ],
+  [
+    "Posso testar duas versões do mesmo webinar?",
+    "Pode. O teste A/B divide o tráfego de um só link entre duas salas, conta visitas, presença e compras de cada uma e diz quando há uma vencedora.",
+  ],
+  [
+    "Preciso de outra ferramenta para as métricas?",
+    "Não. Inscrições, presença ao vivo e no replay, retenção minuto a minuto, cliques na oferta e compras ficam no painel e nas métricas de cada sessão.",
+  ],
 ] as const;
 
-/** O hero entra por ordem: título palavra a palavra, depois o texto, o campo e o visual. */
+/** O hero: o título ao centro, palavra a palavra, com o ponto final na cor da marca; depois a vitrine. */
 function Hero() {
   const reduced = useReducedMotion();
   const enter = (delay: number) => ({
@@ -314,49 +324,49 @@ function Hero() {
     transition: { duration: 0.7, ease: EASE, delay },
   });
   return (
-    <section data-surface="base" className="relative overflow-hidden pb-[var(--section-y)] pt-[var(--section-y-tight)]">
-      <div className="site-wrap grid items-center gap-12 lg:grid-cols-[1fr_1.1fr] lg:gap-14">
-        <div>
-          <h1 className="max-w-[16ch] text-site-display">
-            <Words text="Grave uma vez. Apresente todos os dias." />
-          </h1>
-          <motion.p className="mt-6 max-w-[48ch] text-site-lead text-s-text-2" {...enter(0.45)}>
-            A sala abre sozinha, o chat e a oferta entram no momento certo, e as mensagens seguem
-            para quem não comprou.
-          </motion.p>
-          <motion.div
-            className="mt-8 max-w-[34rem] rounded-[var(--radius-panel)] bg-s-card p-5 sm:p-6"
-            {...enter(0.6)}
-          >
-            <EmailStart id="email-hero" />
-          </motion.div>
-          <motion.a href="#como-funciona" className="site-link mt-6" {...enter(0.75)}>
-            Ver como funciona
-          </motion.a>
-        </div>
-        <motion.div
-          className="relative"
-          initial={{ opacity: 0, y: reduced ? 0 : 32, scale: reduced ? 1 : 0.97 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.9, ease: EASE, delay: 0.35 }}
-        >
-          <div className="site-glow" aria-hidden="true" />
-          <Parallax range={28}>
-            <div className="site-visual relative pb-10 pr-6 sm:pb-14 sm:pr-10 lg:pr-14">
-              <DesktopShot kind="sala" priority />
-              {/* O telemóvel por cima, no canto: a mesma sala, ao alto. */}
-              <motion.div
-                className="absolute bottom-0 right-0 w-[28%] max-w-[9.5rem] sm:max-w-[11rem]"
-                initial={{ opacity: 0, y: reduced ? 0 : 24, rotate: reduced ? 0 : 4 }}
-                animate={{ opacity: 1, y: 0, rotate: 0 }}
-                transition={{ duration: 0.8, ease: EASE, delay: 0.9 }}
-              >
-                <PhoneShot kind="sala-vendas" priority />
-              </motion.div>
-            </div>
-          </Parallax>
+    <section data-surface="base" className="relative overflow-hidden pt-[var(--section-y-tight)]">
+      <div className="site-wrap flex flex-col items-center text-center">
+        <motion.div {...enter(0)}>
+          <Kicker>Webinars automatizados com IA</Kicker>
         </motion.div>
+        <h1 className="max-w-[18ch] text-site-display font-normal">
+          <Words text="Venda todos os dias com webinars que correm sozinhos" />
+          <span className="text-[var(--accent-600)]" aria-hidden="true">
+            .
+          </span>
+        </h1>
+        <motion.p className="mt-6 max-w-[60ch] text-site-lead text-s-text-2" {...enter(0.55)}>
+          Grave uma vez e apresente à hora marcada, todos os dias ou no instante do clique. Agente
+          IA no chat, vendas em tempo real, automações por WhatsApp e e-mail e as métricas de cada
+          sessão.
+        </motion.p>
+        <motion.div
+          className="mt-8 flex flex-wrap items-center justify-center gap-3"
+          {...enter(0.7)}
+        >
+          <Link
+            to="/auth/register"
+            className="site-btn site-btn-primary bg-[var(--accent-600)] text-white hover:bg-[var(--accent-700)]"
+          >
+            Criar conta grátis
+          </Link>
+          <a href="#como-funciona" className="site-btn site-btn-outline">
+            Ver como funciona
+          </a>
+        </motion.div>
+        <motion.p className="mt-4 text-site-small text-s-text-2" {...enter(0.8)}>
+          <b className="font-semibold text-s-text">Sem instalar nada</b> · a primeira sala fica
+          pronta em minutos
+        </motion.p>
       </div>
+      <motion.div
+        className="mt-12 -mx-[var(--gutter)] sm:mx-0"
+        initial={{ opacity: 0, y: reduced ? 0 : 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.9, ease: EASE, delay: 0.5 }}
+      >
+        <Vitrine />
+      </motion.div>
     </section>
   );
 }
@@ -374,43 +384,9 @@ function LandingPage() {
       <main>
         <Hero />
 
-        <section id="como-funciona" data-surface="warm" className="site-section scroll-mt-16">
-          <div className="site-wrap">
-            <SectionHead title="Três passos. Depois é automático." />
-            <div className="site-steps mt-12">
-              {/* A linha entre os passos desenha-se da esquerda para a direita (só no computador). */}
-              <motion.span
-                className="site-steps-line hidden md:block"
-                aria-hidden="true"
-                initial={{ scaleX: reduced ? 1 : 0 }}
-                whileInView={{ scaleX: 1 }}
-                viewport={{ once: true, amount: 0.6 }}
-                transition={{ duration: 1.2, ease: EASE, delay: 0.3 }}
-              />
-              <Stagger as="ol" className="grid gap-4 md:grid-cols-3" gap={0.14}>
-                {steps.map(([title, copy], index) => (
-                  <Item
-                    key={title}
-                    as="li"
-                    className="site-lift relative rounded-[var(--radius-card-site)] bg-s-card p-6 sm:p-8"
-                  >
-                    <motion.span
-                      className="site-icon size-10 text-site-small font-semibold tabular-nums"
-                      initial={{ scale: reduced ? 1 : 0.6 }}
-                      whileInView={{ scale: 1 }}
-                      viewport={{ once: true }}
-                      transition={{ type: "spring", stiffness: 380, damping: 18, delay: 0.3 + index * 0.14 }}
-                    >
-                      {index + 1}
-                    </motion.span>
-                    <h3 className="mt-6 text-site-h3">{title}</h3>
-                    <p className="mt-2 text-site-body text-s-text-2">{copy}</p>
-                  </Item>
-                ))}
-              </Stagger>
-            </div>
-          </div>
-        </section>
+        <LiveSection />
+
+        <StepsSection />
 
         <section id="funcionalidades" data-surface="base" className="site-section scroll-mt-16">
           <div className="site-wrap">
@@ -419,20 +395,35 @@ function LandingPage() {
           </div>
         </section>
 
-        <section id="automacoes" data-surface="inverse" className="site-section scroll-mt-16">
+        <CheckoutsSection />
+
+        <IntegrationsSection />
+
+        <FunnelSection />
+
+        <section id="automacoes" data-surface="warm" className="site-section scroll-mt-16">
           <div className="site-wrap">
             <SectionHead title="A conversa continua depois da sessão.">
               Lembretes, replay e oferta por email e WhatsApp, a cada pessoa no momento certo.
             </SectionHead>
             <Stagger as="ul" className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" gap={0.1}>
               {automations.map(({ icon: Icon, title, copy }, index) => (
-                <Item key={title} as="li" className="site-lift rounded-[var(--radius-card-site)] bg-s-card p-6">
+                <Item
+                  key={title}
+                  as="li"
+                  className="site-lift rounded-[var(--radius-card-site)] bg-s-card p-6"
+                >
                   <motion.span
                     className="site-icon size-12"
                     initial={{ rotate: reduced ? 0 : -12, scale: reduced ? 1 : 0.7 }}
                     whileInView={{ rotate: 0, scale: 1 }}
                     viewport={{ once: true }}
-                    transition={{ type: "spring", stiffness: 300, damping: 16, delay: 0.25 + index * 0.1 }}
+                    transition={{
+                      type: "spring",
+                      stiffness: 300,
+                      damping: 16,
+                      delay: 0.25 + index * 0.1,
+                    }}
                   >
                     <Icon className="size-6" aria-hidden="true" />
                   </motion.span>
@@ -457,34 +448,6 @@ function LandingPage() {
         <section data-surface="base" className="site-section">
           <div className="site-wrap grid items-center gap-12 lg:grid-cols-[5fr_7fr] lg:gap-16">
             <div>
-              <SectionHead title="Saiba em que minuto as pessoas saem." />
-              <Stagger as="ul" className="mt-8 grid gap-5" gap={0.12} delay={0.15}>
-                {insights.map(({ icon: Icon, title, copy }) => (
-                  <Item key={title} as="li" className="flex gap-4" distance={16}>
-                    <span className="site-icon size-8">
-                      <Icon className="size-4" strokeWidth={1.75} aria-hidden="true" />
-                    </span>
-                    <p className="text-site-body text-s-text-2">
-                      <strong className="font-semibold text-s-text">{title}.</strong> {copy}
-                    </p>
-                  </Item>
-                ))}
-              </Stagger>
-              <Reveal delay={0.4}>
-                <MoreLink slug="analise">Saber mais sobre a análise</MoreLink>
-              </Reveal>
-            </div>
-            <Reveal distance={32} delay={0.1}>
-              <Parallax range={20}>
-                <DesktopShot kind="analises" />
-              </Parallax>
-            </Reveal>
-          </div>
-        </section>
-
-        <section data-surface="warm" className="site-section">
-          <div className="site-wrap grid items-center gap-12 lg:grid-cols-[5fr_7fr] lg:gap-16">
-            <div>
               <SectionHead title="Responda a todos, mesmo sem estar lá.">
                 As mensagens privadas da sala num só sítio, com o Agente a ajudar e a passar à
                 equipa quando é preciso.
@@ -500,6 +463,10 @@ function LandingPage() {
             </Reveal>
           </div>
         </section>
+
+        <FinalCta>
+          <EmailStart id="email-fim" />
+        </FinalCta>
 
         <section id="perguntas" data-surface="base" className="site-section scroll-mt-16">
           <div className="site-wrap grid gap-10 lg:grid-cols-[5fr_7fr] lg:gap-16">
@@ -530,15 +497,6 @@ function LandingPage() {
                 </Item>
               ))}
             </Stagger>
-          </div>
-        </section>
-
-        <section data-surface="tint" className="site-section site-cta-wave">
-          <div className="site-wrap">
-            <SectionHead title="Comece hoje. A primeira sala fica pronta em minutos." />
-            <Reveal delay={0.15} className="mt-8 max-w-[34rem]">
-              <EmailStart id="email-fim" />
-            </Reveal>
           </div>
         </section>
       </main>
