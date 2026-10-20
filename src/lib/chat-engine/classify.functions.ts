@@ -27,8 +27,14 @@ export const classifyTranscriptBlocks = createServerFn({ method: "POST" })
     const version = await latestReadyVersion(data.webinarId);
     if (!version || version.sentences.length === 0)
       return { versionId: null, total: 0, refined: 0, fresh: false, byType: {} };
+    const { data: webinar } = await context.supabase
+      .from("webinars")
+      .select("host_name")
+      .eq("id", data.webinarId)
+      .maybeSingle();
+    const hostName = typeof webinar?.host_name === "string" ? webinar.host_name : null;
     const result = await runBilled({ organizationId, action: "webinar_analysis" }, () =>
-      ensureVersionBlocks(version, { ai: true, ...(data.force ? { force: true } : {}) }),
+      ensureVersionBlocks(version, { ai: true, hostName, ...(data.force ? { force: true } : {}) }),
     );
     const byType: Partial<Record<BlockType, number>> = {};
     for (const block of result.blocks) byType[block.type] = (byType[block.type] ?? 0) + 1;

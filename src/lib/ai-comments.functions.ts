@@ -49,6 +49,7 @@ import { s, schema } from "@/lib/ai/schema";
 import { isChatVariant, variantCountries, variantText } from "@/lib/chat-variants";
 import { ensureVersionBlocks } from "@/lib/chat-engine/classify.server";
 import { describeSlots, planInteractions } from "@/lib/chat-engine/plan";
+import type { ReferencedItem } from "@/lib/chat-engine/types";
 import {
   buildProfiles,
   describeProfiles,
@@ -564,6 +565,7 @@ async function engineForRange(
         webinar.cta_text && webinar.cta_start_seconds != null
           ? webinar.cta_start_seconds * 1000
           : null,
+      hostName: webinar.host_name,
     });
     const profiles = buildProfiles(
       Math.min(400, settings.participants),
@@ -583,6 +585,8 @@ type WebinarInfo = {
   cta_text: string | null;
   cta_start_seconds: number | null;
   cta_price_now: string | null;
+  /** Quem apresenta: o nome dele nunca é alguém do chat. */
+  host_name: string | null;
   sourceDuration: number;
 };
 
@@ -631,7 +635,7 @@ async function loadWebinar(supabase: any, webinarId: string): Promise<WebinarInf
   const { data: webinar, error } = await supabase
     .from("webinars")
     .select(
-      "id, public_title, description, duration_seconds, cta_text, cta_start_seconds, cta_price_now, video_sources(duration_seconds)",
+      "id, public_title, description, duration_seconds, cta_text, cta_start_seconds, cta_price_now, host_name, video_sources(duration_seconds)",
     )
     .eq("id", webinarId)
     .maybeSingle();
@@ -645,6 +649,7 @@ async function loadWebinar(supabase: any, webinarId: string): Promise<WebinarInf
     cta_text: webinar.cta_text,
     cta_start_seconds: webinar.cta_start_seconds,
     cta_price_now: webinar.cta_price_now,
+    host_name: typeof webinar.host_name === "string" ? webinar.host_name : null,
     sourceDuration: source?.duration_seconds || 0,
   };
 }
@@ -1438,7 +1443,168 @@ async function askWindow(
     .filter((item) => item.author && item.message);
 
   if (engineSlots.length === 0) return raw;
-  return placeWithEngine(raw, engine!, from, to);
+  const placed = placeWithEngine(raw, engine!, from, to);
+  return fillMandatory(ctx, engine!, placed, from, to);
+}
+
+/** Mensagens de presença quando a IA nem a segunda tentativa dão uma: curtas, de chat, sem conteúdo inventado. */
+const PRESENCE_FALLBACK = [
+  "presente! 🙋‍♀️",
+  "boa noite! cheguei agora",
+  "aqui 👋",
+  "olá, a acompanhar 😊",
+  "oi!! presente",
+  "tô aqui 🙌",
+  "cheguei!",
+  "presente ✋",
+];
+
+function firstNameLower(name: string | null | undefined) {
+  return (name ?? "").trim().split(/\s+/)[0]?.toLocaleLowerCase("pt") ?? "";
+}
+
+/**
+ * O que falta nas oportunidades OBRIGATÓRIAS deste trecho: a pessoa que o apresentador vai nomear ou ler
+ * e que a IA não escreveu. Devolve, por slot, os itens em falta.
+ */
+export function missingMandatory(
+  slots: readonly InteractionSlot[],
+  placed: readonly { slot?: string | null; author: string }[],
+  from: number,
+  to: number,
+): { slot: InteractionSlot; items: ReferencedItem[] }[] {
+  const bySlot = new Map<string, { author: string }[]>();
+  for (const c of placed) if (c.slot) bySlot.set(c.slot, [...(bySlot.get(c.slot) ?? []), c]);
+  const out: { slot: InteractionSlot; items: ReferencedItem[] }[] = [];
+  for (const slot of slots) {
+    if (slot.dependency !== "BEFORE" || slot.referenced.length === 0) continue;
+    if (slot.windowEndMs < from * 1000 || slot.windowStartMs > to * 1000) continue;
+    const have = bySlot.get(slot.id) ?? [];
+    const names = slot.referenced.filter((r) => r.kind === "name");
+    const taken = new Set(have.map((c) => firstNameLower(c.author)));
+    const items: ReferencedItem[] = names.filter((r) => !taken.has(firstNameLower(r.name)));
+    // Perguntas e mensagens sem nome: conta o que já lá está de quem não é um dos nomes.
+    const nameless = slot.referenced.filter((r) => r.kind !== "name" && r.text);
+    const namelessHave = have.filter(
+      (c) => !names.some((n) => firstNameLower(n.name) === firstNameLower(c.author)),
+    ).length;
+    items.push(...nameless.slice(namelessHave));
+    if (items.length > 0) out.push({ slot, items });
+  }
+  return out;
+}
+
+/**
+ * Garantia determinística: a pessoa que o apresentador nomeia ou lê existe no chat antes da fala dele,
+ * mesmo que a IA se tenha esquecido dela. Primeiro uma segunda chamada, pequena e focada, só com o que
+ * falta; se também falhar, a mensagem lida tal como o apresentador a cita, ou uma presença curta.
+ */
+async function fillMandatory(
+  ctx: GenContext,
+  engine: Engine,
+  placed: Comment[],
+  from: number,
+  to: number,
+): Promise<Comment[]> {
+  const missing = missingMandatory(engine.slots, placed, from, to);
+  if (missing.length === 0) return placed;
+
+  const clock = (ms: number) => {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  };
+  const describe = (item: ReferencedItem) =>
+    item.kind === "name"
+      ? `${item.name}${item.place ? ` (de ${item.place})` : ""}${item.text ? `: escreve "${item.text}"` : ": uma mensagem curta de chat (cumprimento, presença, ou o que o apresentador diz sobre ela)"}`
+      : item.kind === "question"
+        ? `alguém (escolhe um nome plausível) pergunta: "${item.text}"`
+        : item.kind === "city"
+          ? `alguém de ${item.text} diz de onde vê`
+          : "a mensagem que o apresentador vai ler";
+
+  let written: { slot: string; author: string; message: string }[] = [];
+  try {
+    const prompt = [
+      `Webinar: "${ctx.webinar.public_title}". Apresenta ${ctx.webinar.host_name ?? "o apresentador"}.`,
+      "Faltam mensagens de chat que o apresentador vai ler ou cujos autores vai nomear em voz alta. Escreve EXACTAMENTE estas, uma por item, no nome indicado, curtas e humanas, como num chat ao vivo, sem linguagem de anúncio. Português da variante " +
+        ctx.settings.variant +
+        ".",
+      "",
+      ...missing.map(
+        ({ slot, items }) =>
+          `[${slot.id}] antes da fala às ${clock(slot.blockStartMs)}: "${slot.speech}"${slot.context ? `\n   antes disso: "${slot.context.slice(-300)}"` : ""}\n   escrever: ${items.map(describe).join("; ")}`,
+      ),
+      "",
+      'Cada mensagem traz "slot" (o id entre parênteses rectos), "author" (o nome indicado), "message", e os restantes campos podem ir vazios ou a -1.',
+    ].join("\n");
+    const result = await chatJson({
+      task: "generation",
+      system: "Escreves mensagens de chat de espectadores reais, curtas e naturais. Respondes só com o JSON pedido.",
+      user: prompt,
+      schema: CHAT_COMMENTS,
+    });
+    if (result.ok) {
+      const parsed = result.json as { comments?: { slot?: unknown; author?: unknown; message?: unknown }[] };
+      written = (parsed.comments ?? [])
+        .map((c) => ({
+          slot: String(c.slot ?? "").trim(),
+          author: String(c.author ?? "").trim().slice(0, 60),
+          message: String(c.message ?? "").trim().slice(0, 300),
+        }))
+        .filter((c) => c.slot && c.author && c.message);
+    }
+  } catch {
+    // Sem a segunda chamada, segue-se para as mensagens de reserva.
+  }
+
+  const out = [...placed];
+  missing.forEach(({ slot, items }, slotIndex) => {
+    const fromAi = written.filter((w) => w.slot === slot.id);
+    const fresh: { author: string; message: string }[] = [];
+    items.forEach((item, itemIndex) => {
+      const seed = hashSeed(`${slot.id}:${itemIndex}:${from}`);
+      if (item.kind === "name") {
+        const hit =
+          fromAi.find((w) => firstNameLower(w.author) === firstNameLower(item.name)) ??
+          fromAi.find((w) => !fresh.some((f) => f.message === w.message) && !items.some((i) => i.kind === "name" && firstNameLower(i.name) === firstNameLower(w.author)));
+        fresh.push({
+          author: item.name!,
+          message: hit?.message || item.text || PRESENCE_FALLBACK[seed % PRESENCE_FALLBACK.length]!,
+        });
+        return;
+      }
+      const hit = fromAi.find((w) => !fresh.some((f) => f.message === w.message));
+      if (hit) fresh.push({ author: hit.author, message: hit.message });
+      else if (item.text) {
+        const name = engine.profiles[(seed + itemIndex) % Math.max(1, engine.profiles.length)]?.name ?? "Participante";
+        fresh.push({ author: name, message: item.text });
+      }
+    });
+    if (fresh.length === 0) return;
+    const times = placeSlot(slot, fresh.length, hashSeed(`${slot.id}:falta:${from}:${slotIndex}`));
+    fresh.forEach((c, index) => {
+      const atMs = Math.max(from * 1000, Math.min(to * 1000 + 999, times[index] ?? slot.windowStartMs));
+      out.push({
+        at: Math.round(atMs / 1000),
+        atMs,
+        author: c.author,
+        message: c.message,
+        moment: "geral",
+        kind: "provoca",
+        anchor: Math.round(slot.blockStartMs / 1000),
+        reason: slot.reason,
+        slot: slot.id,
+        dependency: "BEFORE",
+        blockId: slot.blockId,
+        blockType: slot.blockType,
+        interaction: slot.interaction,
+        windowStartMs: slot.windowStartMs,
+        windowEndMs: slot.windowEndMs,
+        confidence: slot.confidence,
+      });
+    });
+  });
+  return out.sort((a, b) => (a.atMs ?? a.at * 1000) - (b.atMs ?? b.at * 1000));
 }
 
 /**

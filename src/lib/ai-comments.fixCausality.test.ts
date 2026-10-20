@@ -17,6 +17,7 @@ function context(overrides: Partial<Ctx> = {}): Ctx {
       cta_text: null,
       cta_start_seconds: null,
       cta_price_now: null,
+      host_name: null,
       sourceDuration: DURATION,
     },
     settings: {} as never,

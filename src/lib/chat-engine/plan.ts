@@ -12,7 +12,7 @@ import {
   STRONG_SPAN_MS,
   ANSWER_SPAN_MS,
 } from "./timing";
-import type { InteractionSlot, OfferContext, SemanticBlock } from "./types";
+import type { InteractionSlot, OfferContext, ReferencedItem, SemanticBlock } from "./types";
 
 export type PlanOptions = {
   fromMs: number;
@@ -21,7 +21,43 @@ export type PlanOptions = {
   /** Mensagens por minuto desejadas, para as partes livres. */
   perMinute: number;
   offerStartMs: number | null;
+  /**
+   * Quem apresenta. O nome dele nunca é alguém do chat: "Carol, 97 euros?" é uma pergunta de alguém
+   * dirigida à Carol, não uma mensagem da Carol.
+   */
+  hostName?: string | null | undefined;
 };
+
+/** Depois de nomeada, a mesma pessoa não volta a «aparecer» antes de cada menção seguinte durante este tempo. */
+export const PRESENCE_REPEAT_MS = 45_000;
+
+function firstNameOf(name: string | null | undefined) {
+  return (name ?? "").trim().split(/\s+/)[0]?.toLocaleLowerCase("pt") ?? "";
+}
+
+/**
+ * O que o apresentador leu, sem o próprio apresentador: um item com o nome dele passa a pergunta do chat
+ * (quando tem conteúdo e o bloco é mesmo uma leitura ou resposta ao chat) ou cai (uma fala imaginada,
+ * "Carol, eu quero trabalhar só com academias", não é ninguém a escrever).
+ */
+export function referencedWithoutHost(
+  block: Pick<SemanticBlock, "type" | "referenced">,
+  hostName: string | null | undefined,
+): ReferencedItem[] {
+  const host = firstNameOf(hostName);
+  if (!host) return block.referenced;
+  const reading = block.type === "CHAT_READING" || block.type === "CHAT_RESPONSE";
+  const out: ReferencedItem[] = [];
+  for (const item of block.referenced) {
+    if (item.kind !== "name" || firstNameOf(item.name) !== host) {
+      out.push(item);
+      continue;
+    }
+    if (reading && item.text && !out.some((o) => o.kind === "question" && o.text === item.text))
+      out.push({ kind: "question", name: null, place: null, text: item.text });
+  }
+  return out;
+}
 
 /** Abaixo disto o bloco não gera pretextos nem cascatas grandes. */
 export const CONFIDENCE_FLOOR = 0.55;
@@ -60,8 +96,18 @@ export function planInteractions(
   const out: InteractionSlot[] = [];
   const people = Math.max(3, options.participants);
   const ordered = [...blocks].sort((a, b) => a.startMs - b.startMs);
+  /** Quando cada nome foi nomeado pela última vez, para a presença não se repetir a cada menção. */
+  const namedAt = new Map<string, number>();
 
   ordered.forEach((block, index) => {
+    const referenced = referencedWithoutHost(block, options.hostName);
+    const names = referenced.filter((r) => r.kind === "name");
+    // Nomes que o apresentador diz e que ainda não «apareceram» no chat há pouco.
+    const newNames = names.filter((r) => {
+      const last = namedAt.get(firstNameOf(r.name));
+      return last == null || block.startMs - last > PRESENCE_REPEAT_MS;
+    });
+    for (const r of names) namedAt.set(firstNameOf(r.name), block.endMs);
     // Um bloco conta para o trecho se a sua janela puder cair dentro dele.
     if (block.endMs < options.fromMs - 30_000 || block.startMs > options.toMs + 8000) return;
     const previous = ordered[index - 1] ?? null;
@@ -90,6 +136,9 @@ export function planInteractions(
       spanMs = strong ? STRONG_SPAN_MS : ANSWER_SPAN_MS,
     ) => {
       const cap = low ? Math.max(1, Math.floor(max / 2)) : max;
+      // As pessoas que o apresentador nomeou ao pedir ("Letícia, Joana, coloquem quanto já faturaram")
+      // estão entre quem responde.
+      const expected = block.expectsResponse ? names : [];
       out.push({
         ...base,
         id: `${block.id}_${suffix}`,
@@ -97,9 +146,10 @@ export function planInteractions(
         interaction,
         windowStartMs: block.endMs + FIRST_ANSWER_MIN_MS,
         windowEndMs: block.endMs + spanMs,
-        minComments: low ? 0 : Math.min(min, cap),
-        maxComments: cap,
+        minComments: low ? 0 : Math.max(Math.min(min, cap), Math.min(expected.length, cap)),
+        maxComments: Math.max(cap, expected.length),
         strong,
+        referenced: expected,
         needsReview: low,
         reason,
       });
@@ -146,6 +196,22 @@ export function planInteractions(
       });
     };
 
+    // Quem o apresentador nomeia já escreveu: "está aqui a minha aluna Letícia", "a Alessandra já faturou
+    // 400 euros". Seja qual for o tipo do bloco (pedido, prova social, história…), a pessoa existe no chat
+    // antes de ser nomeada. As leituras do chat tratam disto abaixo, com o conteúdo lido.
+    if (
+      block.type !== "CHAT_READING" &&
+      block.type !== "CHAT_RESPONSE" &&
+      block.readsChat &&
+      newNames.length > 0
+    )
+      before(
+        "presenca",
+        newNames,
+        "a pessoa que o apresentador nomeia já tinha escrito no chat",
+        BEFORE_READ_MAX_MS + 4000,
+      );
+
     switch (block.type) {
       case "QUESTION_TO_AUDIENCE":
         after(
@@ -188,11 +254,11 @@ export function planInteractions(
         );
         break;
       case "CHAT_READING": {
-        const items = block.referenced.length
-          ? block.referenced
+        const items = referenced.length
+          ? referenced
           : [{ kind: "message" as const, name: null, place: null, text: "" }];
         before("lido", items, "é a mensagem que o apresentador vai ler em voz alta");
-        if (block.referenced.some((r) => r.kind === "name"))
+        if (names.length > 0)
           after(
             "agradece",
             "REACTION",
@@ -205,8 +271,8 @@ export function planInteractions(
         break;
       }
       case "CHAT_RESPONSE": {
-        const items = block.referenced.length
-          ? block.referenced
+        const items = referenced.length
+          ? referenced
           : [{ kind: "question" as const, name: null, place: null, text: "" }];
         before("pergunta", items, "é a pergunta a que o apresentador vai responder", 25_000);
         after("agradece", "REACTION", 2, 0, false, "agradece a resposta", 12_000);
@@ -313,15 +379,30 @@ function clock(ms: number) {
 
 function referencedLine(slot: InteractionSlot) {
   if (!slot.referenced.length) return "";
+  const presence = slot.id.endsWith("_presenca");
   return slot.referenced
     .map((item) => {
       if (item.kind === "name")
-        return `${item.name}${item.place ? ` (de ${item.place})` : ""}${item.text ? ` escreve: "${item.text}"` : item.place ? " diz de onde vê" : " escreve algo que o apresentador cita"}`;
+        return `${item.name}${item.place ? ` (de ${item.place})` : ""}${
+          item.text
+            ? ` escreve: "${item.text}"`
+            : item.place
+              ? " diz de onde vê"
+              : presence
+                ? " escreve uma mensagem curta e natural (cumprimento, presença, ou o que o apresentador refere sobre ela a seguir), com este nome exacto"
+                : " escreve o que o apresentador cita ou resume a seguir, com este nome exacto"
+        }`;
       if (item.kind === "city") return `alguém de ${item.text} diz de onde vê`;
       if (item.kind === "question") return `alguém pergunta: "${item.text}"`;
       return "a mensagem que o apresentador vai ler";
     })
     .join("; ");
+}
+
+function respondersLine(slot: InteractionSlot) {
+  const names = slot.referenced.filter((r) => r.kind === "name").map((r) => r.name!);
+  if (slot.dependency !== "AFTER" || names.length === 0) return "";
+  return ` · OBRIGATÓRIO entre quem responde (o apresentador dirigiu-se a elas pelo nome): ${names.join(", ")}`;
 }
 
 /** As oportunidades em texto, para o modelo escolher o que escrever. */
@@ -343,7 +424,8 @@ export function describeSlots(slots: readonly InteractionSlot[]): string {
         slot.minComments > 0
           ? `${slot.minComments} a ${slot.maxComments} mensagens`
           : `até ${slot.maxComments} mensagens`;
-      const must = slot.dependency === "BEFORE" ? ` · OBRIGATÓRIO: ${referencedLine(slot)}` : "";
+      const must =
+        slot.dependency === "BEFORE" ? ` · OBRIGATÓRIO: ${referencedLine(slot)}` : respondersLine(slot);
       const review = slot.needsReview ? " · bloco incerto: poucas mensagens" : "";
       return `[${slot.id}] ${DEPENDENCY_LABEL[slot.dependency].toUpperCase()} · ${BLOCK_LABEL[slot.blockType]} · ${when} · ${count}${format}${must}${review}\n   fala: "${slot.speech}"${slot.context ? `\n   antes disso: "${slot.context}"` : ""}`;
     })

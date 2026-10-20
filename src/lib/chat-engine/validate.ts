@@ -144,13 +144,15 @@ export function validateEngine(
       ];
     }
 
-    // 2. Pretexto só existe quando o apresentador lê ou responde ao chat.
+    // 2. Pretexto só existe quando o apresentador lê ou responde ao chat, ou nomeia alguém que está lá
+    //    ("a minha aluna Letícia"): a presença dessa pessoa é um «antes» legítimo.
     if (
       !drop &&
       c.dependency === "BEFORE" &&
       slot &&
       slot.blockType !== "CHAT_READING" &&
-      slot.blockType !== "CHAT_RESPONSE"
+      slot.blockType !== "CHAT_RESPONSE" &&
+      !slot.referenced.some((r) => r.kind === "name")
     ) {
       note(
         c,

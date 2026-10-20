@@ -60,15 +60,20 @@ function clock(ms: number) {
   return `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
 }
 
-async function askBatch(chunk: SemanticBlock[]): Promise<AiClass[]> {
+async function askBatch(chunk: SemanticBlock[], hostName: string | null): Promise<AiClass[]> {
   const lines = chunk
     .map(
       (b) =>
         `${b.id} | ${clock(b.startMs)}–${clock(b.endMs)} | ${b.text.replace(/\s+/g, " ").slice(0, 600)}`,
     )
     .join("\n");
+  const hostFirst = hostName?.trim().split(/\s+/)[0] ?? "";
   const prompt = [
     "És um analista de webinars em português (Portugal, Brasil, Angola, Moçambique). Recebes blocos de fala do apresentador, por ordem, e classificas CADA bloco. Não inventes blocos nem mudes os ids.",
+    hostFirst
+      ? `O apresentador chama-se ${hostName}. Nunca o ponhas em names: quando alguém do chat se dirige a ele pelo nome ("${hostFirst}, 97 euros?", "${hostFirst}, como é que eu faço?"), isso é uma pergunta do chat: põe o texto em questions. Uma fala que ele imagina ("${hostFirst}, eu quero trabalhar só com academias") não é ninguém a escrever: readsChat=false.`
+      : "",
+    "Quando ele nomeia alunos ou clientes presentes («está aqui a minha aluna Letícia», «Letícia, Joana, sejam bem-vindas»), isso é readsChat=true com esses nomes em names, mesmo que o bloco seja um pedido ou prova social.",
     "",
     "Tipos: CONTENT (explica), QUESTION_TO_AUDIENCE (pergunta ao público e espera resposta no chat), COMMENT_REQUEST (pede que escrevam algo no chat), FEEDBACK_REQUEST (pede confirmação: faz sentido? manda um sim / um emoji), POLL (quem aqui já…, levanta a mão, 1 ou 2), CHAT_READING (lê ou cita mensagens do chat, nomes, cidades), CHAT_RESPONSE (responde a uma pergunta que veio do chat), SOCIAL_PROOF (resultados de alunos, depoimentos), EMOTIONAL_MOMENT, CTA (clica, inscreve-te, link), OFFER (preço, bónus, garantia, o que inclui), STORY, TRANSITION (muda de assunto), TECHNICAL (passo a passo técnico), OTHER.",
     "Uma pergunta que o próprio apresentador responde a seguir é retórica: rhetorical=true, expectsResponse=false, tipo CONTENT.",
@@ -183,18 +188,24 @@ export function mergeClassification(block: SemanticBlock, ai: AiClass): Semantic
 
 export async function refineBlocksWithAi(
   blocks: SemanticBlock[],
+  hostName: string | null = null,
 ): Promise<{ blocks: SemanticBlock[]; refined: number }> {
   if (!isConfigured()) return { blocks, refined: 0 };
   const speech = blocks.filter((b) => b.type !== "SILENCE");
   const byId = new Map(blocks.map((b) => [b.id, b] as const));
+  const hostFirst = hostName?.trim().split(/\s+/)[0]?.toLocaleLowerCase("pt") ?? "";
   let refined = 0;
   for (let index = 0; index < speech.length; index += BATCH) {
     const chunk = speech.slice(index, index + BATCH);
     try {
-      for (const ai of await askBatch(chunk)) {
+      for (const ai of await askBatch(chunk, hostName)) {
         const block = byId.get(ai.id);
         if (!block) continue;
-        byId.set(ai.id, mergeClassification(block, ai));
+        // O apresentador nunca é alguém do chat, diga a IA o que disser.
+        const names = hostFirst
+          ? ai.names.filter((n) => n.trim().split(/\s+/)[0]?.toLocaleLowerCase("pt") !== hostFirst)
+          : ai.names;
+        byId.set(ai.id, mergeClassification(block, { ...ai, names }));
         refined += 1;
       }
     } catch {
@@ -207,13 +218,15 @@ export async function refineBlocksWithAi(
 /** Os blocos desta versão: os guardados, ou feitos agora (regras e, se pedido, IA). */
 export async function ensureVersionBlocks(
   version: TranscriptVersion,
-  options: { ai: boolean; force?: boolean } = { ai: false },
+  options: { ai: boolean; force?: boolean; hostName?: string | null } = { ai: false },
 ): Promise<{ blocks: SemanticBlock[]; refined: number; fresh: boolean }> {
   const saved = (version.blocks ?? []) as SemanticBlock[];
   if (saved.length > 0 && !options.force) return { blocks: saved, refined: 0, fresh: false };
   const rules = buildSemanticBlocks(version.sentences);
   if (rules.length === 0) return { blocks: [], refined: 0, fresh: true };
-  const result = options.ai ? await refineBlocksWithAi(rules) : { blocks: rules, refined: 0 };
+  const result = options.ai
+    ? await refineBlocksWithAi(rules, options.hostName ?? null)
+    : { blocks: rules, refined: 0 };
   await engine.saveVersionBlocks(version.id, result.blocks);
   return { ...result, fresh: true };
 }

@@ -31,7 +31,7 @@ const RE = {
     "i",
   ),
   request: ure(
-    String.raw`(\b(?:escrev(?:e|a|am)|digit(?:a|e|em)|coment(?:a|e|em)|mand(?:a|e|em)|coloc(?:a|que|quem)|bot(?:a|e|em)|deix(?:a|e|em|am)|respond(?:e|a|am)|p(?:õe|onham))\b[^.?!]{0,60}\b(?:no chat|nos coment[áa]rios|a[ií](?: no chat| nos coment[áa]rios| em ?baixo| embaixo)?|aqui (?:no chat|nos coment[áa]rios|em ?baixo|embaixo))\b|\bquero ver (?:no chat|nos coment[áa]rios|a[ií])\b|\bme (?:diz|diga|conta|fala|digam|contem|falem) (?:a[ií]|no chat|nos coment[áa]rios)\b|\bdiz(?:em|am)?[- ]me (?:a[ií]|no chat|nos coment[áa]rios)\b)`,
+    String.raw`(\b(?:escrev(?:e|a|am)|digit(?:a|e|em)|coment(?:a|e|em)|mand(?:a|e|em)|colo(?:ca|cam|que|quem)|bot(?:a|e|em)|deix(?:a|e|em|am)|respond(?:e|a|am)|p(?:õe|onham))\b[^.?!]{0,60}\b(?:no chat|nos coment[áa]rios|a[ií](?: no chat| nos coment[áa]rios| em ?baixo| embaixo)?|aqui (?:no chat|nos coment[áa]rios|em ?baixo|embaixo))\b|\b(?:escrev(?:e|a|am)|digit(?:a|e|em)|coment(?:a|e|em)|mand(?:a|e|em)|colo(?:ca|cam|que|quem)|deix(?:a|e|em|am))\s+(?:aqui|a[ií])\b(?! (?:em cima|por cima|dentro|ao lado|o (?:qr|link|bot[ãa]o)))|\bquero ver (?:no chat|nos coment[áa]rios|a[ií])\b|\bme (?:diz|diga|conta|fala|digam|contem|falem) (?:a[ií]|no chat|nos coment[áa]rios)\b|\bdiz(?:em|am)?[- ]me (?:a[ií]|no chat|nos coment[áa]rios)\b)`,
     "i",
   ),
   feedback: ure(
@@ -88,7 +88,7 @@ const RE = {
     "i",
   ),
   keyword: ure(
-    String.raw`\b(?:[eE]screv(?:e|am)|[dD]igit(?:a|em)|[mM]and(?:a|em)|[cC]oloc(?:a|em)|[pP][õo]e)\s+(?:a[ií]\s+|aqui\s+|no chat\s+)?(?:a palavra\s+)?["“«']?([A-ZÁÉÍÓÚÂÊÔÃÕÇ]{2,}|\d{1,2})["”»']?`,
+    String.raw`\b(?:[eE]screv(?:e|am)|[dD]igit(?:a|em)|[mM]and(?:a|em)|[cC]olo(?:ca|quem|que)|[pP][õo]e)\s+(?:a[ií]\s+|aqui\s+|no chat\s+)?(?:a palavra\s+)?["“«']?([A-ZÁÉÍÓÚÂÊÔÃÕÇ]{2,}|\d{1,2})["”»']?`,
     "",
   ),
   locationAsk: ure(
@@ -165,6 +165,90 @@ const NAME_STOP = new Set(
     "Galera",
     "Obrigado",
     "Obrigada",
+    // Palavras que abrem frases com vírgula a seguir («Depois, …»): não são nomes lidos.
+    "Depois",
+    "Assim",
+    "Primeiro",
+    "Segundo",
+    "Terceiro",
+    "Olha",
+    "Olhem",
+    "Claro",
+    "Sim",
+    "Não",
+    "Enfim",
+    "Inclusive",
+    "Lembrando",
+    "Aliás",
+    "Aqui",
+    "Ali",
+    "Mas",
+    "Porque",
+    "Porém",
+    "Entretanto",
+    "Além",
+    "Ainda",
+    "Também",
+    "Talvez",
+    "Nossa",
+    "Tipo",
+    "Vamos",
+    "Isso",
+    "Isto",
+    "Esse",
+    "Essa",
+    "Este",
+    "Esta",
+    "Aquele",
+    "Aquela",
+    "Ele",
+    "Ela",
+    "Eles",
+    "Elas",
+    "Nós",
+    "Você",
+    "Vocês",
+    "Quem",
+    "Qual",
+    "Quando",
+    "Onde",
+    "Como",
+    "Quanto",
+    "Muito",
+    "Sempre",
+    "Nunca",
+    "Beleza",
+    "Perfeito",
+    "Exato",
+    "Exatamente",
+    "Exactamente",
+    "Certo",
+    "Legal",
+    "Show",
+    "Top",
+    "Pronto",
+    "Bora",
+    "Vem",
+    "Veja",
+    "Vejam",
+    "Repara",
+    "Reparem",
+    "Atenção",
+    "Importante",
+    "Lembra",
+    "Lembrem",
+    "Imagina",
+    "Imaginem",
+    "Pensa",
+    "Pensem",
+    "Nota",
+    "Detalhe",
+    "Resumindo",
+    "Basicamente",
+    "Simplesmente",
+    "Realmente",
+    "Finalmente",
+    "Agora",
   ].map((w) => w.toLocaleLowerCase("pt")),
 );
 
@@ -320,7 +404,7 @@ function words(text: string) {
 
 /** A categoria interactiva de uma frase, para cada pedido ficar num bloco só dele. */
 function interactiveCategory(text: string): string {
-  if (RE.reading.test(text) || NAME_READ_ONCE.test(text)) return "leitura";
+  if (RE.reading.test(text) || NAME_READ_ONCE.test(text) || NAME_CUED_ONCE.test(text)) return "leitura";
   if (RE.response.test(text)) return "resposta";
   if (RE.request.test(text) && RE.locationAsk.test(text)) return "pedido";
   if (RE.feedback.test(text)) return "confirmacao";
@@ -475,6 +559,9 @@ export function classifyText(text: string): RuleClassification {
 
   const named = extractReferences(clean).some((item) => item.kind === "name");
   if (RE.reading.test(clean) || named) {
+    // "Letícia, Joana, sejam bem-vindas. Coloquem aqui quanto já faturaram": nomeia e pede. O pedido é
+    // que abre a janela de respostas; os nomes ficam (readsChat) para a presença delas antes.
+    if (named && RE.request.test(clean)) return done("COMMENT_REQUEST", 0.85, { readsChat: true });
     if (RE.response.test(clean) && !named) return done("CHAT_RESPONSE", 0.75);
     return done("CHAT_READING", named ? 0.9 : 0.75);
   }
@@ -503,16 +590,35 @@ export function classifyText(text: string): RuleClassification {
   return done("CONTENT", 0.5);
 }
 
-const NAME_VERBS = String.raw`(?:diz|disse|pergunta|perguntou|escreveu|escreve|comenta|comentou|mandou|manda|falou|fala|respondeu|quer saber|est[áa] a (?:dizer|perguntar)|t[áa] (?:dizendo|perguntando)|a dizer|a perguntar)`;
+const NAME_VERBS = String.raw`(?:diz|disse|pergunta|perguntou|escreveu|escreve|comenta|comentou|colocou|coloca|deixou|postou|mandou|manda|falou|fala|respondeu|quer saber|est[áa] a (?:dizer|perguntar)|t[áa] (?:dizendo|perguntando|falando)|a dizer|a perguntar)`;
 const NAME = String.raw`(\p{Lu}\p{Ll}{2,}(?:\s\p{Lu}\p{Ll}{2,})?)`;
 const PLACE_TAIL = String.raw`(?:\s(?:de|do|da)\s(\p{Lu}[\p{L}'-]{2,}(?:\s(?:de|do|da)\s\p{Lu}[\p{L}'-]{2,})?))?`;
 const NAME_READ_SOURCE = String.raw`(?:\b(?:[oOaA]|[dD][oOaA]|[aA][oO]|[Àà])\s+)${NAME}${PLACE_TAIL},?\s+${NAME_VERBS}\b`;
 const NAME_READ = ure(NAME_READ_SOURCE, "g");
 const NAME_READ_ONCE = ure(NAME_READ_SOURCE);
+const NAME_CUED_ONCE = ure(
+  String.raw`\b(?:[oOaA]|[dD][oOaA]|[àÀ])\s+(?:minha|meu|nossa|nosso)\s+(?:alun[oa]|cliente|amig[oa]|querid[oa]|colega|parceir[oa]|mentorad[oa])\s+${NAME}`,
+);
 /** "vejo aqui a Mariana de Luanda, o Pedro do Porto": nomes lidos sem verbo. */
 const NAME_LISTED = ure(
   String.raw`(?:^|[,;]|\b[eE]\b|\b[vV]ejo aqui\b|\b[tT]emos aqui\b|\b[tT]em aqui\b|\b[eE]stou a ver\b|\b[tT][ôo] vendo\b|\b[eE]stou vendo\b|\b[vV]i aqui\b|\b[oO]brigad[oa])\s*(?:[oOaA])\s+${NAME}${PLACE_TAIL}`,
   "g",
+);
+/**
+ * "está aqui a minha aluna Letícia", "temos aqui o nosso cliente Pedro": a palavra que apresenta a pessoa
+ * (aluna, cliente, amiga…) chega para aceitar o nome, conhecido ou não.
+ */
+const NAME_CUED = ure(
+  String.raw`\b(?:[oOaA]|[dD][oOaA]|[àÀ])\s+(?:minha|meu|nossa|nosso)\s+(?:alun[oa]|cliente|amig[oa]|querid[oa]|colega|parceir[oa]|mentorad[oa])\s+${NAME}${PLACE_TAIL}`,
+  "g",
+);
+/**
+ * O apresentador lê o chat nome a nome, com o que cada um escreveu a seguir: "Letícia, 5 mil. Joana, 2 mil
+ * euros." Só com um nome conhecido ou com um número no conteúdo, para «Depois, …» e «Olha, …» não contarem.
+ */
+const NAME_THEN_CONTENT = ure(
+  String.raw`(?:^|[.!?…]\s+|\b[óo][,.]?\s+)${NAME}\s*,\s*([^.?!,;]{1,80})(?=[.?!;]|$)`,
+  "gm",
 );
 const THANKS = ure(String.raw`obrigad[oa],?\s+(\p{Lu}\p{Ll}{2,})\b`, "g");
 const PLACE_READ = ure(
@@ -563,16 +669,52 @@ export function extractReferences(text: string): ReferencedItem[] {
     if (!acceptName(name)) continue;
     add({ kind: "name", name, place: null, text: "" });
   }
-  // Nomes lidos em lista, sem verbo: só nomes conhecidos ou seguidos da cidade.
-  for (const match of text.matchAll(NAME_LISTED)) {
+  // "a minha aluna Letícia": a apresentação da pessoa chega, seja o nome conhecido ou não.
+  for (const match of text.matchAll(NAME_CUED)) {
     const name = match[1]!.trim();
-    const first = name.split(" ")[0]!.toLocaleLowerCase("pt");
     if (!acceptName(name)) continue;
     const place = match[2]?.trim() ?? null;
-    if (!KNOWN_FIRST.has(first) && !place) continue;
     if (place) attached.add(place.toLocaleLowerCase("pt"));
     if (out.some((item) => item.kind === "name" && item.name === name)) continue;
     add({ kind: "name", name, place, text: "" });
+  }
+  // Nomes lidos em lista, sem verbo: só nomes conhecidos ou seguidos da cidade. Numa lista de vários
+  // ("Letícia, a Joana, a Lúcia, a Alice"), a própria lista é a prova: entram todos, e também o primeiro
+  // nome quando abre a frase sem artigo.
+  const listed = [...text.matchAll(NAME_LISTED)]
+    .map((match) => ({ name: match[1]!.trim(), place: match[2]?.trim() ?? null }))
+    .filter((item) => acceptName(item.name));
+  const series = listed.length >= 2;
+  if (series) {
+    const opener = text.match(ure(String.raw`^\s*${NAME}\s*,\s*[oOaA]\s+\p{Lu}`));
+    if (opener && acceptName(opener[1]!.trim()) && !listed.some((item) => item.name === opener[1]!.trim()))
+      listed.unshift({ name: opener[1]!.trim(), place: null });
+  }
+  for (const { name, place } of listed) {
+    const first = name.split(" ")[0]!.toLocaleLowerCase("pt");
+    if (!series && !KNOWN_FIRST.has(first) && !place) continue;
+    if (place) attached.add(place.toLocaleLowerCase("pt"));
+    if (out.some((item) => item.kind === "name" && item.name === name)) continue;
+    add({ kind: "name", name, place, text: "" });
+  }
+  // "Letícia, 5 mil. Joana, 2 mil euros.": o nome e, a seguir, o que a pessoa escreveu.
+  for (const match of text.matchAll(NAME_THEN_CONTENT)) {
+    const name = match[1]!.trim();
+    const content = match[2]!.trim();
+    const first = name.split(" ")[0]!.toLocaleLowerCase("pt");
+    if (!acceptName(name) || !content) continue;
+    const known = KNOWN_FIRST.has(first) || out.some((item) => item.kind === "name" && item.name === name);
+    // Só conteúdos com números ("5 mil", "2 mil euros", "97 euros?") ou entre aspas: "Mariana, que bom
+    // ver-te" é o apresentador a falar com ela, não a ler o que ela escreveu.
+    const quoted = /^["“«'].+["”»']$/u.test(content);
+    if (!/\d/.test(content) && !(known && quoted)) continue;
+    if (/^(?:[oOaA]|[eE])\s+\p{Lu}/u.test(content)) continue;
+    const existing = out.find((item) => item.kind === "name" && item.name === name);
+    if (existing) {
+      if (!existing.text) existing.text = content;
+      continue;
+    }
+    add({ kind: "name", name, place: null, text: content });
   }
   for (const match of text.matchAll(PLACE_READ)) {
     const place = match[1]!.trim();
@@ -624,7 +766,7 @@ export function buildSemanticBlocks(sentences: readonly SentenceLike[]): Semanti
   // "Deixe aqui nos comentários" logo a seguir à pergunta: é a mesma oportunidade.
   // Junta-se à pergunta, para a janela de resposta começar depois do pedido.
   const GENERIC_REQUEST = ure(
-    String.raw`^\s*(?:ent[ãa]o,?\s*)?(?:deix(?:a|e|em|am)|escrev(?:e|a|am)|coment(?:a|e|em)|coloc(?:a|que|quem)|mand(?:a|e|em))\s+(?:aqui\s+|a[ií]\s+)?(?:nos coment[áa]rios|no chat)[.!]?\s*$`,
+    String.raw`^\s*(?:ent[ãa]o,?\s*)?(?:deix(?:a|e|em|am)|escrev(?:e|a|am)|coment(?:a|e|em)|colo(?:ca|cam|que|quem)|mand(?:a|e|em))\s+(?:aqui\s+|a[ií]\s+)?(?:nos coment[áa]rios|no chat)[.!]?\s*$`,
     "i",
   );
   for (let i = blocks.length - 1; i > 0; i -= 1) {

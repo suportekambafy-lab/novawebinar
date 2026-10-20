@@ -354,6 +354,105 @@ describe("validação", () => {
   });
 });
 
+describe("quem o apresentador nomeia já está no chat", () => {
+  it("«a minha aluna Letícia» e «o nosso cliente Pedro de Braga» são nomes lidos", () => {
+    const refs = extractReferences("Está aqui a minha aluna Letícia, e o nosso cliente Pedro de Braga.");
+    const names = refs.filter((r) => r.kind === "name");
+    expect(names.map((r) => r.name)).toEqual(["Letícia", "Pedro"]);
+    expect(names[1]!.place).toBe("Braga");
+    expect(classifyText("Está aqui a minha aluna Letícia, que bom!").type).toBe("CHAT_READING");
+  });
+
+  it("uma lista de nomes com artigo entra toda, mesmo com nomes que o motor não conhece", () => {
+    const refs = extractReferences(
+      "Letícia, a Joana, a Lúcia, a Alice, a Alessandra, que entrou há pouquíssimo tempo, a Rosa. Sejam muito bem-vindas.",
+    );
+    expect(refs.filter((r) => r.kind === "name").map((r) => r.name)).toEqual([
+      "Letícia",
+      "Joana",
+      "Lúcia",
+      "Alice",
+      "Alessandra",
+      "Rosa",
+    ]);
+    // Uma palavra solta com vírgula não é um nome.
+    expect(extractReferences("Depois, a gente vê isso. Olha, é simples.").filter((r) => r.kind === "name")).toEqual([]);
+  });
+
+  it("«Letícia, 5 mil. Joana, 2 mil euros.» é o nome e o que cada uma escreveu", () => {
+    const refs = extractReferences("Aqui, ó. Letícia, 5 mil. Joana, 2 mil euros.");
+    expect(refs.filter((r) => r.kind === "name").map((r) => [r.name, r.text])).toEqual([
+      ["Letícia", "5 mil"],
+      ["Joana", "2 mil euros"],
+    ]);
+    // Falar com alguém não é ler o que ela escreveu.
+    expect(extractReferences("Mariana, que bom te ver por aqui.").filter((r) => r.kind === "name")).toEqual([]);
+  });
+
+  it("nomear e pedir no mesmo bloco: as alunas existem antes e estão entre quem responde", () => {
+    const blocks = buildSemanticBlocks([
+      s(36, 39, "Estou vendo aqui que tem algumas alunas do meu curso."),
+      s(
+        40,
+        52,
+        "Letícia, a Joana, a Lúcia, sejam muito bem-vindas. Quero que vocês coloquem aqui pra gente quanto vocês já faturaram desde que entraram no curso.",
+      ),
+      s(65, 68, "Aqui, ó. Letícia, 5 mil. Joana, 2 mil euros."),
+      s(72, 80, "Alessandra, que entrou faz uma semana, já faturou 400 euros. Eu quero parabenizar as minhas alunas."),
+    ]);
+    const asks = blocks.find((b) => b.startMs === 40_000)!;
+    expect(asks.type).toBe("COMMENT_REQUEST");
+    expect(asks.readsChat).toBe(true);
+    expect(asks.referenced.map((r) => r.name)).toEqual(["Letícia", "Joana", "Lúcia"]);
+
+    const slots = plan(blocks);
+    const presence = slots.find((slot) => slot.id === `${asks.id}_presenca`)!;
+    expect(presence.dependency).toBe("BEFORE");
+    expect(presence.minComments).toBe(3);
+    expect(presence.referenced.map((r) => r.name)).toEqual(["Letícia", "Joana", "Lúcia"]);
+    expect(presence.windowEndMs).toBe(38_000);
+    const answers = slots.find((slot) => slot.id === `${asks.id}_resp`)!;
+    expect(answers.referenced.map((r) => r.name)).toEqual(["Letícia", "Joana", "Lúcia"]);
+    expect(answers.minComments).toBeGreaterThanOrEqual(3);
+
+    // A leitura dos valores aos 65 s: as mesmas pessoas, com o que escreveram, antes de ela ler.
+    const read = slots.find((slot) => slot.id.endsWith("_lido") && slot.blockStartMs === 65_000)!;
+    expect(read.referenced.map((r) => [r.name, r.text])).toEqual([
+      ["Letícia", "5 mil"],
+      ["Joana", "2 mil euros"],
+    ]);
+    // Nomeada há menos de 45 s, a Letícia não «chega» outra vez: só a leitura conta.
+    expect(slots.some((slot) => slot.id.endsWith("_presenca") && slot.blockStartMs === 65_000)).toBe(false);
+
+    const validated = validateEngine(
+      [
+        comment({
+          atMs: 34_000,
+          author: "Letícia",
+          message: "presente! 🙋‍♀️",
+          slotId: presence.id,
+          blockId: presence.blockId,
+          dependency: "BEFORE",
+        }),
+      ],
+      { blocks, slots, offerStartMs: null, durationMs: 600_000 },
+    );
+    expect(validated.kept[0]!.dependency).toBe("BEFORE");
+    expect(validated.byRule["pretexto-sem-leitura"]).toBeUndefined();
+  });
+
+  it("o nome do apresentador nunca é alguém do chat: «Carol, 97 euros?» é uma pergunta de alguém", () => {
+    const blocks = buildSemanticBlocks([
+      s(10, 20, "Vamos falar do investimento. O curso completo fica por 97 euros."),
+      s(30, 40, "Carol, 97 euros? Sim, mas você pode parcelar em três vezes."),
+    ]);
+    const slots = plan(blocks, { hostName: "Carol Delfes" });
+    expect(slots.some((slot) => slot.referenced.some((r) => r.kind === "name" && r.name === "Carol"))).toBe(false);
+    const before = slots.find((slot) => slot.dependency === "BEFORE")!;
+    expect(before.referenced).toEqual([{ kind: "question", name: null, place: null, text: "97 euros" }]);
+  });
+});
+
 describe("regeneração", () => {
   it("mantém o que foi escrito ou editado à mão e não duplica a sua oportunidade", () => {
     const existing = [

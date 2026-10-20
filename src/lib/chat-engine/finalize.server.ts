@@ -226,7 +226,7 @@ export async function finalizeTimelineImpl(input: {
 }): Promise<{ comments: FinalizedComment[]; report: FinalizeReport | null }> {
   const { data: webinar } = await (supabaseAdmin as any)
     .from("webinars")
-    .select("cta_start_seconds, cta_text, duration_seconds, video_sources(duration_seconds)")
+    .select("cta_start_seconds, cta_text, duration_seconds, host_name, video_sources(duration_seconds)")
     .eq("id", input.webinarId)
     .maybeSingle();
   const version = await latestReadyVersion(input.webinarId);
@@ -282,6 +282,7 @@ export async function finalizeTimelineImpl(input: {
     participants: input.participants,
     perMinute: input.perMinute,
     offerStartMs,
+    hostName: typeof webinar?.host_name === "string" ? webinar.host_name : null,
   });
   return finalizeWithBlocks(input.comments, {
     blocks,
