@@ -112,6 +112,7 @@ import {
   type VideoUploadHandle,
   type VideoUploadProgress,
 } from "@/lib/video-upload";
+import { HEAVY_BITRATE_MBPS, faststartFile, inspectMp4 } from "@/lib/mp4-inspect";
 import {
   EDITOR_STEPS,
   editorLoading,
@@ -1149,22 +1150,39 @@ function EditWebinar() {
       );
       return;
     }
-    // O vídeo é servido tal como foi enviado: um ficheiro muito pesado carrega devagar no telemóvel.
-    if (file.size > HEAVY_VIDEO_BYTES) {
+    if (file.size === 0) {
+      toast.error("O ficheiro está vazio.");
+      return;
+    }
+    // A sala serve o ficheiro tal como foi enviado (sem transcodificação): o que se puder ver antes, vê-se.
+    const info = await inspectMp4(file);
+    if (info.codec === "hevc") {
+      toast.error(
+        "Este vídeo está em HEVC (H.265), que não toca em muitos navegadores (Chrome sem descodificador, Firefox, Android antigos): a sala ficaria sem imagem para parte das pessoas. Exporte em H.264 (no iPhone: Definições › Câmara › Formatos › Mais compatível; no editor, «H.264/AVC»), a 1080p e 4 a 6 Mbit/s, e envie de novo.",
+        { duration: 20000 },
+      );
+      return;
+    }
+    if (info.bitrateMbps != null && info.bitrateMbps > HEAVY_BITRATE_MBPS) {
+      toast.warning(
+        `O vídeo tem ${info.bitrateMbps.toFixed(0)} Mbit/s (${formatBytes(file.size)}): trava em qualquer rede abaixo disso, e em dados móveis é comum. Vai ser enviado assim; se puder, exporte a 1080p com 4 a 6 Mbit/s (fica 3 a 5 vezes mais leve) e substitua-o.`,
+        { duration: 15000 },
+      );
+    } else if (info.bitrateMbps == null && file.size > HEAVY_VIDEO_BYTES) {
       toast.warning(
         `O ficheiro tem ${formatBytes(file.size)}. A sala mostra-o tal como está, sem compressão: pode demorar a arrancar em dados móveis. Se puder, exporte em 1080p (fica abaixo de 6 GB).`,
         { duration: 10000 },
       );
     }
-    if (file.size === 0) {
-      toast.error("O ficheiro está vazio.");
-      return;
-    }
     const objectUrl = URL.createObjectURL(file);
     const seconds = await readDurationFromSrc(objectUrl).finally(() => URL.revokeObjectURL(objectUrl));
+    // Índice no fim do ficheiro (exportações do iPhone, OBS e vários editores): passa para a frente antes
+    // de enviar, para o leitor arrancar sem ir buscar o fim. Sem recodificar e sem copiar para memória.
+    const toSend = info.moovAtEnd ? await faststartFile(file) : file;
+    if (toSend !== file) toast.info("Índice do vídeo passado para a frente: arranca mais depressa na sala.");
     const path = `${organizationId}/${crypto.randomUUID()}-${safeObjectName(file.name)}`;
     const handle = createVideoUpload({
-      file,
+      file: toSend,
       path,
       onProgress: (progress) => {
         setVideoUpload({ file, progress });

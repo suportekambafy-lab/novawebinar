@@ -480,7 +480,7 @@ function PlatformLogo({ platform, size = 40 }: { platform: Platform; size?: numb
 }
 
 const SOURCES: { key: Source; icon: LucideIcon; title: string; text: string }[] = [
-  { key: "computer", icon: Upload, title: "Do computador", text: "MP4 ou MOV, até 20 GB" },
+  { key: "computer", icon: Upload, title: "Do computador", text: "MP4 ou MOV em H.264, até 20 GB" },
   { key: "library", icon: Film, title: "Da Biblioteca", text: "Os vídeos que já carregou" },
   { key: "platform", icon: VideoIcon, title: "De uma plataforma", text: "Vimeo, Panda Video, Bunny" },
   { key: "link", icon: Link2, title: "Por link", text: "Um ficheiro MP4 ou uma lista HLS" },
@@ -620,7 +620,7 @@ function SourceDialog({
   if (source === "computer") {
     content = (
       <>
-        <PaneHeader title="Do computador" subtitle="MP4 ou MOV, até 20 GB. O envio continua se a ligação cair; acima de 6 GB convém exportar em 1080p." />
+        <PaneHeader title="Do computador" subtitle="MP4 ou MOV em H.264, até 20 GB. O envio continua se a ligação cair. Para tocar bem no telemóvel: 1080p a 4–6 Mbit/s (HEVC/H.265 não é aceite: não toca em muitos navegadores)." />
         <button
           type="button"
           disabled={upload.busy}
