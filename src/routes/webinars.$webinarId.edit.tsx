@@ -103,6 +103,7 @@ import { toStorageOffsets } from "@/lib/temporal/placement";
 import { cn, offerUrl } from "@/lib/utils";
 import { writeRoomDraft } from "@/lib/room-draft";
 import {
+  HEAVY_VIDEO_BYTES,
   MAX_VIDEO_BYTES,
   VIDEO_BUCKET,
   createVideoUpload,
@@ -1143,8 +1144,17 @@ function EditWebinar() {
       return;
     }
     if (file.size > MAX_VIDEO_BYTES) {
-      toast.error(`O ficheiro tem ${formatBytes(file.size)} e ultrapassa o limite de 5 GB por vídeo.`);
+      toast.error(
+        `O ficheiro tem ${formatBytes(file.size)} e ultrapassa o limite de ${formatBytes(MAX_VIDEO_BYTES)} por vídeo. Comprima-o (1080p chega) ou aloje-o no Bunny Stream e cole o link.`,
+      );
       return;
+    }
+    // O vídeo é servido tal como foi enviado: um ficheiro muito pesado carrega devagar no telemóvel.
+    if (file.size > HEAVY_VIDEO_BYTES) {
+      toast.warning(
+        `O ficheiro tem ${formatBytes(file.size)}. A sala mostra-o tal como está, sem compressão: pode demorar a arrancar em dados móveis. Se puder, exporte em 1080p (fica abaixo de 6 GB).`,
+        { duration: 10000 },
+      );
     }
     if (file.size === 0) {
       toast.error("O ficheiro está vazio.");

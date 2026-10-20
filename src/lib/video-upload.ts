@@ -16,8 +16,15 @@ import * as tus from "tus-js-client";
 import { supabase } from "@/integrations/supabase/client";
 
 export const VIDEO_BUCKET = "webinar-videos";
-/** Limite da aplicação para um vídeo enviado. */
-export const MAX_VIDEO_BYTES = 5 * 1024 * 1024 * 1024;
+/**
+ * Limite da aplicação para um vídeo enviado: 20 GB. Chega para qualquer aula gravada em boa qualidade
+ * (1080p de 2 h são 2 a 6 GB; 4K comprimido, até ~15 GB). O resumable da Supabase aceita até 50 GB, mas o
+ * vídeo é servido tal como foi enviado (sem transcodificação): acima disto pesa a cada espectador e no
+ * egress. O limite global do projecto Supabase (Storage › Settings) tem de ser pelo menos este.
+ */
+export const MAX_VIDEO_BYTES = 20 * 1024 * 1024 * 1024;
+/** A partir daqui avisa-se que o ficheiro vai pesar no telemóvel e que vale a pena comprimir. */
+export const HEAVY_VIDEO_BYTES = 6 * 1024 * 1024 * 1024;
 /** A Supabase exige blocos de 6 MB no endpoint resumable. */
 const CHUNK_BYTES = 6 * 1024 * 1024;
 const RETRY_DELAYS_MS = [0, 3000, 5000, 10000, 20000, 30000];
