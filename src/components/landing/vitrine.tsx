@@ -20,13 +20,16 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useReducedMotion } from "motion/react";
-import salaAoVivo from "@/assets/landing/sala-ao-vivo.webp";
-import salaReplay from "@/assets/landing/sala-replay.webp";
-import salaAzulVendas from "@/assets/landing/sala-azul-vendas.webp";
-import salaVerdeOferta from "@/assets/landing/sala-verde-oferta.webp";
-import salaRoxo from "@/assets/landing/sala-roxo.webp";
+import pJit from "@/assets/landing/pessoas/jit.webp";
+import pReplay from "@/assets/landing/pessoas/replay.webp";
+import pMetrics from "@/assets/landing/pessoas/metrics.webp";
+import pNotif from "@/assets/landing/pessoas/notif.webp";
+import pSupport from "@/assets/landing/pessoas/support.webp";
+import pAb from "@/assets/landing/pessoas/ab.webp";
+import pAi from "@/assets/landing/pessoas/ai.webp";
+import pAutom from "@/assets/landing/pessoas/autom.webp";
+import pLibrary from "@/assets/landing/pessoas/library.webp";
 import liveVerticalTelemovel from "@/assets/landing/live-vertical-telemovel.webp";
-import salaAzulVendasTelemovel from "@/assets/landing/sala-azul-vendas-telemovel.webp";
 import { CountUp } from "@/components/landing/motion";
 
 function Card({ icon, title, children }: { icon: ReactNode; title: string; children: ReactNode }) {
@@ -45,6 +48,8 @@ function Card({ icon, title, children }: { icon: ReactNode; title: string; child
 function JustInTime() {
   return (
     <Card icon={<Clock />} title="Just in time">
+      <img src={pJit} alt="" className="vt-photo" loading="lazy" decoding="async" />
+      <div className="vt-shade" />
       <div className="vt-body">
         <div className="vt-a relative">
           <svg
@@ -78,7 +83,7 @@ function JustInTime() {
           className="vt-b absolute inset-x-0 bottom-0 overflow-hidden rounded-[14px]"
           style={{ height: 300 }}
         >
-          <img src={salaRoxo} alt="" className="vt-photo" loading="lazy" decoding="async" />
+          <img src={pJit} alt="" className="vt-photo" loading="lazy" decoding="async" />
           <div className="vt-shade" />
           <div className="absolute left-3 top-3 flex items-center gap-2">
             <span className="vt-chip is-live">
@@ -100,7 +105,7 @@ function JustInTime() {
 function Replay() {
   return (
     <Card icon={<RotateCcw />} title="Replay">
-      <img src={salaReplay} alt="" className="vt-photo is-zoom" loading="lazy" decoding="async" />
+      <img src={pReplay} alt="" className="vt-photo is-zoom" loading="lazy" decoding="async" />
       <div className="vt-shade" />
       <div className="vt-body">
         <div className="vt-panel flex flex-col gap-2">
@@ -135,13 +140,7 @@ function Replay() {
 function Metrics() {
   return (
     <Card icon={<LineChart />} title="Métricas de cada sessão">
-      <img
-        src={salaVerdeOferta}
-        alt=""
-        className="vt-photo opacity-70"
-        loading="lazy"
-        decoding="async"
-      />
+      <img src={pMetrics} alt="" className="vt-photo is-zoom" loading="lazy" decoding="async" />
       <div className="vt-shade" />
       <div className="vt-body justify-start pt-1">
         <span className="vt-chip is-light ml-auto">
@@ -202,13 +201,7 @@ function Notifications() {
   ];
   return (
     <Card icon={<Bell />} title="Avisos de venda">
-      <img
-        src={salaAzulVendas}
-        alt=""
-        className="vt-photo is-zoom"
-        loading="lazy"
-        decoding="async"
-      />
+      <img src={pNotif} alt="" className="vt-photo is-zoom" loading="lazy" decoding="async" />
       <div className="vt-shade" />
       {sales.map(([title, who], i) => (
         <div
@@ -249,6 +242,8 @@ function AbTest() {
   ] as const;
   return (
     <Card icon={<Shuffle />} title="Teste A/B">
+      <img src={pAb} alt="" className="vt-photo is-zoom" loading="lazy" decoding="async" />
+      <div className="vt-shade is-deep" />
       <div className="vt-body justify-start pt-2">
         <div className="vt-panel flex flex-col items-center gap-1 text-center">
           <div className="flex -space-x-2">
@@ -324,6 +319,8 @@ function AiChat() {
   ];
   return (
     <Card icon={<Sparkles />} title="Agente IA no chat">
+      <img src={pAi} alt="" className="vt-photo is-zoom" loading="lazy" decoding="async" />
+      <div className="vt-shade is-deep" />
       {dialogs.map(([q, a], i) => (
         <div key={q} className="vt-dialog" style={{ "--i": i } as React.CSSProperties}>
           <div className="vt-q self-end rounded-2xl rounded-br-sm bg-white/12 px-3 py-2 text-[13px]">
@@ -351,13 +348,7 @@ function AiChat() {
 function Support() {
   return (
     <Card icon={<Headset />} title="Atendimento ao vivo">
-      <img
-        src={salaAzulVendasTelemovel}
-        alt=""
-        className="vt-photo opacity-60"
-        loading="lazy"
-        decoding="async"
-      />
+      <img src={pSupport} alt="" className="vt-photo is-zoom" loading="lazy" decoding="async" />
       <div className="vt-shade" />
       <div className="vt-body">
         <div
@@ -406,6 +397,8 @@ function Automations() {
   ];
   return (
     <Card icon={<MessageSquareText />} title="Automações">
+      <img src={pAutom} alt="" className="vt-photo is-zoom" loading="lazy" decoding="async" />
+      <div className="vt-shade is-deep" />
       <div className="vt-body">
         {messages.map(([at, text, link], i) => (
           <div
@@ -498,6 +491,8 @@ function Library() {
   ] as const;
   return (
     <Card icon={<Upload />} title="Biblioteca de vídeos">
+      <img src={pLibrary} alt="" className="vt-photo is-zoom" loading="lazy" decoding="async" />
+      <div className="vt-shade is-deep" />
       <div className="vt-body justify-start pt-2">
         <div className="vt-panel flex flex-col gap-2">
           {rows.map(([name, size, state], i) => (

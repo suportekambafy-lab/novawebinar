@@ -2,7 +2,13 @@ import { useMemo, useState } from "react";
 import { CalendarDays, ChevronDown, Clock, Eye, Film, Play, Repeat, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { PaneHeader, PanelDialog, PanelNavButton, PanelNavGroup, PanelTitle } from "@/components/panel-modal";
+import {
+  PaneHeader,
+  PanelDialog,
+  PanelNavButton,
+  PanelNavGroup,
+  PanelTitle,
+} from "@/components/panel-modal";
 import { EntryBadge, entryCardColor, entryLiveLabel } from "@/components/room/entry-screen";
 import { VideoThumb } from "@/components/video-thumb";
 import type { EntryField } from "@/lib/entry-fields";
@@ -136,7 +142,11 @@ export function StepAgenda({
 }) {
   const [date = "", time = ""] = form.scheduled_at.split("T");
   const zones = useMemo(
-    () => ZONES.map(([group, list]) => [group, list.map(([id, name]) => [id, `${name} (${offsetLabel(id)})`])] as const),
+    () =>
+      ZONES.map(
+        ([group, list]) =>
+          [group, list.map(([id, name]) => [id, `${name} (${offsetLabel(id)})`])] as const,
+      ),
     [],
   );
   const known = ZONES.some(([, list]) => list.some(([id]) => id === form.timezone));
@@ -165,11 +175,41 @@ export function StepAgenda({
     </Field>
   );
   // Cada modo: como funciona (no cartão) e para que serve (por baixo, só o escolhido).
-  const kinds: { value: ScheduleKind; icon: typeof CalendarDays; title: string; text: string; use: string }[] = [
-    { value: "single", icon: CalendarDays, title: "Uma data", text: "Uma sessão, num dia e hora.", use: "Para um lançamento ou uma aula marcada." },
-    { value: "repeat", icon: Repeat, title: "Repetir", text: "Nos dias e horas que escolher.", use: "Para vender todas as semanas com o mesmo vídeo." },
-    { value: "jit", icon: Clock, title: "Just in time", text: "A cada 15, 30 ou 60 min.", use: "Para anúncios a correr o dia todo: ninguém espera muito." },
-    { value: "ondemand", icon: Play, title: "Sempre disponível", text: "Começa quando a pessoa entra.", use: "Para uma aula sem hora, vista quando a pessoa quiser." },
+  const kinds: {
+    value: ScheduleKind;
+    icon: typeof CalendarDays;
+    title: string;
+    text: string;
+    use: string;
+  }[] = [
+    {
+      value: "single",
+      icon: CalendarDays,
+      title: "Uma data",
+      text: "Uma sessão, num dia e hora.",
+      use: "Para um lançamento ou uma aula marcada.",
+    },
+    {
+      value: "repeat",
+      icon: Repeat,
+      title: "Repetir",
+      text: "Nos dias e horas que escolher.",
+      use: "Para vender todas as semanas com o mesmo vídeo.",
+    },
+    {
+      value: "jit",
+      icon: Clock,
+      title: "Just in time",
+      text: "A cada 15, 30 ou 60 min.",
+      use: "Para anúncios a correr o dia todo: ninguém espera muito.",
+    },
+    {
+      value: "ondemand",
+      icon: Play,
+      title: "Sempre disponível",
+      text: "Começa quando a pessoa entra.",
+      use: "Para uma aula sem hora, vista quando a pessoa quiser.",
+    },
   ];
   // O que a página de entrada mostra ao lado do título (a mesma etiqueta da página verdadeira).
   const badge = entryLiveLabel(kind === "ondemand" ? null : nextStartMs, form.timezone, Date.now());
@@ -189,7 +229,8 @@ export function StepAgenda({
       "Não escolhe hora: fica na sessão seguinte."
     ) : nextSession ? (
       <>
-        Não escolhe data: fica na próxima sessão, <b className="font-semibold text-foreground">{nextSession}</b>.
+        Não escolhe data: fica na próxima sessão,{" "}
+        <b className="font-semibold text-foreground">{nextSession}</b>.
       </>
     ) : null;
 
@@ -217,7 +258,9 @@ export function StepAgenda({
             </button>
           ))}
         </div>
-        <p className="text-[12.5px] text-muted-foreground">{kinds.find((k) => k.value === kind)?.use}</p>
+        <p className="text-[12.5px] text-muted-foreground">
+          {kinds.find((k) => k.value === kind)?.use}
+        </p>
       </Section>
 
       {kind === "single" ? (
@@ -227,7 +270,11 @@ export function StepAgenda({
               <Input
                 type="date"
                 value={date}
-                onChange={(e) => set({ scheduled_at: e.target.value ? `${e.target.value}T${time || "20:00"}` : "" })}
+                onChange={(e) =>
+                  set({
+                    scheduled_at: e.target.value ? `${e.target.value}T${time || "20:00"}` : "",
+                  })
+                }
                 {...focus("date")}
               />
             </Field>
@@ -235,7 +282,9 @@ export function StepAgenda({
               <Input
                 type="time"
                 value={time}
-                onChange={(e) => date && set({ scheduled_at: `${date}T${e.target.value || "20:00"}` })}
+                onChange={(e) =>
+                  date && set({ scheduled_at: `${date}T${e.target.value || "20:00"}` })
+                }
                 disabled={!date}
               />
             </Field>
@@ -276,13 +325,20 @@ export function StepAgenda({
             <div className="flex flex-wrap items-center gap-2">
               {/* A chave é só a posição: com a hora na chave, cada dígito escrito recriava o campo e tirava-lhe o foco. */}
               {form.recurrence_times.map((time, i) => (
-                <span key={i} className="inline-flex h-9 items-center gap-1 rounded-md border bg-white pl-2 pr-1">
+                <span
+                  key={i}
+                  className="inline-flex h-9 items-center gap-1 rounded-md border bg-white pl-2 pr-1"
+                >
                   <Clock className="size-3.5 text-muted-foreground" />
                   <input
                     type="time"
                     value={time}
                     onChange={(e) =>
-                      set({ recurrence_times: form.recurrence_times.map((t, j) => (j === i ? e.target.value || t : t)) })
+                      set({
+                        recurrence_times: form.recurrence_times.map((t, j) =>
+                          j === i ? e.target.value || t : t,
+                        ),
+                      })
                     }
                     className="w-[84px] bg-transparent text-sm outline-none"
                     aria-label={`Hora ${i + 1}`}
@@ -291,7 +347,9 @@ export function StepAgenda({
                   {form.recurrence_times.length > 1 ? (
                     <button
                       type="button"
-                      onClick={() => set({ recurrence_times: form.recurrence_times.filter((_, j) => j !== i) })}
+                      onClick={() =>
+                        set({ recurrence_times: form.recurrence_times.filter((_, j) => j !== i) })
+                      }
                       aria-label="Tirar esta hora"
                       className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-[var(--ds-gray-alpha-200)]"
                     >
@@ -312,7 +370,9 @@ export function StepAgenda({
             </div>
           </Field>
           {form.recurrence_days.length === 0 ? (
-            <p className="text-[12.5px] text-muted-foreground">Sem dias escolhidos, repete todos os dias.</p>
+            <p className="text-[12.5px] text-muted-foreground">
+              Sem dias escolhidos, repete todos os dias.
+            </p>
           ) : null}
           {zoneSelect}
         </Section>
@@ -320,7 +380,11 @@ export function StepAgenda({
         <Section icon={Clock} title="Intervalo" help="agendaIntervalo">
           <Seg
             small
-            value={["15", "30", "60"].includes(form.jit_interval_minutes) ? form.jit_interval_minutes : "15"}
+            value={
+              ["15", "30", "60"].includes(form.jit_interval_minutes)
+                ? form.jit_interval_minutes
+                : "15"
+            }
             onChange={(jit_interval_minutes) => set({ jit_interval_minutes })}
             options={[
               { value: "15", label: "15 min" },
@@ -340,7 +404,10 @@ export function StepAgenda({
 
       {/* O que o inscrito vê na página de entrada: não escolhe data, entra na sessão que o modo dá. */}
       <Section icon={Eye} title="O que o inscrito vê">
-        <div className="grid gap-2 rounded-xl p-3.5 shadow-[0_0_0_1px_var(--ds-gray-alpha-200)]" style={{ background: page.card, color: page.text }}>
+        <div
+          className="grid gap-2 rounded-xl p-3.5 shadow-[0_0_0_1px_var(--ds-gray-alpha-200)]"
+          style={{ background: page.card, color: page.text }}
+        >
           <p className="text-[14px] font-bold leading-snug">
             <EntryBadge
               live={badge.live || Boolean(ended)}
@@ -354,12 +421,19 @@ export function StepAgenda({
             <span
               key={f.id}
               className="flex h-7 items-center rounded-md px-2.5 text-[11.5px]"
-              style={{ background: page.field, color: page.placeholder, boxShadow: `0 0 0 1px ${page.line}` }}
+              style={{
+                background: page.field,
+                color: page.placeholder,
+                boxShadow: `0 0 0 1px ${page.line}`,
+              }}
             >
               {f.label}
             </span>
           ))}
-          <span className="rounded-md py-1.5 text-center text-[12px] font-bold" style={{ background: page.button, color: page.buttonText }}>
+          <span
+            className="rounded-md py-1.5 text-center text-[12px] font-bold"
+            style={{ background: page.button, color: page.buttonText }}
+          >
             {form.registration_button_text || "Entrar na sala"}
           </span>
         </div>
@@ -379,11 +453,18 @@ export function StepAgenda({
               checked={form.waiting_room_enabled}
               onChange={(waiting_room_enabled) => set({ waiting_room_enabled })}
             />
-            {form.waiting_room_enabled ? <WaitingOptions form={form} set={set} library={library} providerLabel={providerLabel} /> : null}
+            {form.waiting_room_enabled ? (
+              <WaitingOptions
+                form={form}
+                set={set}
+                library={library}
+                providerLabel={providerLabel}
+              />
+            ) : null}
             <SwitchRow
               icon={Film}
-              title="Vídeo sincronizado"
-              description="Quem entra às 20:05 vê a partir do minuto 5."
+              title="Sincronizar com o vídeo"
+              description="Ligado: quem entra às 20:05 apanha o minuto 5, como numa live. Desligado: cada pessoa vê desde o início e, se sair e voltar, continua onde ficou."
               checked={form.sync_video_with_start}
               onChange={(sync_video_with_start) => set({ sync_video_with_start })}
             />
@@ -418,7 +499,8 @@ function WaitingOptions({
 }) {
   const [picking, setPicking] = useState(false);
   const waiting = form.live.waiting;
-  const setWaiting = (patch: Partial<WaitingRoom>) => set({ live: { ...form.live, waiting: { ...waiting, ...patch } } });
+  const setWaiting = (patch: Partial<WaitingRoom>) =>
+    set({ live: { ...form.live, waiting: { ...waiting, ...patch } } });
   const chosen = library.find((v) => v.id === waiting.video) ?? null;
   const nav = <PanelNavButton icon={Film} label="Da Biblioteca" active onClick={() => {}} />;
   return (
@@ -474,9 +556,14 @@ function WaitingOptions({
           }
           mobileNav={nav}
         >
-          <PaneHeader title="Da Biblioteca" subtitle="Toca sem som e em ciclo atrás da contagem; quem quiser liga o som." />
+          <PaneHeader
+            title="Da Biblioteca"
+            subtitle="Toca sem som e em ciclo atrás da contagem; quem quiser liga o som."
+          />
           {library.length === 0 ? (
-            <Note icon={Film}>A Biblioteca ainda está vazia. Carregue um vídeo na etapa Vídeo.</Note>
+            <Note icon={Film}>
+              A Biblioteca ainda está vazia. Carregue um vídeo na etapa Vídeo.
+            </Note>
           ) : (
             <LibraryGrid
               library={library}

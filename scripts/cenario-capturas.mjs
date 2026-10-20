@@ -110,6 +110,9 @@ const MEDIA = {
 };
 
 const HOST = { host_name: "Rui Carvalho", host_role: "Fundador da Escola Vende+", host_avatar_url: MEDIA.avatar, host_verified: true };
+// Para as capturas do site, cada webinar leva depois o apresentador que aparece no seu vídeo (nome, cargo e
+// avatar a condizer: Ana Martins no Live vertical, Sofia Almeida na sala do quadro, Rui Carvalho nas outras),
+// e as linhas do apresentador no chat ficam com esse nome. Ver as notas no topo deste ficheiro.
 
 /** As opções da sala (chat_settings), no formato «live»: cabeçalho, oferta laranja, sem momentos de seguir. */
 const chatSettings = (extra = {}) => ({
