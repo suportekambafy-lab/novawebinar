@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { Link } from "@tanstack/react-router";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import {
@@ -24,6 +32,7 @@ import {
 } from "lucide-react";
 import worldMap from "@/assets/world-map.jpg";
 import { Avatar, BarChart, EmptyState, ProgressRow, TintIcon } from "@/components/ds";
+import { Funnel } from "@/components/funnel";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -55,9 +64,15 @@ const pf = new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 1 });
 const pct = (value: number) => `${Math.round(value)}%`;
 
 /** A facturação num número: a primeira moeda em grande, as outras e os pagamentos por baixo (não cortam). */
-function revenueFigure(revenue: { currency: string; amount: number }[], payments: number, none: string) {
+function revenueFigure(
+  revenue: { currency: string; amount: number }[],
+  payments: number,
+  none: string,
+) {
   const [first, ...rest] = revenue.map(moneyLabel);
-  const paid = payments ? `${nf.format(payments)} ${payments === 1 ? "pagamento aprovado" : "pagamentos aprovados"}` : none;
+  const paid = payments
+    ? `${nf.format(payments)} ${payments === 1 ? "pagamento aprovado" : "pagamentos aprovados"}`
+    : none;
   return { value: first ?? "—", sub: rest.length ? `+ ${rest.join(" + ")} · ${paid}` : paid };
 }
 
@@ -107,13 +122,25 @@ export const DARK_VARS = {
 /** As variáveis do tema chegam também às janelas que abrem fora da zona (pop-ups). */
 const ThemeVars = createContext<CSSProperties | undefined>(undefined);
 
-export function ThemeZone({ dark, className, children }: { dark: boolean; className?: string; children: ReactNode }) {
+export function ThemeZone({
+  dark,
+  className,
+  children,
+}: {
+  dark: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
   const vars = dark ? DARK_VARS : undefined;
   return (
     <ThemeVars.Provider value={vars}>
       <div
         style={vars}
-        className={cn("text-foreground", dark && "-mx-1 rounded-[20px] bg-[var(--bg-canvas)] p-2 sm:mx-0 sm:p-3", className)}
+        className={cn(
+          "text-foreground",
+          dark && "-mx-1 rounded-[20px] bg-[var(--bg-canvas)] p-2 sm:mx-0 sm:p-3",
+          className,
+        )}
       >
         {children}
       </div>
@@ -156,11 +183,23 @@ export function Card({
 }
 
 /** Mensagem de estado vazio dentro de um cartão: o que se passa e o que fazer. */
-export function Quiet({ title, children, className }: { title: string; children?: ReactNode; className?: string }) {
+export function Quiet({
+  title,
+  children,
+  className,
+}: {
+  title: string;
+  children?: ReactNode;
+  className?: string;
+}) {
   return (
     <div className={cn("rounded-lg bg-muted px-4 py-8 text-center", className)}>
       <p className="text-sm font-medium">{title}</p>
-      {children && <p className="mx-auto mt-1 max-w-sm text-[13px] leading-relaxed text-muted-foreground">{children}</p>}
+      {children && (
+        <p className="mx-auto mt-1 max-w-sm text-[13px] leading-relaxed text-muted-foreground">
+          {children}
+        </p>
+      )}
     </div>
   );
 }
@@ -173,7 +212,10 @@ export function SplitBar({
 }: {
   left: { label: string; value: number };
   right: { label: string; value: number };
-  icons?: [React.ComponentType<{ className?: string }>, React.ComponentType<{ className?: string }>];
+  icons?: [
+    React.ComponentType<{ className?: string }>,
+    React.ComponentType<{ className?: string }>,
+  ];
 }) {
   const [a, b] = wholeShares([left.value, right.value]);
   const total = left.value + right.value;
@@ -197,8 +239,14 @@ export function SplitBar({
       <div className="mt-2 flex h-2 gap-0.5 overflow-hidden rounded-full">
         {total > 0 ? (
           <>
-            <span className="h-full rounded-full bg-chart-1 transition-[width] duration-500" style={{ width: `${a}%` }} />
-            <span className="h-full flex-1 rounded-full bg-chart-2" style={{ display: b ? undefined : "none" }} />
+            <span
+              className="h-full rounded-full bg-chart-1 transition-[width] duration-500"
+              style={{ width: `${a}%` }}
+            />
+            <span
+              className="h-full flex-1 rounded-full bg-chart-2"
+              style={{ display: b ? undefined : "none" }}
+            />
           </>
         ) : (
           <span className="h-full flex-1 rounded-full bg-chart-track" />
@@ -239,7 +287,9 @@ export function Figure({
           {value}
         </strong>
       )}
-      {sub && !loading && <p className="mt-1.5 text-xs leading-snug text-muted-foreground">{sub}</p>}
+      {sub && !loading && (
+        <p className="mt-1.5 text-xs leading-snug text-muted-foreground">{sub}</p>
+      )}
     </div>
   );
 }
@@ -389,7 +439,8 @@ export function AudienceGlobe({
         ctx.beginPath();
         for (const [lat, lon] of dots) {
           const p = orthographic(lat, lon, view.lat, view.lon);
-          if (!p.visible || p.depth < band || p.depth >= band + 0.35 + (band === 0.7 ? 1 : 0)) continue;
+          if (!p.visible || p.depth < band || p.depth >= band + 0.35 + (band === 0.7 ? 1 : 0))
+            continue;
           const x = cx + p.x * r;
           const y = cy - p.y * r;
           ctx.moveTo(x + dot, y);
@@ -468,7 +519,10 @@ export function AudienceGlobe({
           ? `Globo com ${people} ${people === 1 ? "pessoa" : "pessoas"} em ${spots.length} ${spots.length === 1 ? "sítio" : "sítios"}`
           : "Globo sem ninguém a ver neste momento"
       }
-      className={cn("aspect-square w-full cursor-grab touch-none select-none active:cursor-grabbing", className)}
+      className={cn(
+        "aspect-square w-full cursor-grab touch-none select-none active:cursor-grabbing",
+        className,
+      )}
     />
   );
 }
@@ -512,18 +566,28 @@ export function RegionBreakdown<T>({
               aria-pressed={onSelect ? active : undefined}
             >
               <span className="min-w-0 flex-1">
-                <span className={cn("block truncate text-sm font-medium", active && "underline underline-offset-4")}>
+                <span
+                  className={cn(
+                    "block truncate text-sm font-medium",
+                    active && "underline underline-offset-4",
+                  )}
+                >
                   {region.label}
                 </span>
                 <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-chart-track">
                   <span
-                    className={cn("block h-full rounded-full", active ? "bg-chart-emphasis" : key === null ? "bg-chart-other" : "bg-chart-1")}
+                    className={cn(
+                      "block h-full rounded-full",
+                      active ? "bg-chart-emphasis" : key === null ? "bg-chart-other" : "bg-chart-1",
+                    )}
                     style={{ width: `${Math.max(2, region.share)}%` }}
                   />
                 </span>
               </span>
               <span className="shrink-0 text-right">
-                <strong className="block text-lg leading-none font-semibold tabular-nums">{pct(region.share)}</strong>
+                <strong className="block text-lg leading-none font-semibold tabular-nums">
+                  {pct(region.share)}
+                </strong>
                 <span className="text-xs text-muted-foreground tabular-nums">
                   {nf.format(region.count)} {unit}
                 </span>
@@ -552,7 +616,9 @@ export function RegionBreakdown<T>({
                         {country.flag || "🌐"}
                       </span>
                       <span className="min-w-0">
-                        <strong className="block truncate text-sm font-semibold">{country.label}</strong>
+                        <strong className="block truncate text-sm font-semibold">
+                          {country.label}
+                        </strong>
                         <span className="text-xs text-muted-foreground">
                           {region.label} · {pct(country.share)} de quem tem origem detectada
                         </span>
@@ -601,12 +667,20 @@ export function topCities(rows: { city: string | null }[], limit = 3) {
   const sorted = [...counts].sort((a, b) => b[1] - a[1]);
   if (!sorted.length) return "Sem cidade detectada";
   const shown = sorted.slice(0, limit).map(([city, n]) => `${city} (${n})`);
-  return sorted.length > limit ? `${shown.join(", ")} e mais ${sorted.length - limit}` : shown.join(", ");
+  return sorted.length > limit
+    ? `${shown.join(", ")} e mais ${sorted.length - limit}`
+    : shown.join(", ");
 }
 
 /* ---------- Vista ao vivo ---------- */
 
-export type MomentItem = { id: string; who: string; text: string; at: string; kind: "entry" | "offer" | "sale" | "other" };
+export type MomentItem = {
+  id: string;
+  who: string;
+  text: string;
+  at: string;
+  kind: "entry" | "offer" | "sale" | "other";
+};
 
 export type LiveSessionItem = LiveSession & { badge: string; detail: string | null };
 
@@ -623,7 +697,12 @@ export function agoShort(iso: string, nowMs: number) {
   if (s < 60) return "agora mesmo";
   if (s < 3600) return `há ${Math.round(s / 60)} min`;
   if (s < 86_400) return `há ${Math.round(s / 3600)} h`;
-  return new Date(iso).toLocaleString("pt-PT", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleString("pt-PT", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 /** Barras minuto a minuto: entradas, oferta, compras e chat ou inscrições, empilhadas com 2px entre as partes. */
@@ -631,7 +710,11 @@ export function MinuteBars({ buckets }: { buckets: MinuteBucket[] }) {
   const max = Math.max(1, ...buckets.map((b) => b.total));
   return (
     <div>
-      <div className="flex h-28 items-end gap-[3px]" role="img" aria-label="Actividade nos últimos 30 minutos, minuto a minuto">
+      <div
+        className="flex h-28 items-end gap-[3px]"
+        role="img"
+        aria-label="Actividade nos últimos 30 minutos, minuto a minuto"
+      >
         {buckets.map((b) => (
           <div
             key={b.at}
@@ -642,10 +725,30 @@ export function MinuteBars({ buckets }: { buckets: MinuteBucket[] }) {
               <span className="h-[3px] rounded-full bg-chart-track" />
             ) : (
               <>
-                {b.other > 0 && <span className={cn("rounded-[2px]", KIND_COLOR.other)} style={{ height: `${(b.other / max) * 100}%` }} />}
-                {b.sales > 0 && <span className={cn("rounded-[2px]", KIND_COLOR.sale)} style={{ height: `${(b.sales / max) * 100}%` }} />}
-                {b.offer > 0 && <span className={cn("rounded-[2px]", KIND_COLOR.offer)} style={{ height: `${(b.offer / max) * 100}%` }} />}
-                {b.entries > 0 && <span className={cn("rounded-[2px]", KIND_COLOR.entry)} style={{ height: `${(b.entries / max) * 100}%` }} />}
+                {b.other > 0 && (
+                  <span
+                    className={cn("rounded-[2px]", KIND_COLOR.other)}
+                    style={{ height: `${(b.other / max) * 100}%` }}
+                  />
+                )}
+                {b.sales > 0 && (
+                  <span
+                    className={cn("rounded-[2px]", KIND_COLOR.sale)}
+                    style={{ height: `${(b.sales / max) * 100}%` }}
+                  />
+                )}
+                {b.offer > 0 && (
+                  <span
+                    className={cn("rounded-[2px]", KIND_COLOR.offer)}
+                    style={{ height: `${(b.offer / max) * 100}%` }}
+                  />
+                )}
+                {b.entries > 0 && (
+                  <span
+                    className={cn("rounded-[2px]", KIND_COLOR.entry)}
+                    style={{ height: `${(b.entries / max) * 100}%` }}
+                  />
+                )}
               </>
             )}
           </div>
@@ -686,7 +789,13 @@ export type LiveBoardProps = {
   /** A próxima sessão marcada, para quando não há nenhuma a decorrer. */
   nextSession: { title: string; when: string } | null;
   /** `failed`: a leitura falhou; o cartão diz isso em vez de «sem actividade». */
-  activity: { buckets: MinuteBucket[]; moments: MomentItem[]; last: MomentItem | null; loading: boolean; failed?: boolean };
+  activity: {
+    buckets: MinuteBucket[];
+    moments: MomentItem[];
+    last: MomentItem | null;
+    loading: boolean;
+    failed?: boolean;
+  };
   /** O mesmo resumo das Análises: hoje (ou este webinar). `note` diz o que se conta. */
   summary: {
     title: string;
@@ -699,15 +808,24 @@ export type LiveBoardProps = {
 
 /** A Vista ao vivo inteira, alimentada por props (a rota trata dos dados). */
 export function LiveBoard(props: LiveBoardProps) {
-  const { dark, now, viewers, spots, sessions, activity, summary, nowMs, scoped, nextSession } = props;
+  const { dark, now, viewers, spots, sessions, activity, summary, nowMs, scoped, nextSession } =
+    props;
   const [focus, setFocus] = useState<RegionKey | null>(null);
   const { regions, unknown } = groupByRegion(viewers);
-  const globeRegions = regions.flatMap((r) => (r.key === "outras" ? [] : [{ key: r.key, label: r.label, share: r.share }]));
+  const globeRegions = regions.flatMap((r) =>
+    r.key === "outras" ? [] : [{ key: r.key, label: r.label, share: r.share }],
+  );
   const s = summary.data?.summary;
   // Sem dados (a leitura falhou) mostra-se «—», nunca um zero que não foi contado.
   const count = (n: number | undefined) => (n === undefined ? "—" : nf.format(n));
   const windowTotals = activity.buckets.reduce(
-    (t, b) => ({ entries: t.entries + b.entries, offer: t.offer + b.offer, sales: t.sales + b.sales, other: t.other + b.other, total: t.total + b.total }),
+    (t, b) => ({
+      entries: t.entries + b.entries,
+      offer: t.offer + b.offer,
+      sales: t.sales + b.sales,
+      other: t.other + b.other,
+      total: t.total + b.total,
+    }),
     { entries: 0, offer: 0, sales: 0, other: 0, total: 0 },
   );
   const quiet = windowTotals.total === 0;
@@ -749,7 +867,8 @@ export function LiveBoard(props: LiveBoardProps) {
 
           {now.total === 0 ? (
             <Quiet title="Ninguém a ver neste momento" className="mt-5">
-              Quando alguém entrar numa sala, aparece aqui na hora: de onde vê, em que aparelho e se clicou na oferta.
+              Quando alguém entrar numa sala, aparece aqui na hora: de onde vê, em que aparelho e se
+              clicou na oferta.
             </Quiet>
           ) : (
             <div className="mt-6 space-y-5">
@@ -760,18 +879,25 @@ export function LiveBoard(props: LiveBoardProps) {
                     {now.onOffer === null ? "—" : nf.format(now.onOffer)}
                   </p>
                   <p className="text-xs leading-snug text-muted-foreground">
-                    {now.onOffer === null ? "A sala ainda não envia este dado" : "com a oferta no ecrã"}
+                    {now.onOffer === null
+                      ? "A sala ainda não envia este dado"
+                      : "com a oferta no ecrã"}
                   </p>
                 </div>
                 <div className="rounded-lg bg-surface-tint px-3 py-2.5">
                   <p className="text-xs text-muted-foreground">{METRIC.clicked}</p>
-                  <p className="mt-1 text-xl font-semibold tabular-nums">{nf.format(now.clicked)}</p>
+                  <p className="mt-1 text-xl font-semibold tabular-nums">
+                    {nf.format(now.clicked)}
+                  </p>
                   <p className="text-xs leading-snug text-muted-foreground">
                     {pct(now.total ? (now.clicked / now.total) * 100 : 0)} de quem está na sala
                   </p>
                 </div>
               </div>
-              <SplitBar left={{ label: METRIC.live, value: now.live }} right={{ label: METRIC.replay, value: now.replay }} />
+              <SplitBar
+                left={{ label: METRIC.live, value: now.live }}
+                right={{ label: METRIC.replay, value: now.replay }}
+              />
               <SplitBar
                 left={{ label: METRIC.mobile, value: now.mobile }}
                 right={{ label: METRIC.desktop, value: now.desktop }}
@@ -810,18 +936,28 @@ export function LiveBoard(props: LiveBoardProps) {
                         <DetailRows
                           rows={[
                             ["Na sala agora", nf.format(rows.length)],
-                            [`${METRIC.live} · ${METRIC.replay}`, `${count((v) => v.mode === "live")} · ${count((v) => v.mode === "replay")}`],
-                            [`${METRIC.mobile} · ${METRIC.desktop}`, `${count((v) => v.device === "mobile")} · ${count((v) => v.device === "desktop")}`],
+                            [
+                              `${METRIC.live} · ${METRIC.replay}`,
+                              `${count((v) => v.mode === "live")} · ${count((v) => v.mode === "replay")}`,
+                            ],
+                            [
+                              `${METRIC.mobile} · ${METRIC.desktop}`,
+                              `${count((v) => v.device === "mobile")} · ${count((v) => v.device === "desktop")}`,
+                            ],
                             [METRIC.clicked, nf.format(count((v) => v.checkout))],
                           ]}
                         />
-                        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{topCities(rows)}</p>
+                        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                          {topCities(rows)}
+                        </p>
                       </>
                     );
                   }}
                 />
               ) : (
-                <Quiet title={now.total ? "Ainda sem origem detectada" : "Sem público para mostrar"}>
+                <Quiet
+                  title={now.total ? "Ainda sem origem detectada" : "Sem público para mostrar"}
+                >
                   {now.total
                     ? "A localização chega uns segundos depois da entrada. Se não chegar, o browser da pessoa bloqueou-a."
                     : "Com pessoas na sala, vê aqui a percentagem por região e, ao tocar num país, a audiência desse país."}
@@ -836,7 +972,9 @@ export function LiveBoard(props: LiveBoardProps) {
       <section className="mt-2 rounded-card bg-card p-4 sm:mt-3 sm:p-6">
         <header className="mb-4 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-[15px] font-semibold tracking-[var(--tracking-title)]">{summary.title}</h2>
+            <h2 className="text-[15px] font-semibold tracking-[var(--tracking-title)]">
+              {summary.title}
+            </h2>
             <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{summary.note}</p>
           </div>
           <Link
@@ -848,19 +986,30 @@ export function LiveBoard(props: LiveBoardProps) {
           </Link>
         </header>
         <div className="grid grid-cols-2 gap-x-4 gap-y-5 @2xl:grid-cols-3 @5xl:grid-cols-5">
-          <Figure label={METRIC.registered} icon={UserPlus} value={count(s?.registered)} loading={summary.loading} />
+          <Figure
+            label={METRIC.registered}
+            icon={UserPlus}
+            value={count(s?.registered)}
+            loading={summary.loading}
+          />
           <Figure
             label={METRIC.attended}
             icon={Eye}
             value={count(s?.attended)}
-            sub={s?.registered ? `${pct((s.attended / s.registered) * 100)} dos inscritos` : undefined}
+            sub={
+              s?.registered ? `${pct((s.attended / s.registered) * 100)} dos inscritos` : undefined
+            }
             loading={summary.loading}
           />
           <Figure
             label={METRIC.clicked}
             icon={MousePointerClick}
             value={count(s?.clicked)}
-            sub={summary.data?.cta == null ? undefined : `${pct(summary.data.cta)} de quem viu a oferta`}
+            sub={
+              summary.data?.cta == null
+                ? undefined
+                : `${pct(summary.data.cta)} de quem viu a oferta`
+            }
             loading={summary.loading}
           />
           <Figure
@@ -873,7 +1022,9 @@ export function LiveBoard(props: LiveBoardProps) {
           <Figure
             label={METRIC.revenue}
             icon={Banknote}
-            {...(summary.data ? revenueFigure(summary.data.revenue, summary.data.payments, "Sem vendas aprovadas") : { value: "—" })}
+            {...(summary.data
+              ? revenueFigure(summary.data.revenue, summary.data.payments, "Sem vendas aprovadas")
+              : { value: "—" })}
             loading={summary.loading}
             className="col-span-2 @5xl:col-span-1"
           />
@@ -886,7 +1037,9 @@ export function LiveBoard(props: LiveBoardProps) {
           {activity.loading ? (
             <Skeleton className="h-36 w-full" />
           ) : activity.failed ? (
-            <Quiet title="Não foi possível ler a actividade">A página tenta de novo sozinha dentro de 15 segundos.</Quiet>
+            <Quiet title="Não foi possível ler a actividade">
+              A página tenta de novo sozinha dentro de 15 segundos.
+            </Quiet>
           ) : quiet ? (
             <Quiet title="Sem movimento nos últimos 30 minutos">
               {activity.last
@@ -912,9 +1065,12 @@ export function LiveBoard(props: LiveBoardProps) {
                 <li key={m.id} className="flex items-center gap-3 py-2.5 text-sm">
                   <span className={cn("size-2 shrink-0 rounded-full", KIND_COLOR[m.kind])} />
                   <span className="min-w-0 flex-1 truncate">
-                    <strong className="font-medium">{m.who}</strong> <span className="text-muted-foreground">{m.text}</span>
+                    <strong className="font-medium">{m.who}</strong>{" "}
+                    <span className="text-muted-foreground">{m.text}</span>
                   </span>
-                  <time className="shrink-0 text-xs text-muted-foreground tabular-nums">{agoShort(m.at, nowMs)}</time>
+                  <time className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                    {agoShort(m.at, nowMs)}
+                  </time>
                 </li>
               ))}
             </ul>
@@ -922,10 +1078,16 @@ export function LiveBoard(props: LiveBoardProps) {
         </Card>
 
         {/* Sessões a decorrer */}
-        <Card title="Sessões a decorrer" icon={CalendarDays} sub={sessions.length ? `${sessions.length} com sala aberta` : undefined}>
+        <Card
+          title="Sessões a decorrer"
+          icon={CalendarDays}
+          sub={sessions.length ? `${sessions.length} com sala aberta` : undefined}
+        >
           {sessions.length === 0 ? (
             <Quiet title="Nenhuma sessão a decorrer">
-              {nextSession ? `A próxima: ${nextSession.title}, ${nextSession.when}.` : "Não há sessões marcadas."}
+              {nextSession
+                ? `A próxima: ${nextSession.title}, ${nextSession.when}.`
+                : "Não há sessões marcadas."}
             </Quiet>
           ) : (
             <ul className="space-y-2">
@@ -945,7 +1107,9 @@ export function LiveBoard(props: LiveBoardProps) {
                         </span>
                       </span>
                       <span className="shrink-0 text-right">
-                        <strong className="block text-xl leading-none font-semibold tabular-nums">{nf.format(session.count)}</strong>
+                        <strong className="block text-xl leading-none font-semibold tabular-nums">
+                          {nf.format(session.count)}
+                        </strong>
                         <span className="text-xs text-muted-foreground">na sala</span>
                       </span>
                     </div>
@@ -969,11 +1133,17 @@ export function LiveBoard(props: LiveBoardProps) {
       <Card
         title="Público neste momento"
         icon={Users}
-        sub={viewers.length ? `${nf.format(viewers.length)} ${viewers.length === 1 ? "pessoa" : "pessoas"}, de quem entrou há menos tempo para quem está há mais` : undefined}
+        sub={
+          viewers.length
+            ? `${nf.format(viewers.length)} ${viewers.length === 1 ? "pessoa" : "pessoas"}, de quem entrou há menos tempo para quem está há mais`
+            : undefined
+        }
         className="mt-2 sm:mt-3"
       >
         {viewers.length === 0 ? (
-          <Quiet title="Sala vazia">Ninguém nas salas agora. Quem entrar aparece aqui com o nome, o sítio e o aparelho.</Quiet>
+          <Quiet title="Sala vazia">
+            Ninguém nas salas agora. Quem entrar aparece aqui com o nome, o sítio e o aparelho.
+          </Quiet>
         ) : (
           <ul className="grid gap-x-6 @xl:grid-cols-2 @5xl:grid-cols-3">
             {[...viewers]
@@ -981,10 +1151,15 @@ export function LiveBoard(props: LiveBoardProps) {
               .slice(0, 60)
               .map((v) => {
                 const code = countryCodeOf(v.countryCode, v.country);
-                const where = [v.city, v.country && countryLabel(code, v.country)].filter(Boolean).join(", ");
+                const where = [v.city, v.country && countryLabel(code, v.country)]
+                  .filter(Boolean)
+                  .join(", ");
                 const DeviceIcon = v.device === "mobile" ? Smartphone : Monitor;
                 return (
-                  <li key={v.key} className="flex items-center gap-3 border-b border-[var(--border-subtle)] py-2.5">
+                  <li
+                    key={v.key}
+                    className="flex items-center gap-3 border-b border-[var(--border-subtle)] py-2.5"
+                  >
                     <Avatar name={v.name} size={32} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{v.name}</span>
@@ -992,7 +1167,10 @@ export function LiveBoard(props: LiveBoardProps) {
                         {flagOf(code) && <span aria-hidden>{flagOf(code)}</span>}
                         <span className="truncate">{where || "Origem desconhecida"}</span>
                         <span aria-hidden>·</span>
-                        <DeviceIcon className="size-3 shrink-0" aria-label={v.device === "mobile" ? METRIC.mobile : METRIC.desktop} />
+                        <DeviceIcon
+                          className="size-3 shrink-0"
+                          aria-label={v.device === "mobile" ? METRIC.mobile : METRIC.desktop}
+                        />
                         <span>{v.mode === "replay" ? METRIC.replay : METRIC.live}</span>
                       </span>
                     </span>
@@ -1002,7 +1180,9 @@ export function LiveBoard(props: LiveBoardProps) {
                         Clicou
                       </span>
                     ) : (
-                      <time className="shrink-0 text-xs text-muted-foreground tabular-nums">{agoShort(v.joinedAt, nowMs)}</time>
+                      <time className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                        {agoShort(v.joinedAt, nowMs)}
+                      </time>
                     )}
                   </li>
                 );
@@ -1010,7 +1190,9 @@ export function LiveBoard(props: LiveBoardProps) {
           </ul>
         )}
         {viewers.length > 60 && (
-          <p className="mt-3 text-xs text-muted-foreground">E mais {nf.format(viewers.length - 60)} pessoas.</p>
+          <p className="mt-3 text-xs text-muted-foreground">
+            E mais {nf.format(viewers.length - 60)} pessoas.
+          </p>
         )}
       </Card>
     </ThemeZone>
@@ -1018,38 +1200,6 @@ export function LiveBoard(props: LiveBoardProps) {
 }
 
 /* ---------- Análises ---------- */
-
-/** O funil em barras horizontais: a parte dos inscritos e quantos passaram do passo anterior. */
-export function FunnelBars({ steps }: { steps: Analytics["funnel"] }) {
-  const last = steps.length - 1;
-  return (
-    <ol className="space-y-1">
-      {steps.map((step, i) => (
-        <li key={step.key}>
-          {step.pass !== null && (
-            <p className="py-1 pl-0 text-xs text-muted-foreground tabular-nums sm:pl-44">
-              ↓ {pct(step.pass)} passaram
-            </p>
-          )}
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[10rem_minmax(0,1fr)_7rem]">
-            <span className="truncate text-sm">{step.label}</span>
-            {/* Barra fina na cor da marca sobre um degrau claro da mesma família; o último passo (compraram) no laranja escuro. */}
-            <span className="col-span-2 row-start-2 h-3 overflow-hidden rounded-[4px] bg-chart-track sm:col-span-1 sm:row-start-auto">
-              <span
-                className={cn("block h-full rounded-[4px] transition-[width] duration-500", i === last ? "bg-chart-emphasis" : "bg-chart-1")}
-                style={{ width: `${step.value ? Math.max(1.5, step.share) : 0}%` }}
-              />
-            </span>
-            <span className="text-right tabular-nums">
-              <strong className="font-semibold">{nf.format(step.value)}</strong>
-              <span className="ml-1.5 text-xs text-muted-foreground">{pf.format(step.share)}%</span>
-            </span>
-          </div>
-        </li>
-      ))}
-    </ol>
-  );
-}
 
 export type AnalyticsBoardProps = {
   data: Analytics | undefined;
@@ -1099,7 +1249,13 @@ export function AnalyticsBoard({ data, loading, webinarId }: AnalyticsBoardProps
   const { regions, unknown } = groupByRegion(data.people);
   const attendedPeople = data.people.filter((p) => p.attended);
   // Em duas colunas (telemóvel, tablet com menu), Inscritos e Facturação ocupam a linha toda: o valor não é cortado.
-  const tiles: { label: string; value: string; sub: string; icon: React.ComponentType<{ className?: string }>; wide?: boolean }[] = [
+  const tiles: {
+    label: string;
+    value: string;
+    sub: string;
+    icon: React.ComponentType<{ className?: string }>;
+    wide?: boolean;
+  }[] = [
     {
       label: METRIC.registered,
       icon: UserPlus,
@@ -1113,12 +1269,20 @@ export function AnalyticsBoard({ data, loading, webinarId }: AnalyticsBoardProps
       value: nf.format(s.attended),
       sub: s.registered ? `${pct((s.attended / s.registered) * 100)} dos inscritos` : "—",
     },
-    { label: METRIC.averageWatch, icon: Clock, value: s.attended ? watchLabel(s.averageWatchSeconds) : "—", sub: "de quem assistiu" },
+    {
+      label: METRIC.averageWatch,
+      icon: Clock,
+      value: s.attended ? watchLabel(s.averageWatchSeconds) : "—",
+      sub: "de quem assistiu",
+    },
     {
       label: METRIC.ctaConversion,
       icon: MousePointerClick,
       value: data.cta === null ? "—" : `${pf.format(data.cta)}%`,
-      sub: data.cta === null ? "Ninguém viu a oferta no período" : `${nf.format(s.clicked)} clicaram de ${nf.format(s.sawOffer)} que viram a oferta`,
+      sub:
+        data.cta === null
+          ? "Ninguém viu a oferta no período"
+          : `${nf.format(s.clicked)} clicaram de ${nf.format(s.sawOffer)} que viram a oferta`,
     },
     {
       label: METRIC.buyers,
@@ -1126,7 +1290,12 @@ export function AnalyticsBoard({ data, loading, webinarId }: AnalyticsBoardProps
       value: nf.format(s.buyers),
       sub: s.attended ? `${METRIC.conversion} ${pf.format(s.conversion)}% de quem assistiu` : "—",
     },
-    { label: METRIC.revenue, icon: Banknote, ...revenueFigure(data.revenue, data.payments, "Sem vendas aprovadas no período"), wide: true },
+    {
+      label: METRIC.revenue,
+      icon: Banknote,
+      ...revenueFigure(data.revenue, data.payments, "Sem vendas aprovadas no período"),
+      wide: true,
+    },
   ];
   const peak = Math.max(0, ...data.daily.days.map((d) => d.value));
 
@@ -1134,26 +1303,44 @@ export function AnalyticsBoard({ data, loading, webinarId }: AnalyticsBoardProps
     <div className="@container space-y-3">
       <div className="grid grid-cols-2 gap-3 @3xl:grid-cols-3">
         {tiles.map((t) => (
-          <div key={t.label} className={cn("min-w-0 rounded-card bg-card p-4 sm:p-5", t.wide && "col-span-2 @3xl:col-span-1")}>
+          <div
+            key={t.label}
+            className={cn(
+              "min-w-0 rounded-card bg-card p-4 sm:p-5",
+              t.wide && "col-span-2 @3xl:col-span-1",
+            )}
+          >
             <Figure label={t.label} value={t.value} sub={t.sub} icon={t.icon} />
           </div>
         ))}
       </div>
 
-      <Card title="Funil de conversão" icon={Filter} sub="Cada pessoa conta uma vez por webinar; depois de «Assistiram», só conta quem assistiu.">
-        <FunnelBars steps={data.funnel} />
+      <Card
+        title="Funil de conversão"
+        icon={Filter}
+        sub="Cada pessoa conta uma vez por webinar; depois de «Assistiram», só conta quem assistiu."
+      >
+        <Funnel steps={data.funnel.map((s) => ({ label: s.label, value: s.value }))} />
       </Card>
 
       <div className="grid gap-3 @4xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <Card
           title="Inscrições por dia"
           icon={Users}
-          sub={data.daily.capped ? "Últimos 90 dias do período" : "Pessoas que se inscreveram em cada dia, uma vez por webinar"}
+          sub={
+            data.daily.capped
+              ? "Últimos 90 dias do período"
+              : "Pessoas que se inscreveram em cada dia, uma vez por webinar"
+          }
         >
           {peak > 0 ? (
             <>
               <BarChart
-                data={data.daily.days.map((d) => ({ label: d.label, value: d.value, title: `${d.label}: ${nf.format(d.value)} inscrições` }))}
+                data={data.daily.days.map((d) => ({
+                  label: d.label,
+                  value: d.value,
+                  title: `${d.label}: ${nf.format(d.value)} inscrições`,
+                }))}
                 tag={nf.format(peak)}
                 height={180}
                 gap={data.daily.days.length > 45 ? 2 : 4}
@@ -1162,7 +1349,9 @@ export function AnalyticsBoard({ data, loading, webinarId }: AnalyticsBoardProps
               {/* Primeiro, meio e último dia, como na actividade ao minuto: no telemóvel as datas por barra ficavam cortadas. */}
               <div className="mt-2 flex justify-between text-xs tabular-nums text-muted-foreground">
                 <span>{data.daily.days[0]?.label}</span>
-                {data.daily.days.length > 2 && <span>{data.daily.days[Math.floor(data.daily.days.length / 2)]?.label}</span>}
+                {data.daily.days.length > 2 && (
+                  <span>{data.daily.days[Math.floor(data.daily.days.length / 2)]?.label}</span>
+                )}
                 <span>{data.daily.days.at(-1)?.label}</span>
               </div>
             </>
@@ -1175,7 +1364,10 @@ export function AnalyticsBoard({ data, loading, webinarId }: AnalyticsBoardProps
           <div className="space-y-6">
             <div>
               <p className="mb-2 text-xs text-muted-foreground">Quem assistiu</p>
-              <SplitBar left={{ label: METRIC.live, value: s.attendedLive }} right={{ label: METRIC.replay, value: s.attendedReplay }} />
+              <SplitBar
+                left={{ label: METRIC.live, value: s.attendedLive }}
+                right={{ label: METRIC.replay, value: s.attendedReplay }}
+              />
             </div>
             <div>
               <p className="mb-2 text-xs text-muted-foreground">Aparelho dos inscritos</p>
@@ -1186,7 +1378,8 @@ export function AnalyticsBoard({ data, loading, webinarId }: AnalyticsBoardProps
               />
               {data.devices.unknown > 0 && (
                 <p className="mt-2 text-xs text-muted-foreground">
-                  {nf.format(data.devices.unknown)} sem aparelho registado (inscreveram-se fora da sala).
+                  {nf.format(data.devices.unknown)} sem aparelho registado (inscreveram-se fora da
+                  sala).
                 </p>
               )}
             </div>
@@ -1224,19 +1417,26 @@ export function AnalyticsBoard({ data, loading, webinarId }: AnalyticsBoardProps
                         ],
                       ]}
                     />
-                    <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{topCities(rows)}</p>
+                    <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                      {topCities(rows)}
+                    </p>
                   </>
                 );
               }}
             />
           ) : (
             <Quiet title="Ainda sem origens detectadas">
-              A origem é detectada quando a pessoa entra na sala. Quem só se inscreveu ainda não tem origem.
+              A origem é detectada quando a pessoa entra na sala. Quem só se inscreveu ainda não tem
+              origem.
             </Quiet>
           )}
         </Card>
 
-        <Card title="Oferta e pagamento" icon={Activity} sub="Pessoas que assistiram, uma vez cada. Clicar não é pagar.">
+        <Card
+          title="Oferta e pagamento"
+          icon={Activity}
+          sub="Pessoas que assistiram, uma vez cada. Clicar não é pagar."
+        >
           <DetailRows
             rows={[
               [METRIC.sawOffer, nf.format(s.sawOffer)],
@@ -1251,7 +1451,8 @@ export function AnalyticsBoard({ data, loading, webinarId }: AnalyticsBoardProps
           />
           {attendedPeople.length > 0 && s.buyers === 0 && s.clicked > 0 && (
             <p className="mt-4 rounded-md bg-muted px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-              {nf.format(s.clicked)} clicaram e ninguém comprou: confirme se a plataforma de vendas está ligada e a enviar as vendas.
+              {nf.format(s.clicked)} clicaram e ninguém comprou: confirme se a plataforma de vendas
+              está ligada e a enviar as vendas.
             </p>
           )}
         </Card>
@@ -1268,13 +1469,24 @@ export function AnalyticsBoard({ data, loading, webinarId }: AnalyticsBoardProps
         </Link>
       ) : (
         data.webinars.length > 0 && (
-          <Card title="Por webinar" icon={Radio} sub="Do que teve mais inscritos para o que teve menos. Toque para abrir as métricas.">
+          <Card
+            title="Por webinar"
+            icon={Radio}
+            sub="Do que teve mais inscritos para o que teve menos. Toque para abrir as métricas."
+          >
             <div className="-mx-4 overflow-x-auto sm:mx-0">
               <table className="w-full min-w-[640px] text-sm">
                 <thead>
                   <tr className="text-left text-xs text-muted-foreground">
                     <th className="px-4 pb-2 font-normal sm:pl-0">Webinar</th>
-                    {[METRIC.registered, METRIC.attended, "Clicaram", METRIC.buyers, METRIC.conversion, METRIC.revenue].map((h) => (
+                    {[
+                      METRIC.registered,
+                      METRIC.attended,
+                      "Clicaram",
+                      METRIC.buyers,
+                      METRIC.conversion,
+                      METRIC.revenue,
+                    ].map((h) => (
                       <th key={h} className="px-3 pb-2 text-right font-normal">
                         {h}
                       </th>
@@ -1297,7 +1509,9 @@ export function AnalyticsBoard({ data, loading, webinarId }: AnalyticsBoardProps
                       <td className="px-3 text-right tabular-nums">{nf.format(w.attended)}</td>
                       <td className="px-3 text-right tabular-nums">{nf.format(w.clicked)}</td>
                       <td className="px-3 text-right tabular-nums">{nf.format(w.buyers)}</td>
-                      <td className="px-3 text-right tabular-nums">{w.attended ? `${pf.format(w.conversion)}%` : "—"}</td>
+                      <td className="px-3 text-right tabular-nums">
+                        {w.attended ? `${pf.format(w.conversion)}%` : "—"}
+                      </td>
                       <td className="px-3 text-right whitespace-nowrap tabular-nums">
                         {w.revenue.length ? w.revenue.map(moneyLabel).join(" + ") : "—"}
                       </td>
@@ -1329,7 +1543,9 @@ function Panel({
   return (
     <section className={cn("min-w-0 rounded-card bg-card p-5 sm:p-6", className)}>
       <header className="mb-5 flex items-start justify-between gap-3">
-        <h2 className="text-base font-semibold leading-6 tracking-[var(--tracking-title)]">{title}</h2>
+        <h2 className="text-base font-semibold leading-6 tracking-[var(--tracking-title)]">
+          {title}
+        </h2>
         <TintIcon icon={Icon} />
       </header>
       {children}
@@ -1368,31 +1584,12 @@ export function AudienceInsights({
   return (
     <div className={cn("space-y-4", className)}>
       <Panel title="Funil de conversão" icon={Filter}>
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))] gap-x-3 gap-y-4">
-          {funnel.map((step, i) => (
-            <div key={step.label}>
-              <p className="text-xs text-muted-foreground">{step.label}</p>
-              <strong
-                className={cn(
-                  "mt-1 block text-[28px] leading-none font-semibold tracking-[var(--tracking-display)] tabular-nums",
-                  i === funnel.length - 1 && "text-accent-700",
-                )}
-              >
-                {nf.format(step.value)}
-              </strong>
-              <span className="mt-1 block text-xs text-muted-foreground">{pf.format(step.share)}%</span>
-            </div>
-          ))}
-        </div>
-        {top > 0 && (
-          <BarChart
-            className="mt-6"
-            data={funnel.map((step) => ({ label: "", value: step.value, title: `${step.label}: ${nf.format(step.value)}` }))}
-            highlight={funnel.length - 1}
-            tag={`${pf.format(funnel[funnel.length - 1]?.share ?? 0)}%`}
-            height={120}
-            showLabels={false}
-          />
+        {top > 0 ? (
+          <Funnel steps={funnel.map((step) => ({ label: step.label, value: step.value }))} />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            O funil enche-se quando as pessoas se inscrevem.
+          </p>
         )}
       </Panel>
 
@@ -1400,7 +1597,10 @@ export function AudienceInsights({
         <Panel title="Inscrições por dia" icon={Users}>
           {(data?.daily ?? []).some((d) => d.value > 0) ? (
             <BarChart
-              data={(data?.daily ?? []).map((d) => ({ ...d, title: `${d.label}: ${nf.format(d.value)} inscrições` }))}
+              data={(data?.daily ?? []).map((d) => ({
+                ...d,
+                title: `${d.label}: ${nf.format(d.value)} inscrições`,
+              }))}
               tag={nf.format(Math.max(...(data?.daily ?? []).map((d) => d.value)))}
               height={190}
               gap={6}
@@ -1448,7 +1648,9 @@ export function AudienceInsights({
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                  <strong className="text-xl font-semibold tracking-[var(--tracking-title)]">{mobileShare}%</strong>
+                  <strong className="text-xl font-semibold tracking-[var(--tracking-title)]">
+                    {mobileShare}%
+                  </strong>
                   <span className="text-xs text-muted-foreground">Telemóvel</span>
                 </div>
               </div>

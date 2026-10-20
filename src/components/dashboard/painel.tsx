@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { cloneElement, useEffect, useState, type ReactElement, type ReactNode } from "react";
 import { Avatar, TintIcon } from "@/components/ds";
+import { Funnel } from "@/components/funnel";
 import { posterFromUrl } from "@/components/video-thumb";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -121,7 +122,11 @@ function Segmented<T extends string>({
   label: string;
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex w-fit shrink-0 rounded-md bg-chip p-0.5">
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className="inline-flex w-fit shrink-0 rounded-md bg-chip p-0.5"
+    >
       {options.map((o) => (
         <button
           key={o.id}
@@ -177,7 +182,10 @@ export type HeroData = {
    * Ao vivo: onde vai o vídeo, para o vendedor saber em que parte da aula está a sala (e quando abre a
    * oferta). `videoStartMs` já conta a contagem depois de começar.
    */
-  clock?: { videoStartMs: number; durationSeconds: number; offerSeconds: number | null } | null | undefined;
+  clock?:
+    | { videoStartMs: number; durationSeconds: number; offerSeconds: number | null }
+    | null
+    | undefined;
   /** O que falta (vídeo, automações, horário), no máximo 3, com a etapa onde se resolve. */
   issues: HeroIssue[];
 };
@@ -279,7 +287,8 @@ function OverviewSlide({ overview }: { overview: LiveOverview }) {
             )}
             {lives.length > 0 && (
               <>
-                <span className="font-medium text-white">{nf.format(inRoom)}</span> na sala agora, somando todas
+                <span className="font-medium text-white">{nf.format(inRoom)}</span> na sala agora,
+                somando todas
               </>
             )}
           </p>
@@ -290,7 +299,9 @@ function OverviewSlide({ overview }: { overview: LiveOverview }) {
               <li key={live.id} className="flex items-center gap-3 text-[15px]">
                 <span className="size-2 shrink-0 rounded-full bg-live" aria-hidden />
                 <span className="min-w-0 flex-1 truncate">{live.title}</span>
-                <span className="shrink-0 tabular-nums text-white/75">{nf.format(live.liveNow)} na sala</span>
+                <span className="shrink-0 tabular-nums text-white/75">
+                  {nf.format(live.liveNow)} na sala
+                </span>
               </li>
             ))}
           </ul>
@@ -321,8 +332,12 @@ export function HeroCarousel({
   hasWebinars: boolean;
   onCopyLink: (slug: string) => void;
 }) {
-  const slides: ({ kind: "hero"; hero: HeroData | null } | { kind: "overview"; overview: LiveOverview })[] = [
-    ...(heroes.length ? heroes.map((hero) => ({ kind: "hero" as const, hero })) : [{ kind: "hero" as const, hero: null }]),
+  const slides: (
+    { kind: "hero"; hero: HeroData | null } | { kind: "overview"; overview: LiveOverview }
+  )[] = [
+    ...(heroes.length
+      ? heroes.map((hero) => ({ kind: "hero" as const, hero }))
+      : [{ kind: "hero" as const, hero: null }]),
     ...(!loading && overview ? [{ kind: "overview" as const, overview }] : []),
   ];
   const count = slides.length;
@@ -332,7 +347,11 @@ export function HeroCarousel({
 
   useEffect(() => {
     if (count < 2 || paused) return;
-    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    )
+      return;
     const timer = window.setInterval(() => setIndex((i) => (i + 1) % count), 7000);
     return () => window.clearInterval(timer);
   }, [count, paused]);
@@ -360,7 +379,12 @@ export function HeroCarousel({
             {...(i !== current ? { inert: true } : {})}
           >
             {slide.kind === "hero" ? (
-              <Hero hero={slide.hero} loading={loading} hasWebinars={hasWebinars} onCopyLink={onCopyLink} />
+              <Hero
+                hero={slide.hero}
+                loading={loading}
+                hasWebinars={hasWebinars}
+                onCopyLink={onCopyLink}
+              />
             ) : (
               <OverviewSlide overview={slide.overview} />
             )}
@@ -384,7 +408,11 @@ export function HeroCarousel({
                 type="button"
                 role="tab"
                 aria-selected={i === current}
-                aria-label={slide.kind === "overview" ? "Ao vivo geral" : (slide.hero?.title ?? "Webinar em destaque")}
+                aria-label={
+                  slide.kind === "overview"
+                    ? "Ao vivo geral"
+                    : (slide.hero?.title ?? "Webinar em destaque")
+                }
                 onClick={() => go(i)}
                 className={cn(
                   "h-1.5 rounded-full transition-all duration-300",
@@ -445,15 +473,22 @@ export function LiveClock({
   return (
     <div className="flex max-w-md flex-col gap-2" aria-label="Onde vai a live">
       <div className="flex items-baseline gap-2">
-        <span className="text-[13px] font-medium uppercase tracking-wider text-white/60">A live vai em</span>
+        <span className="text-[13px] font-medium uppercase tracking-wider text-white/60">
+          A live vai em
+        </span>
         <span className="text-[28px] font-semibold tabular-nums leading-none">{clockText(at)}</span>
         {durationSeconds > 0 && (
-          <span className="text-[15px] tabular-nums text-white/60">/ {clockText(durationSeconds)}</span>
+          <span className="text-[15px] tabular-nums text-white/60">
+            / {clockText(durationSeconds)}
+          </span>
         )}
       </div>
       {durationSeconds > 0 && (
         <div className="relative h-1.5 overflow-hidden rounded-full bg-white/15">
-          <div className="absolute inset-y-0 left-0 rounded-full bg-live" style={{ width: `${share}%` }} />
+          <div
+            className="absolute inset-y-0 left-0 rounded-full bg-live"
+            style={{ width: `${share}%` }}
+          />
           {offer !== null && offer < durationSeconds && (
             <span
               className="absolute inset-y-0 w-0.5 bg-[#FFC46B]"
@@ -468,12 +503,15 @@ export function LiveClock({
           {at < offer ? (
             <>
               A oferta abre daqui a{" "}
-              <span className="font-semibold tabular-nums text-[#FFC46B]">{clockText(offer - at)}</span> (aos{" "}
-              {clockText(offer)})
+              <span className="font-semibold tabular-nums text-[#FFC46B]">
+                {clockText(offer - at)}
+              </span>{" "}
+              (aos {clockText(offer)})
             </>
           ) : (
             <>
-              <span className="font-semibold text-[#FFC46B]">Oferta aberta</span> desde os {clockText(offer)}
+              <span className="font-semibold text-[#FFC46B]">Oferta aberta</span> desde os{" "}
+              {clockText(offer)}
             </>
           )}
         </p>
@@ -539,9 +577,17 @@ export function Hero({
                     <span className="relative size-2 rounded-full bg-white" />
                   </span>
                 ) : hero.kind === "open" ? (
-                  <Radio className="size-3.5 text-[var(--accent-200)]" strokeWidth={1.75} aria-hidden />
+                  <Radio
+                    className="size-3.5 text-[var(--accent-200)]"
+                    strokeWidth={1.75}
+                    aria-hidden
+                  />
                 ) : (
-                  <CalendarDays className="size-3.5 text-[var(--accent-200)]" strokeWidth={1.75} aria-hidden />
+                  <CalendarDays
+                    className="size-3.5 text-[var(--accent-200)]"
+                    strokeWidth={1.75}
+                    aria-hidden
+                  />
                 )}
                 {hero.kind === "open" && hero.badge ? hero.badge : KIND_BADGE[hero.kind]}
               </span>
@@ -602,8 +648,14 @@ export function Hero({
                       className="group/issue inline-flex items-center gap-2 text-[14px] text-[#FFC46B] hover:text-white"
                     >
                       <CircleAlert className="size-4 shrink-0" strokeWidth={1.75} aria-hidden />
-                      <span className="underline-offset-4 group-hover/issue:underline">{issue.title}</span>
-                      <ArrowRight className="size-3.5 shrink-0 opacity-70" strokeWidth={1.75} aria-hidden />
+                      <span className="underline-offset-4 group-hover/issue:underline">
+                        {issue.title}
+                      </span>
+                      <ArrowRight
+                        className="size-3.5 shrink-0 opacity-70"
+                        strokeWidth={1.75}
+                        aria-hidden
+                      />
                     </Link>
                   </li>
                 ))}
@@ -648,7 +700,12 @@ export function Hero({
                 </Button>
               )}
               {hero.kind === "draft" ? (
-                <Button asChild size="lg" variant="ghost" className="bg-white/10 text-white hover:bg-white/20">
+                <Button
+                  asChild
+                  size="lg"
+                  variant="ghost"
+                  className="bg-white/10 text-white hover:bg-white/20"
+                >
                   <Link to="/live/$webinarId" params={{ webinarId: hero.id }}>
                     Testar sala
                   </Link>
@@ -663,7 +720,12 @@ export function Hero({
                   >
                     <Link2 /> Copiar link
                   </Button>
-                  <Button asChild size="lg" variant="ghost" className="bg-white/10 text-white hover:bg-white/20">
+                  <Button
+                    asChild
+                    size="lg"
+                    variant="ghost"
+                    className="bg-white/10 text-white hover:bg-white/20"
+                  >
                     <Link to="/webinars/$webinarId/edit" params={{ webinarId: hero.id }}>
                       <Pencil /> Editar
                     </Link>
@@ -766,7 +828,9 @@ export function ResultsCard({
   if (error)
     return (
       <section className={cn(card, "p-5")}>
-        <p className="text-sm text-destructive">Não foi possível carregar os resultados. Recarregue a página.</p>
+        <p className="text-sm text-destructive">
+          Não foi possível carregar os resultados. Recarregue a página.
+        </p>
       </section>
     );
   return (
@@ -777,7 +841,11 @@ export function ResultsCard({
           label="Participantes"
           icon={Users}
           value={nf.format(r?.registered ?? 0)}
-          sub={r?.registered ? `${nf.format(r.attended)} assistiram (${percent(r.attended, r.registered)})` : "Ainda sem inscritos"}
+          sub={
+            r?.registered
+              ? `${nf.format(r.attended)} assistiram (${percent(r.attended, r.registered)})`
+              : "Ainda sem inscritos"
+          }
         />
         <Stat
           loading={busy}
@@ -791,7 +859,11 @@ export function ResultsCard({
           label="Reacções"
           icon={Heart}
           value={r?.reactions == null ? "—" : nf.format(r.reactions)}
-          sub={r?.messages == null ? "Mensagens por contar" : `${nf.format(r.messages)} mensagens no chat`}
+          sub={
+            r?.messages == null
+              ? "Mensagens por contar"
+              : `${nf.format(r.messages)} mensagens no chat`
+          }
           title="Corações tocados na sala e mensagens que os participantes escreveram no chat."
         />
         <Stat
@@ -808,14 +880,22 @@ export function ResultsCard({
           label="Conversão no CTA"
           icon={MousePointerClick}
           value={cta ?? "—"}
-          sub={r?.sawOffer ? `${nf.format(r.clicked)} clicaram de ${nf.format(r.sawOffer)} que viram a oferta` : "Ninguém viu a oferta ainda"}
+          sub={
+            r?.sawOffer
+              ? `${nf.format(r.clicked)} clicaram de ${nf.format(r.sawOffer)} que viram a oferta`
+              : "Ninguém viu a oferta ainda"
+          }
         />
         <Stat
           loading={busy}
           label="Conversões"
           icon={ShoppingBag}
           value={nf.format(r?.buyers ?? 0)}
-          sub={conversion ? `${conversion} de quem assistiu comprou` : "Pessoas do webinar que compraram"}
+          sub={
+            conversion
+              ? `${conversion} de quem assistiu comprou`
+              : "Pessoas do webinar que compraram"
+          }
         />
         <Stat
           loading={busy}
@@ -829,10 +909,20 @@ export function ResultsCard({
           label="Facturação"
           icon={Banknote}
           value={money.length ? shortMoney(money[0]!.amount, money[0]!.currency) : "—"}
-          title={money.map((m) => `${new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 2 }).format(m.amount)} ${m.currency}`).join(" + ") || undefined}
+          title={
+            money
+              .map(
+                (m) =>
+                  `${new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 2 }).format(m.amount)} ${m.currency}`,
+              )
+              .join(" + ") || undefined
+          }
           sub={
             money.length > 1
-              ? `+ ${money.slice(1).map((m) => shortMoney(m.amount, m.currency)).join(" + ")}`
+              ? `+ ${money
+                  .slice(1)
+                  .map((m) => shortMoney(m.amount, m.currency))
+                  .join(" + ")}`
               : money.length
                 ? "em vendas aprovadas"
                 : "Sem vendas no período"
@@ -844,13 +934,23 @@ export function ResultsCard({
 }
 
 /** Título da secção dos resultados com o período (7 dias, 30 dias, tudo). */
-export function ResultsHeader({ period, onPeriod }: { period: Period; onPeriod: (p: Period) => void }) {
+export function ResultsHeader({
+  period,
+  onPeriod,
+}: {
+  period: Period;
+  onPeriod: (p: Period) => void;
+}) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3 pt-2">
       <div>
-        <h2 className="text-[18px] leading-7 font-semibold tracking-[var(--tracking-title)]">Resultados</h2>
+        <h2 className="text-[18px] leading-7 font-semibold tracking-[var(--tracking-title)]">
+          Resultados
+        </h2>
         <p className="text-[13px] text-muted-foreground">
-          {period === "all" ? "Desde o primeiro webinar." : `Inscrições e vendas dos últimos ${PERIODS.find((p) => p.id === period)?.label}.`}
+          {period === "all"
+            ? "Desde o primeiro webinar."
+            : `Inscrições e vendas dos últimos ${PERIODS.find((p) => p.id === period)?.label}.`}
         </p>
       </div>
       <Segmented label="Período" value={period} options={PERIODS} onChange={onPeriod} />
@@ -860,13 +960,7 @@ export function ResultsHeader({ period, onPeriod }: { period: Period; onPeriod: 
 
 /* ---------- Funil ---------- */
 
-export function FunnelCard({
-  steps,
-  loading,
-}: {
-  steps: FunnelStep[] | null;
-  loading: boolean;
-}) {
+export function FunnelCard({ steps, loading }: { steps: FunnelStep[] | null; loading: boolean }) {
   const first = steps?.[0]?.value ?? 0;
   const attended = steps?.[1]?.value ?? 0;
   const buyers = steps?.at(-1)?.value ?? 0;
@@ -881,7 +975,11 @@ export function FunnelCard({
       <CardHeader
         title="Funil de conversão"
         description="Cada pessoa conta uma vez por webinar."
-        action={<CornerLink label="Análises"><Link to="/analytics" search={{ webinar: undefined }} /></CornerLink>}
+        action={
+          <CornerLink label="Análises">
+            <Link to="/analytics" search={{ webinar: undefined }} />
+          </CornerLink>
+        }
       />
       {loading || !steps ? (
         <div className="flex flex-col gap-3">
@@ -909,39 +1007,13 @@ export function FunnelCard({
                 <span className="font-medium text-foreground">
                   {steps[worst.i - 1]!.label.toLowerCase()} → {steps[worst.i]!.label.toLowerCase()}
                 </span>{" "}
-                <span className="font-medium text-destructive">(−{Math.round(worst.drop * 100)}%)</span>
+                <span className="font-medium text-destructive">
+                  (−{Math.round(worst.drop * 100)}%)
+                </span>
               </p>
             )}
           </div>
-          {/* Uma só escala: 100% = inscritos. A faixa clara é essa escala; o último passo (compraram) no laranja escuro. */}
-          <ol className="flex flex-col gap-3.5">
-            {steps.map((s, i) => (
-              <li
-                key={s.label}
-                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 sm:grid-cols-[168px_minmax(0,1fr)_96px]"
-                title={`${s.label}: ${nf.format(s.value)} · ${percent(s.value, first)} dos inscritos${
-                  s.fromPrevious !== null ? ` · ${percent(s.value, steps[i - 1]!.value)} do passo anterior` : ""
-                }`}
-              >
-                <span className="truncate text-[13px] text-foreground">{s.label}</span>
-                <span className="col-span-2 row-start-2 h-3 overflow-hidden rounded-[4px] bg-chart-track sm:col-span-1 sm:row-start-1 sm:col-start-2">
-                  <span
-                    className={cn(
-                      "block h-full rounded-[4px] transition-[width] duration-500",
-                      i === steps.length - 1 ? "bg-chart-emphasis" : "bg-chart-1",
-                    )}
-                    style={{ width: `${Math.max(s.value ? 1.5 : 0, Math.min(100, s.share * 100))}%` }}
-                  />
-                </span>
-                <span className="text-right text-[13px] whitespace-nowrap tabular-nums sm:col-start-3 sm:row-start-1">
-                  <span className="font-semibold">{nf.format(s.value)}</span>
-                  <span className="ml-1.5 inline-block w-11 text-muted-foreground">
-                    {Math.round(s.share * 100)}%
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ol>
+          <Funnel steps={steps.map((s) => ({ label: s.label, value: s.value }))} />
         </>
       )}
     </section>
@@ -961,7 +1033,10 @@ export function AudienceCard({ mix, loading }: { mix: AudienceMix | null; loadin
   const maxShare = Math.max(0, ...(countries?.rows.map((r) => r.share) ?? []));
   return (
     <section className={cn(card, "flex flex-col gap-6 p-5 sm:p-6")}>
-      <CardHeader title="De onde e como assistem" description="Quem assistiu, uma vez por webinar." />
+      <CardHeader
+        title="De onde e como assistem"
+        description="Quem assistiu, uma vez por webinar."
+      />
       {loading || !mix ? (
         <div className="flex flex-col gap-3">
           <Skeleton className="h-3 w-full" />
@@ -981,7 +1056,13 @@ export function AudienceCard({ mix, loading }: { mix: AudienceMix | null; loadin
             {devices!.rows.length ? (
               <>
                 {/* Barra de 100% com um intervalo de 2px entre as partes. */}
-                <div className="flex h-3 gap-0.5" role="img" aria-label={devices!.rows.map((r) => `${r.label} ${Math.round(r.share * 100)}%`).join(", ")}>
+                <div
+                  className="flex h-3 gap-0.5"
+                  role="img"
+                  aria-label={devices!.rows
+                    .map((r) => `${r.label} ${Math.round(r.share * 100)}%`)
+                    .join(", ")}
+                >
                   {devices!.rows.map((r) => (
                     <span
                       key={r.key}
@@ -996,11 +1077,23 @@ export function AudienceCard({ mix, loading }: { mix: AudienceMix | null; loadin
                     const Icon = DEVICE_ICON[r.key] ?? Monitor;
                     return (
                       <li key={r.key} className="flex items-center gap-2 text-[13px]">
-                        <span className="size-2.5 rounded-full" style={{ background: DEVICE_COLOR[r.key] }} aria-hidden />
-                        <Icon className="size-4 text-muted-foreground" strokeWidth={1.5} aria-hidden />
+                        <span
+                          className="size-2.5 rounded-full"
+                          style={{ background: DEVICE_COLOR[r.key] }}
+                          aria-hidden
+                        />
+                        <Icon
+                          className="size-4 text-muted-foreground"
+                          strokeWidth={1.5}
+                          aria-hidden
+                        />
                         <span>{r.label}</span>
-                        <span className="font-semibold tabular-nums">{Math.round(r.share * 100)}%</span>
-                        <span className="text-muted-foreground tabular-nums">({nf.format(r.value)})</span>
+                        <span className="font-semibold tabular-nums">
+                          {Math.round(r.share * 100)}%
+                        </span>
+                        <span className="text-muted-foreground tabular-nums">
+                          ({nf.format(r.value)})
+                        </span>
                       </li>
                     );
                   })}
@@ -1020,7 +1113,11 @@ export function AudienceCard({ mix, loading }: { mix: AudienceMix | null; loadin
                 {wholeShares(countries!.regions.map((r) => r.value)).map((pct, i) => {
                   const r = countries!.regions[i]!;
                   return (
-                    <li key={r.key} className="rounded-pill bg-chip px-2.5 py-1 text-[12px]" title={`${r.label}: ${nf.format(r.value)}`}>
+                    <li
+                      key={r.key}
+                      className="rounded-pill bg-chip px-2.5 py-1 text-[12px]"
+                      title={`${r.label}: ${nf.format(r.value)}`}
+                    >
                       {r.label} <span className="font-semibold tabular-nums">{pct}%</span>
                     </li>
                   );
@@ -1040,14 +1137,20 @@ export function AudienceCard({ mix, loading }: { mix: AudienceMix | null; loadin
                     title={`${r.label}: ${nf.format(r.value)} (${Math.round(r.share * 100)}%)`}
                   >
                     <span className="flex min-w-0 items-center gap-2 text-[13px]">
-                      <span className="w-5 shrink-0 text-center text-[15px] leading-none" aria-hidden>
+                      <span
+                        className="w-5 shrink-0 text-center text-[15px] leading-none"
+                        aria-hidden
+                      >
                         {r.flag ?? ""}
                       </span>
                       <span className="truncate">{r.label}</span>
                     </span>
                     <span className="col-span-2 row-start-2 h-2 overflow-hidden rounded-[4px] bg-chart-track sm:col-span-1 sm:col-start-2 sm:row-start-1">
                       <span
-                        className={cn("block h-full rounded-[4px]", r.key === "outros" ? "bg-chart-other" : "bg-chart-1")}
+                        className={cn(
+                          "block h-full rounded-[4px]",
+                          r.key === "outros" ? "bg-chart-other" : "bg-chart-1",
+                        )}
                         style={{ width: `${maxShare ? (r.share / maxShare) * 100 : 0}%` }}
                       />
                     </span>
@@ -1088,9 +1191,11 @@ export type AgendaData = {
 };
 
 const timeOf = (e: DayEntry) =>
-  new Intl.DateTimeFormat("pt-PT", { hour: "2-digit", minute: "2-digit", timeZone: e.timezone }).format(
-    new Date(e.startMs),
-  );
+  new Intl.DateTimeFormat("pt-PT", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: e.timezone,
+  }).format(new Date(e.startMs));
 
 function MiniMonth({
   data,
@@ -1132,7 +1237,9 @@ function MiniMonth({
               aria-label={`${day}${list.length ? `: ${list.length} ${list.length === 1 ? "sessão" : "sessões"}` : ""}`}
               className={cn(
                 "relative mx-auto flex size-9 flex-col items-center justify-center rounded-full text-[13px] tabular-nums transition-colors focus-visible:outline-none focus-visible:ring-focus",
-                list.length ? "cursor-pointer hover:bg-gray-100" : "cursor-default text-muted-foreground",
+                list.length
+                  ? "cursor-pointer hover:bg-gray-100"
+                  : "cursor-default text-muted-foreground",
                 isToday && "font-semibold text-foreground ring-1 ring-foreground",
                 isSelected && "bg-foreground text-white hover:bg-foreground",
               )}
@@ -1169,8 +1276,14 @@ export function AgendaCard({ data, loading }: { data: AgendaData | null; loading
     <section className={cn(card, "flex flex-col gap-5 p-5 sm:p-6")}>
       <CardHeader
         title="Agenda"
-        description={selected !== null && data ? `Sessões de dia ${selected}.` : "Sessões marcadas."}
-        action={<CornerLink label="Abrir agenda"><Link to="/calendar" /></CornerLink>}
+        description={
+          selected !== null && data ? `Sessões de dia ${selected}.` : "Sessões marcadas."
+        }
+        action={
+          <CornerLink label="Abrir agenda">
+            <Link to="/calendar" />
+          </CornerLink>
+        }
       />
       {loading || !data ? (
         <Skeleton className="h-60 w-full" />
@@ -1200,14 +1313,19 @@ export function AgendaCard({ data, loading }: { data: AgendaData | null; loading
             {shown.length === 0 ? (
               <div className="flex flex-col gap-2 rounded-lg bg-chip px-4 py-5">
                 <p className="text-sm font-medium">
-                  {range === "week" ? "Nada marcado para os próximos 7 dias" : "Nada marcado para os próximos 30 dias"}
+                  {range === "week"
+                    ? "Nada marcado para os próximos 7 dias"
+                    : "Nada marcado para os próximos 30 dias"}
                 </p>
                 {data.open.length > 0 ? (
                   <p className="text-[13px] text-muted-foreground">
-                    Sempre a receber: {data.open.map((o) => `${o.title} (${o.when.toLowerCase()})`).join(", ")}.
+                    Sempre a receber:{" "}
+                    {data.open.map((o) => `${o.title} (${o.when.toLowerCase()})`).join(", ")}.
                   </p>
                 ) : (
-                  <p className="text-[13px] text-muted-foreground">A data marca-se na etapa Agenda de cada webinar.</p>
+                  <p className="text-[13px] text-muted-foreground">
+                    A data marca-se na etapa Agenda de cada webinar.
+                  </p>
                 )}
               </div>
             ) : (
@@ -1229,8 +1347,12 @@ export function AgendaCard({ data, loading }: { data: AgendaData | null; loading
                             past ? "bg-chip text-muted-foreground" : "bg-accent text-accent-700",
                           )}
                         >
-                          <span className="text-xs font-medium uppercase">{WEEKDAYS_SHORT[d.weekday]}</span>
-                          <span className="mt-0.5 text-[17px] font-semibold tabular-nums">{d.day}</span>
+                          <span className="text-xs font-medium uppercase">
+                            {WEEKDAYS_SHORT[d.weekday]}
+                          </span>
+                          <span className="mt-0.5 text-[17px] font-semibold tabular-nums">
+                            {d.day}
+                          </span>
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-[14px] font-medium">{e.title}</span>
@@ -1272,7 +1394,11 @@ export function TodayCard({ data, loading }: { data: TodayData | null; loading: 
       <CardHeader
         title="Participantes do dia"
         description="Quem entrou numa sala hoje."
-        action={<CornerLink label="Participantes"><Link to="/participants" /></CornerLink>}
+        action={
+          <CornerLink label="Participantes">
+            <Link to="/participants" />
+          </CornerLink>
+        }
       />
       {loading || !data ? (
         <div className="flex flex-col gap-3">
@@ -1300,7 +1426,8 @@ export function TodayCard({ data, loading }: { data: TodayData | null; loading: 
               {data.liveNow > 0 && (
                 <span className="inline-flex items-center gap-1.5 rounded-pill bg-live/10 px-2.5 py-1 text-[12px] text-live">
                   <span className="size-1.5 rounded-full bg-live" aria-hidden />
-                  <span className="font-semibold tabular-nums">{nf.format(data.liveNow)}</span> agora
+                  <span className="font-semibold tabular-nums">{nf.format(data.liveNow)}</span>{" "}
+                  agora
                 </span>
               )}
             </div>
@@ -1323,8 +1450,17 @@ export function TodayCard({ data, loading }: { data: TodayData | null; loading: 
                         {p.place && ` · ${p.place}`}
                       </span>
                     </span>
-                    {Icon && <Icon className="size-4 shrink-0 text-muted-foreground" strokeWidth={1.5} aria-label={p.device === "mobile" ? "Telemóvel" : "Computador"} />}
-                    <time dateTime={p.at} className="w-16 shrink-0 text-right text-[12px] text-muted-foreground">
+                    {Icon && (
+                      <Icon
+                        className="size-4 shrink-0 text-muted-foreground"
+                        strokeWidth={1.5}
+                        aria-label={p.device === "mobile" ? "Telemóvel" : "Computador"}
+                      />
+                    )}
+                    <time
+                      dateTime={p.at}
+                      className="w-16 shrink-0 text-right text-[12px] text-muted-foreground"
+                    >
                       {fromNow(Date.parse(p.at), data.nowMs)}
                     </time>
                   </>
@@ -1372,7 +1508,13 @@ function Poster({ image, title }: { image: HeroData["image"]; title: string }) {
   return (
     <div className="relative aspect-video overflow-hidden rounded-md bg-[#141414]">
       {!failed && poster ? (
-        <img src={poster} alt="" loading="lazy" className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" onError={() => setFailed(true)} />
+        <img
+          src={poster}
+          alt=""
+          loading="lazy"
+          className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          onError={() => setFailed(true)}
+        />
       ) : !failed && isFile ? (
         <video
           src={`${image.video}#t=${Math.max(1, Math.round(image.at))}`}
@@ -1384,22 +1526,34 @@ function Poster({ image, title }: { image: HeroData["image"]; title: string }) {
         />
       ) : (
         <div className="flex size-full items-end bg-[radial-gradient(90%_120%_at_90%_0%,rgba(232,68,12,.45),transparent_60%),#141414] p-3">
-          <span className="line-clamp-2 text-[13px] leading-tight font-semibold text-white/90">{title}</span>
+          <span className="line-clamp-2 text-[13px] leading-tight font-semibold text-white/90">
+            {title}
+          </span>
         </div>
       )}
     </div>
   );
 }
 
-export function RecentWebinars({ items, loading }: { items: RecentWebinar[] | null; loading: boolean }) {
+export function RecentWebinars({
+  items,
+  loading,
+}: {
+  items: RecentWebinar[] | null;
+  loading: boolean;
+}) {
   return (
     <section className="flex min-w-0 flex-col gap-3">
       <div className="flex items-end justify-between gap-3 pt-2">
         <div>
-          <h2 className="text-[18px] leading-7 font-semibold tracking-[var(--tracking-title)]">Webinars recentes</h2>
+          <h2 className="text-[18px] leading-7 font-semibold tracking-[var(--tracking-title)]">
+            Webinars recentes
+          </h2>
           <p className="text-[13px] text-muted-foreground">Os números de cada um, desde sempre.</p>
         </div>
-        <CornerLink label="Ver todos"><Link to="/webinars" search={{ q: undefined }} /></CornerLink>
+        <CornerLink label="Ver todos">
+          <Link to="/webinars" search={{ q: undefined }} />
+        </CornerLink>
       </div>
       {loading || !items ? (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -1409,7 +1563,9 @@ export function RecentWebinars({ items, loading }: { items: RecentWebinar[] | nu
         </div>
       ) : items.length === 0 ? (
         <div className={cn(card, "p-5")}>
-          <Empty title="Ainda sem webinars activos">Os rascunhos ficam na página Webinars até serem activados.</Empty>
+          <Empty title="Ainda sem webinars activos">
+            Os rascunhos ficam na página Webinars até serem activados.
+          </Empty>
         </div>
       ) : (
         // Telemóvel: uma fila que desliza, como as filas da Netflix. Tablet e computador: grelha.
@@ -1419,14 +1575,21 @@ export function RecentWebinars({ items, loading }: { items: RecentWebinar[] | nu
               <Link
                 to="/webinars/$webinarId/metrics"
                 params={{ webinarId: w.id }}
-                className={cn(card, "group flex h-full flex-col gap-3 p-2.5 transition-shadow hover:shadow-[var(--shadow-raised)]")}
+                className={cn(
+                  card,
+                  "group flex h-full flex-col gap-3 p-2.5 transition-shadow hover:shadow-[var(--shadow-raised)]",
+                )}
               >
                 <div className="relative">
                   <Poster image={w.image} title={w.title} />
                   <span
                     className={cn(
                       "absolute top-2 left-2 rounded-pill px-2 py-0.5 text-xs font-medium backdrop-blur",
-                      w.tone === "live" ? "bg-live text-white" : w.tone === "next" ? "bg-white/90 text-foreground" : "bg-black/55 text-white",
+                      w.tone === "live"
+                        ? "bg-live text-white"
+                        : w.tone === "next"
+                          ? "bg-white/90 text-foreground"
+                          : "bg-black/55 text-white",
                     )}
                   >
                     {w.state}
@@ -1450,7 +1613,9 @@ export function RecentWebinars({ items, loading }: { items: RecentWebinar[] | nu
                       ).map(([label, value]) => (
                         <div key={label} className="min-w-0">
                           <dt className="truncate text-xs text-muted-foreground">{label}</dt>
-                          <dd className="text-[15px] font-semibold tabular-nums">{nf.format(value)}</dd>
+                          <dd className="text-[15px] font-semibold tabular-nums">
+                            {nf.format(value)}
+                          </dd>
                         </div>
                       ))}
                     </dl>

@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { AudienceInsights } from "@/components/audience-insights";
+import { Funnel } from "@/components/funnel";
 import { DateRangeFilter } from "@/components/date-range-filter";
 import { PageSkeleton } from "@/components/page-skeleton";
 import { ExportMomentsDialog } from "@/components/export-moments-dialog";
@@ -48,7 +49,13 @@ import { fetchAll } from "@/lib/fetch-all";
 import { RunSheet, RunsTable, runOutcomeText } from "@/components/automation-runs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RUN_STATUS, type RunStatus } from "@/lib/automations";
-import { lifecycleOf, useAutomationRuns, useWorkspace, watchLabel, type AutomationRun } from "@/lib/data";
+import {
+  lifecycleOf,
+  useAutomationRuns,
+  useWorkspace,
+  watchLabel,
+  type AutomationRun,
+} from "@/lib/data";
 import { canOpenPath } from "@/lib/support/model";
 import { cn } from "@/lib/utils";
 import { funnelSummary } from "@/lib/participant-facts";
@@ -95,7 +102,8 @@ const SESSIONS_CAP = 500;
 
 const numberFormat = new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 1 });
 /** Percentagem de uma base; sem base não há percentagem. */
-const pctLabel = (value: number, from: number) => (from ? `${numberFormat.format((value / from) * 100)}%` : "—");
+const pctLabel = (value: number, from: number) =>
+  from ? `${numberFormat.format((value / from) * 100)}%` : "—";
 
 function Card({
   label,
@@ -177,21 +185,28 @@ function sessionRowLabel(
 ) {
   if (session.state === "finished" && session.ended_at)
     return `Terminada ${formatSessionStart(Date.parse(session.ends_at ?? session.ended_at), timezone)}`;
-  if (session.state === "live") return session.ends_at ? "Em andamento" : "Iniciada, sem hora de fim";
+  if (session.state === "live")
+    return session.ends_at ? "Em andamento" : "Iniciada, sem hora de fim";
   // Uma data única remarcada antes de começar nunca arranca.
   return Date.parse(session.starts_at) > Date.now() ? "Agendada" : "Não arrancou";
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mt-4 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">{children}</p>
+    <p className="mt-4 rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+      {children}
+    </p>
   );
 }
 
 const PEOPLE_FILTERS: { key: string; label: string; statuses: PersonStatus[] | null }[] = [
   { key: "all", label: "Todas", statuses: null },
   { key: "bought", label: "Compraram", statuses: ["bought"] },
-  { key: "recover", label: "Para recuperar", statuses: ["failed", "abandoned", "checkout", "clicked", "offer"] },
+  {
+    key: "recover",
+    label: "Para recuperar",
+    statuses: ["failed", "abandoned", "checkout", "clicked", "offer"],
+  },
   { key: "attended", label: "Só assistiram", statuses: ["attended"] },
   { key: "absent", label: "Não assistiram", statuses: ["absent"] },
 ];
@@ -213,12 +228,16 @@ function PeopleTable({ people }: { people: MetricsPerson[] }) {
             onClick={() => setFilter(f.key)}
             className={cn(
               "rounded-full border px-3 py-1 text-sm transition-colors",
-              filter === f.key ? "border-foreground bg-foreground text-background" : "hover:bg-muted",
+              filter === f.key
+                ? "border-foreground bg-foreground text-background"
+                : "hover:bg-muted",
             )}
           >
             {f.label}{" "}
             <span className="tabular-nums opacity-70">
-              {f.statuses ? people.filter((p) => f.statuses!.includes(p.status)).length : people.length}
+              {f.statuses
+                ? people.filter((p) => f.statuses!.includes(p.status)).length
+                : people.length}
             </span>
           </button>
         ))}
@@ -230,11 +249,13 @@ function PeopleTable({ people }: { people: MetricsPerson[] }) {
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="glass sticky top-0 text-xs text-muted-foreground">
               <tr>
-                {["Pessoa", "Contacto", "Modo", "Tempo assistido", "Chegou até", "Estado"].map((h) => (
-                  <th key={h} className="px-4 py-2.5 font-medium">
-                    {h}
-                  </th>
-                ))}
+                {["Pessoa", "Contacto", "Modo", "Tempo assistido", "Chegou até", "Estado"].map(
+                  (h) => (
+                    <th key={h} className="px-4 py-2.5 font-medium">
+                      {h}
+                    </th>
+                  ),
+                )}
               </tr>
             </thead>
             <tbody>
@@ -254,7 +275,9 @@ function PeopleTable({ people }: { people: MetricsPerson[] }) {
                       ) : (
                         <span className="block font-medium">{p.name || p.email || "Sem nome"}</span>
                       )}
-                      {p.email && p.name ? <span className="text-xs text-muted-foreground">{p.email}</span> : null}
+                      {p.email && p.name ? (
+                        <span className="text-xs text-muted-foreground">{p.email}</span>
+                      ) : null}
                     </td>
                     <td className="px-4 py-2.5 tabular-nums">{p.phone || "—"}</td>
                     <td className="px-4 py-2.5 text-muted-foreground">
@@ -335,7 +358,10 @@ function WebinarMetricsPage() {
           .select("id, starts_at, ends_at, state, ended_at", { count: "exact" })
           .eq("webinar_id", webinarId);
         if (range) q = q.gte("starts_at", range.from).lt("starts_at", range.to);
-        return q.order("starts_at", { ascending: false }).order("id").range(from, Math.min(to, SESSIONS_CAP - 1));
+        return q
+          .order("starts_at", { ascending: false })
+          .order("id")
+          .range(from, Math.min(to, SESSIONS_CAP - 1));
       });
       return rows.slice(0, SESSIONS_CAP);
     },
@@ -345,7 +371,8 @@ function WebinarMetricsPage() {
   const { data: allRuns = [], isLoading: runsLoading } = useAutomationRuns({ webinarId }, 1000);
   const sessions = allSessions.filter((s) => inRange(s.starts_at));
   const automationRuns = allRuns.filter((r) => inRange(r.created_at));
-  const runCount = (statuses: string[]) => automationRuns.filter((r) => statuses.includes(r.status)).length;
+  const runCount = (statuses: string[]) =>
+    automationRuns.filter((r) => statuses.includes(r.status)).length;
   const canOpenAutomations = canOpenPath(workspace?.role, "/automations");
 
   const {
@@ -370,7 +397,8 @@ function WebinarMetricsPage() {
       return;
     }
     // As execuções vêm da mais recente para a mais antiga: a primeira de cada pessoa é a última.
-    const runsOf = (personId: string | null) => automationRuns.filter((r) => r.contact_id === personId);
+    const runsOf = (personId: string | null) =>
+      automationRuns.filter((r) => r.contact_id === personId);
     downloadCsv(
       `${base}-participantes.csv`,
       toCsv(
@@ -411,15 +439,25 @@ function WebinarMetricsPage() {
           clockLabel(p.peak_seconds ?? 0),
           p.viewing_mode === "replay" ? "Replay" : "Ao vivo",
           pitchSeconds === null ? "—" : p.reached_pitch ? "Sim" : "Não",
-          ...[p.saw_offer, p.clicked, p.checkout_started, p.purchased, p.payment_failed, p.checkout_abandoned].map(
-            (fact) => (fact ? "Sim" : "Não"),
-          ),
+          ...[
+            p.saw_offer,
+            p.clicked,
+            p.checkout_started,
+            p.purchased,
+            p.payment_failed,
+            p.checkout_abandoned,
+          ].map((fact) => (fact ? "Sim" : "Não")),
           title,
           ...(() => {
             const runs = runsOf(p.person_id);
             const last = runs[0];
             return [
-              runs.map((r) => `${r.automations?.name ?? "Automação"}: ${RUN_STATUS[r.status as RunStatus]?.label ?? r.status}`).join("; "),
+              runs
+                .map(
+                  (r) =>
+                    `${r.automations?.name ?? "Automação"}: ${RUN_STATUS[r.status as RunStatus]?.label ?? r.status}`,
+                )
+                .join("; "),
               last?.automations?.name ?? "",
               last ? (RUN_STATUS[last.status as RunStatus]?.label ?? last.status) : "",
               last ? new Date(last.finished_at ?? last.scheduled_for).toLocaleString("pt-PT") : "",
@@ -440,7 +478,6 @@ function WebinarMetricsPage() {
     setFiltersOpen(true);
   };
 
-
   const exportMessages = async () => {
     if (!organizationId) return;
     const ids = (data?.participants ?? []).map((p) => p.participant_id);
@@ -457,9 +494,12 @@ function WebinarMetricsPage() {
         await fetchAll((from, to) =>
           supabase
             .from("private_messages")
-            .select("body, sender_kind, created_at, participant_id, participants!inner(webinar_id)", {
-              count: "exact",
-            })
+            .select(
+              "body, sender_kind, created_at, participant_id, participants!inner(webinar_id)",
+              {
+                count: "exact",
+              },
+            )
             .eq("organization_id", organizationId)
             .eq("participants.webinar_id", webinarId)
             .order("created_at", { ascending: true })
@@ -503,7 +543,10 @@ function WebinarMetricsPage() {
   const reachedPitch = pitchSeconds === null ? null : (data?.reachedPitch ?? 0);
   const revenue = (data?.revenue ?? []).map(moneyLabel).join(" + ");
   const dropOff = data?.dropOff ?? [];
-  const topExits = [...dropOff].filter((p) => p.exits > 0).sort((a, b) => b.exits - a.exits).slice(0, 3);
+  const topExits = [...dropOff]
+    .filter((p) => p.exits > 0)
+    .sort((a, b) => b.exits - a.exits)
+    .slice(0, 3);
   const peak = topExits[0];
   const insights = data
     ? buildInsights(data, {
@@ -526,7 +569,11 @@ function WebinarMetricsPage() {
       <AppShell title="Webinar" description="Métricas deste webinar." action={false}>
         <Empty>
           Este webinar não existe ou pertence a um espaço a que não tem acesso.{" "}
-          <Link to="/webinars" search={{ q: undefined }} className="font-medium text-primary hover:underline">
+          <Link
+            to="/webinars"
+            search={{ q: undefined }}
+            className="font-medium text-primary hover:underline"
+          >
             Voltar aos webinars
           </Link>
         </Empty>
@@ -578,7 +625,11 @@ function WebinarMetricsPage() {
       {lifecycle && (
         <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <Badge
-            variant={lifecycle.kind === "session" && lifecycle.state === "live" ? "destructive" : "secondary"}
+            variant={
+              lifecycle.kind === "session" && lifecycle.state === "live"
+                ? "destructive"
+                : "secondary"
+            }
           >
             {lifecycleLabel(lifecycle)}
           </Badge>
@@ -597,11 +648,18 @@ function WebinarMetricsPage() {
       />
 
       {metricsError ? (
-        <Empty>Não foi possível carregar as métricas. Recarregue a página para tentar outra vez.</Empty>
+        <Empty>
+          Não foi possível carregar as métricas. Recarregue a página para tentar outra vez.
+        </Empty>
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <Card label="Inscritos" value={String(registered)} hint="pessoas únicas neste período" icon={Users} />
+        <Card
+          label="Inscritos"
+          value={String(registered)}
+          hint="pessoas únicas neste período"
+          icon={Users}
+        />
         <Card
           label="Assistiram"
           value={String(attended)}
@@ -645,7 +703,11 @@ function WebinarMetricsPage() {
         <Card
           label="Conversão"
           value={attended ? pctLabel(buyers, attended) : "—"}
-          hint={attended ? `${buyers} compraram de ${attended} que assistiram` : "aparece quando alguém assistir"}
+          hint={
+            attended
+              ? `${buyers} compraram de ${attended} que assistiram`
+              : "aparece quando alguém assistir"
+          }
           icon={TrendingUp}
         />
         <Card
@@ -655,7 +717,10 @@ function WebinarMetricsPage() {
           icon={Zap}
         >
           {canOpenAutomations ? (
-            <Link to="/automations" className="mt-2 text-xs font-medium text-primary hover:underline">
+            <Link
+              to="/automations"
+              className="mt-2 text-xs font-medium text-primary hover:underline"
+            >
               Ver automações →
             </Link>
           ) : null}
@@ -671,18 +736,21 @@ function WebinarMetricsPage() {
       <section className="mt-6 rounded-card bg-card p-5">
         <h2 className="font-semibold">Da inscrição à compra</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Cada pessoa conta uma vez. Depois de "Assistiram", cada passo conta só quem assistiu e a
-          percentagem é sempre de quem assistiu. "Compraram" é uma compra aprovada atribuída a este
-          webinar.
+          Cada pessoa conta uma vez. Depois de "Assistiram", cada passo conta só quem assistiu; a
+          percentagem ao lado é a de quem passou do passo anterior. "Compraram" é uma compra
+          aprovada atribuída a este webinar.
         </p>
-        <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
-          <FunnelStep label="Inscritos" value={registered} />
-          <FunnelStep label="Assistiram" value={attended} from={registered} of="dos inscritos" />
-          <FunnelStep label="Viram a oferta" value={sawOffer} from={attended} of="de quem assistiu" />
-          <FunnelStep label="Clicaram" value={clicked} from={attended} of="de quem assistiu" />
-          <FunnelStep label="Iniciaram o pagamento" value={checkout} from={attended} of="de quem assistiu" />
-          <FunnelStep label="Compraram" value={buyers} from={attended} of="de quem assistiu" />
-        </div>
+        <Funnel
+          className="mt-5"
+          steps={[
+            { label: "Inscritos", value: registered },
+            { label: "Assistiram", value: attended },
+            { label: "Viram a oferta", value: sawOffer },
+            { label: "Clicaram", value: clicked },
+            { label: "Iniciaram o pagamento", value: checkout },
+            { label: "Compraram", value: buyers },
+          ]}
+        />
         <div className="mt-3 grid gap-3 sm:grid-cols-3">
           <FunnelStep
             label="Pagamento falhado"
@@ -705,7 +773,12 @@ function WebinarMetricsPage() {
         </div>
         <div className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-3">
           <FunnelStep label="Assistiu ao vivo" value={live} from={attended} of="de quem assistiu" />
-          <FunnelStep label="Assistiu ao replay" value={replay} from={attended} of="de quem assistiu" />
+          <FunnelStep
+            label="Assistiu ao replay"
+            value={replay}
+            from={attended}
+            of="de quem assistiu"
+          />
           {reachedPitch !== null ? (
             <FunnelStep
               label={`Chegou ao pitch (${clockLabel(pitchSeconds ?? 0)})`}
@@ -715,7 +788,13 @@ function WebinarMetricsPage() {
             />
           ) : null}
           {(data?.milestones ?? []).map((m) => (
-            <FunnelStep key={m.label} label={m.label} value={m.value} from={attended} of="de quem assistiu" />
+            <FunnelStep
+              key={m.label}
+              label={m.label}
+              value={m.value}
+              from={attended}
+              of="de quem assistiu"
+            />
           ))}
         </div>
       </section>
@@ -730,8 +809,8 @@ function WebinarMetricsPage() {
           <PeopleTable people={people} />
         ) : (
           <Empty>
-            Ainda ninguém se inscreveu {range ? "neste período" : "neste webinar"}. As pessoas aparecem
-            aqui assim que entram na página de inscrição ou na sala.
+            Ainda ninguém se inscreveu {range ? "neste período" : "neste webinar"}. As pessoas
+            aparecem aqui assim que entram na página de inscrição ou na sala.
           </Empty>
         )}
       </section>
@@ -745,7 +824,10 @@ function WebinarMetricsPage() {
         {attended ? (
           <div className="mt-5 h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data?.retention ?? []} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
+              <AreaChart
+                data={data?.retention ?? []}
+                margin={{ top: 8, right: 8, bottom: 0, left: 8 }}
+              >
                 <defs>
                   <linearGradient id="retention" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#16a34a" stopOpacity={0.9} />
@@ -788,8 +870,8 @@ function WebinarMetricsPage() {
           </div>
         ) : (
           <Empty>
-            Ainda ninguém assistiu {range ? "neste período" : "a este webinar"}. A curva aparece quando a
-            primeira pessoa passar o tempo mínimo de presença na sala.
+            Ainda ninguém assistiu {range ? "neste período" : "a este webinar"}. A curva aparece
+            quando a primeira pessoa passar o tempo mínimo de presença na sala.
           </Empty>
         )}
       </section>
@@ -823,7 +905,10 @@ function WebinarMetricsPage() {
                     color: "var(--popover-foreground)",
                     fontSize: 12,
                   }}
-                  formatter={(value: number) => [`${value} ${value === 1 ? "saída" : "saídas"}`, "Saíram"]}
+                  formatter={(value: number) => [
+                    `${value} ${value === 1 ? "saída" : "saídas"}`,
+                    "Saíram",
+                  ]}
                   labelFormatter={(label: string) => `A partir de ${label}`}
                 />
                 <Bar dataKey="exits" radius={[6, 6, 0, 0]}>
@@ -848,7 +933,8 @@ function WebinarMetricsPage() {
                   </span>
                   <strong className="mt-1 block text-lg tracking-tight">{point.range}</strong>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {point.exits} {point.exits === 1 ? "saída" : "saídas"} · {point.rate.toFixed(0)}% de quem ainda estava na sala
+                    {point.exits} {point.exits === 1 ? "saída" : "saídas"} · {point.rate.toFixed(0)}
+                    % de quem ainda estava na sala
                   </p>
                 </div>
               ))}
@@ -860,8 +946,7 @@ function WebinarMetricsPage() {
       {insights.length ? (
         <section className="mt-6 rounded-card bg-card p-5">
           <h2 className="flex items-center gap-2 font-semibold">
-            <Lightbulb className="size-4 text-amber-500" />
-            O que melhorar neste webinar
+            <Lightbulb className="size-4 text-amber-500" />O que melhorar neste webinar
           </h2>
           <ul className="mt-4 space-y-3">
             {insights.map((insight) => (
@@ -899,11 +984,13 @@ function WebinarMetricsPage() {
               <table className="w-full min-w-[680px] text-left text-sm">
                 <thead className="text-xs text-muted-foreground">
                   <tr>
-                    {["Sessão", "Estado", "Inscritos", "Assistiram", "Compraram", "Automações"].map((h) => (
-                      <th key={h} className="py-2 pr-4 font-medium">
-                        {h}
-                      </th>
-                    ))}
+                    {["Sessão", "Estado", "Inscritos", "Assistiram", "Compraram", "Automações"].map(
+                      (h) => (
+                        <th key={h} className="py-2 pr-4 font-medium">
+                          {h}
+                        </th>
+                      ),
+                    )}
                   </tr>
                 </thead>
                 <tbody className="tabular-nums">
@@ -921,7 +1008,9 @@ function WebinarMetricsPage() {
                         <td className="py-2 pr-4">{sessionPeople.attended}</td>
                         <td className="py-2 pr-4">{sessionPeople.buyers}</td>
                         <td className="py-2 pr-4 font-sans">
-                          {sessionAutomationsLabel(automationRuns.filter((r) => r.webinar_session_id === session.id))}
+                          {sessionAutomationsLabel(
+                            automationRuns.filter((r) => r.webinar_session_id === session.id),
+                          )}
                         </td>
                       </tr>
                     );
@@ -931,7 +1020,9 @@ function WebinarMetricsPage() {
                       <td className="py-2 pr-4" colSpan={5}>
                         Fora de uma sessão (pagamentos, oferta)
                       </td>
-                      <td className="py-2 pr-4 font-sans">{sessionAutomationsLabel(noSessionRuns)}</td>
+                      <td className="py-2 pr-4 font-sans">
+                        {sessionAutomationsLabel(noSessionRuns)}
+                      </td>
                     </tr>
                   )}
                 </tbody>
@@ -946,8 +1037,8 @@ function WebinarMetricsPage() {
           <div>
             <h2 className="font-semibold">Automações deste webinar</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Cada execução, a pessoa, o estado e o resultado. Clique numa linha para ver porque entrou
-              e o que foi enviado.
+              Cada execução, a pessoa, o estado e o resultado. Clique numa linha para ver porque
+              entrou e o que foi enviado.
             </p>
           </div>
           {canOpenAutomations ? (
