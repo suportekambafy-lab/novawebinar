@@ -48,8 +48,16 @@ import { AIError, chatJson } from "@/lib/ai/gateway.server";
 import { s, schema } from "@/lib/ai/schema";
 import { isChatVariant, variantCountries, variantText } from "@/lib/chat-variants";
 import { ensureVersionBlocks } from "@/lib/chat-engine/classify.server";
-import { describeSlots, planInteractions } from "@/lib/chat-engine/plan";
+import { describeSlots, offerStartFromBlocks, planInteractions } from "@/lib/chat-engine/plan";
 import type { ReferencedItem } from "@/lib/chat-engine/types";
+import {
+  buildCast,
+  describeMember,
+  namedPeople,
+  serializeCast,
+  type CastMember,
+} from "@/lib/chat-engine/cast";
+import { buildScript, describeScript, type ScriptLine } from "@/lib/chat-engine/script";
 import {
   buildProfiles,
   describeProfiles,
@@ -531,7 +539,45 @@ type Comment = {
 };
 
 /** O motor do chat para um trecho: oportunidades ligadas aos blocos de fala e as pessoas que escrevem. */
-type Engine = { slots: InteractionSlot[]; blocks: SemanticBlock[]; profiles: Profile[] };
+type Engine = {
+  slots: InteractionSlot[];
+  blocks: SemanticBlock[];
+  profiles: Profile[];
+  /** Onde a oferta começa: a marcada no editor, ou a lida nos blocos. */
+  offerStartMs: number | null;
+};
+
+/** O que a IA devolve no Método Nova: só o texto de cada linha do guião. */
+export const SCRIPT_LINES = schema("script_lines", {
+  lines: s.array(s.object({ id: s.string(), message: s.string() })),
+});
+
+/** Uma linha sobre cada pessoa do elenco, escrita uma vez por webinar. */
+export const CAST_SITUATIONS = schema("cast_situations", {
+  people: s.array(s.object({ id: s.string(), situation: s.string() })),
+});
+
+const castMemberSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  country: z.enum(["ao", "mz", "br", "pt"]),
+  role: z.enum(["publico", "aluna"]),
+  arrivalMs: z.number(),
+  leaveMs: z.number().nullable(),
+  situation: z.string().default(""),
+  emoji: z.boolean(),
+  mobile: z.boolean(),
+  length: z.enum(["curto", "medio", "longo"]),
+  typos: z.boolean(),
+  activity: z.number(),
+});
+const castSchema = z.array(castMemberSchema).max(500).optional();
+
+/** Onde a oferta começa: a marcada no editor; sem ela, a lida nos blocos. */
+function offerStartOf(webinar: WebinarInfo, blocks: readonly SemanticBlock[]): number | null {
+  if (webinar.cta_text && webinar.cta_start_seconds != null) return webinar.cta_start_seconds * 1000;
+  return offerStartFromBlocks(blocks);
+}
 
 function hashSeed(text: string): number {
   let h = 2166136261;
@@ -556,15 +602,13 @@ async function engineForRange(
     if (!version || version.precision !== "word" || version.sentences.length === 0) return null;
     const { blocks } = await ensureVersionBlocks(version, { ai: false });
     if (blocks.length === 0) return null;
+    const offerStartMs = offerStartOf(webinar, blocks);
     const slots = planInteractions(blocks, {
       fromMs: from * 1000,
       toMs: to * 1000,
       participants: settings.participants,
       perMinute: perMinuteOf(settings),
-      offerStartMs:
-        webinar.cta_text && webinar.cta_start_seconds != null
-          ? webinar.cta_start_seconds * 1000
-          : null,
+      offerStartMs,
       hostName: webinar.host_name,
     });
     const profiles = buildProfiles(
@@ -572,7 +616,7 @@ async function engineForRange(
       variantCountries(settings.variant),
       hashSeed(webinarId),
     );
-    return { slots, blocks, profiles };
+    return { slots, blocks, profiles, offerStartMs };
   } catch {
     return null;
   }
@@ -1445,6 +1489,146 @@ async function askWindow(
   if (engineSlots.length === 0) return raw;
   const placed = placeWithEngine(raw, engine!, from, to);
   return fillMandatory(ctx, engine!, placed, from, to);
+}
+
+/**
+ * Método Nova: o guião do trecho (quem, quando, a quê, que tamanho) é determinístico; a IA escreve só o
+ * texto de cada linha. Linhas obrigatórias sem texto levam o que o apresentador cita ou uma presença
+ * curta; as restantes sem texto caem.
+ */
+async function novaWindow(
+  ctx: GenContext,
+  engine: Engine,
+  cast: CastMember[],
+  from: number,
+  to: number,
+  already: { at: number; author: string; message: string }[],
+): Promise<Comment[]> {
+  const { webinar, settings } = ctx;
+  const lines = buildScript(engine.slots, cast, {
+    fromMs: from * 1000,
+    toMs: to * 1000,
+    seed: hashSeed(`guiao:${webinar.public_title}:${from}:${to}`),
+    perMinute: perMinuteOf(settings),
+    offerStartMs: engine.offerStartMs,
+    existing: already.map((c) => ({ atMs: c.at * 1000, author: c.author })),
+  });
+  if (lines.length === 0) return [];
+
+  const transcript = condenseTranscript(
+    ctx.transcript.filter((s) => s.at >= from - 60 && s.at <= to + 30),
+    160,
+    400,
+  );
+  const recent = already
+    .filter((c) => c.at >= from - 180 && c.at <= to)
+    .slice(-25)
+    .map((c) => `${c.at}s ${c.author}: ${c.message}`)
+    .join("\n");
+  const byId = new Map(cast.map((m) => [m.id, m] as const));
+  const members = [...new Set(lines.map((l) => l.memberId))]
+    .map((id) => byId.get(id))
+    .filter((m): m is CastMember => Boolean(m));
+  const tone =
+    settings.tone === "custom" && settings.customTone ? settings.customTone : toneLabel[settings.tone];
+
+  const prompt = [
+    `Webinar: "${webinar.public_title}". Apresenta ${webinar.host_name ?? "o apresentador"}.`,
+    webinar.description ? `Descrição: ${webinar.description.slice(0, 400)}` : "",
+    engine.offerStartMs != null
+      ? `A oferta (preço, inscrição) só é apresentada ao segundo ${Math.round(engine.offerStartMs / 1000)}: antes disso ninguém fala de preço, bónus, garantia ou inscrição.`
+      : "",
+    "",
+    transcript.length
+      ? `O que o apresentador diz neste trecho (segundo → fala):\n${transcript.map((s) => `${s.at}s: ${s.text}`).join("\n")}`
+      : "",
+    "",
+    recent ? `Últimas mensagens do chat antes deste trecho (continuidade; não repetir):\n${recent}` : "",
+    "",
+    `Tom do chat: ${tone}. Emojis ${emojiLabel[settings.emojis]}.`,
+    variantText(settings.variant),
+    "",
+    "PESSOAS (quem escreve neste trecho; cada uma escreve sempre ao seu estilo):",
+    ...members.map(describeMember),
+    "",
+    "LINHAS DO GUIÃO. Cada linha já tem quem escreve, o segundo e o motivo: escreve SÓ a mensagem de cada uma, com o id. Não mudes nomes, não juntes linhas, não acrescentes linhas.",
+    "Como num chat ao vivo: mensagens curtas, coloquiais, pontuação imperfeita, maiúsculas às vezes esquecidas, nada de frases de anúncio nem de elogios vazios em série. Nunca duas mensagens iguais ou quase. Cada mensagem só pode falar do que o apresentador já disse até esse segundo. Respeita o formato pedido (um número é só um número; sim ou não é curto) e o máximo de palavras. OBRIGATÓRIO quer dizer o texto exacto, ou quase.",
+    "",
+    describeScript(lines, engine.slots),
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  let texts = new Map<string, string>();
+  try {
+    const result = await chatJson({
+      task: "generation",
+      system:
+        "És um argumentista de chats ao vivo. Recebes um guião com quem escreve e quando, e devolves só o texto de cada linha, humano e curto. Respondes só com o JSON pedido.",
+      user: prompt,
+      schema: SCRIPT_LINES,
+    });
+    if (!result.ok) throw new AIError(result);
+    const parsed = result.json as { lines?: { id?: unknown; message?: unknown }[] };
+    texts = new Map(
+      (parsed.lines ?? [])
+        .map((l) => [String(l.id ?? "").trim(), String(l.message ?? "").trim().slice(0, 300)] as const)
+        .filter(([id, message]) => id && message),
+    );
+  } catch (error) {
+    // Sem texto da IA, só as linhas obrigatórias sobrevivem (com o que o apresentador cita).
+    if (!lines.some((l) => l.mustText || l.intent === "presenca")) throw error;
+  }
+
+  const seen = new Set<string>();
+  const out: Comment[] = [];
+  lines.forEach((line, index) => {
+    let message = texts.get(line.id) ?? "";
+    if (!message) {
+      if (line.mustText) message = line.mustText;
+      else if (line.intent === "presenca")
+        message = PRESENCE_FALLBACK[hashSeed(line.id + line.author) % PRESENCE_FALLBACK.length]!;
+      else return;
+    }
+    const member = byId.get(line.memberId);
+    if (member) message = styleMessage(member, message, index);
+    if (line.replyTo && !/^@/.test(message)) message = `@${line.replyTo.split(" ")[0]} ${message}`;
+    const key = message.toLocaleLowerCase("pt").replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+    if (key && seen.has(key) && !line.mustText) return;
+    if (key) seen.add(key);
+    out.push({
+      at: Math.round(line.atMs / 1000),
+      atMs: line.atMs,
+      author: line.author,
+      message,
+      moment: momentOf(line),
+      kind: line.kind,
+      anchor:
+        line.windowStartMs != null && line.slotId
+          ? Math.round((line.dependency === "BEFORE" ? (engine.slots.find((s) => s.id === line.slotId)?.blockStartMs ?? line.atMs) : (engine.slots.find((s) => s.id === line.slotId)?.blockEndMs ?? line.atMs)) / 1000)
+          : null,
+      reason: line.reason,
+      slot: line.slotId,
+      dependency: line.dependency,
+      blockId: line.blockId,
+      blockType: line.blockType,
+      interaction: line.interaction,
+      windowStartMs: line.windowStartMs,
+      windowEndMs: line.windowEndMs,
+      confidence: line.confidence,
+      profileId: line.memberId,
+    });
+  });
+  return out;
+}
+
+function momentOf(line: ScriptLine): string {
+  if (line.intent === "chegada") return "chegada";
+  if (line.intent === "resposta" || line.intent === "replica") return "pergunta";
+  if (line.blockType === "SOCIAL_PROOF") return "prova-social";
+  if (line.blockType === "EMOTIONAL_MOMENT" || line.blockType === "STORY") return "emocao";
+  if (line.blockType === "OFFER" || line.blockType === "CTA") return "oferta";
+  return "explicacao";
 }
 
 /** Mensagens de presença quando a IA nem a segunda tentativa dão uma: curtas, de chat, sem conteúdo inventado. */
@@ -2376,7 +2560,79 @@ export async function planCommentWindowsImpl(supabase: any, data: any) {
     }
   }
 
-  return { duration, start, end, windows };
+  // Método Nova: o elenco do webinar inteiro, fixo, para os trechos partilharem as mesmas pessoas.
+  const cast = await castForWebinar(data.webinarId, data.settings, webinar, duration, data.intel);
+  return { duration, start, end, windows, cast };
+}
+
+/**
+ * O elenco de um webinar: os nomes que o apresentador diz (alunas) mais o público, com chegadas,
+ * saídas e actividade determinísticas, e uma linha de situação por pessoa escrita pela IA uma vez.
+ * Sem transcrição por palavra não há elenco (o caminho antigo continua a servir).
+ */
+async function castForWebinar(
+  webinarId: string,
+  settings: Settings,
+  webinar: WebinarInfo,
+  duration: number,
+  intel?: { personas?: AnalysisPersona[] } | null,
+): Promise<CastMember[]> {
+  try {
+    const engine = await import("@/lib/temporal/engine.server");
+    const version = await engine.latestReadyVersion(webinarId);
+    if (!version || version.precision !== "word" || version.sentences.length === 0) return [];
+    const { blocks } = await ensureVersionBlocks(version, { ai: false });
+    if (blocks.length === 0) return [];
+    const cast = buildCast(
+      {
+        participants: settings.participants,
+        countries: variantCountries(settings.variant),
+        durationMs: duration * 1000,
+        seed: hashSeed(`elenco:${webinarId}`),
+        hostName: webinar.host_name,
+      },
+      namedPeople(blocks, webinar.host_name),
+    );
+    // As personas do mapa (modo Inteligente) dão a situação às primeiras pessoas do público.
+    const personas = intel?.personas ?? [];
+    let p = 0;
+    for (const m of cast) {
+      if (m.role !== "publico") continue;
+      const persona = personas[p];
+      if (!persona) break;
+      m.situation = persona.profile.slice(0, 160);
+      p += 1;
+    }
+    const missing = cast.filter((m) => !m.situation).slice(0, 120);
+    if (missing.length > 0) {
+      try {
+        const result = await chatJson({
+          task: "analysis",
+          system: "Inventas, em uma linha cada, quem são as pessoas de um chat de webinar. Respondes só com o JSON pedido.",
+          user: [
+            `Webinar: "${webinar.public_title}".${webinar.description ? ` ${webinar.description.slice(0, 300)}` : ""}`,
+            `Para cada pessoa, uma linha (até 18 palavras) com cidade, ocupação ou situação e porque está a ver este webinar. Pessoas comuns, variadas e plausíveis; as alunas já conhecem o apresentador e o curso dele. ${variantText(settings.variant)}`,
+            "",
+            ...missing.map((m) => `${m.id}: ${m.name}${m.role === "aluna" ? " (aluna)" : ""} · ${{ ao: "Angola", mz: "Moçambique", br: "Brasil", pt: "Portugal" }[m.country]}`),
+          ].join("\n"),
+          schema: CAST_SITUATIONS,
+        });
+        if (result.ok) {
+          const parsed = result.json as { people?: { id?: unknown; situation?: unknown }[] };
+          const byId = new Map(cast.map((m) => [m.id, m] as const));
+          for (const row of parsed.people ?? []) {
+            const m = byId.get(String(row.id ?? ""));
+            if (m && !m.situation) m.situation = String(row.situation ?? "").trim().slice(0, 200);
+          }
+        }
+      } catch {
+        // Sem situações a IA escreve na mesma, só com nome, país e estilo.
+      }
+    }
+    return serializeCast(cast);
+  } catch {
+    return [];
+  }
 }
 
 export const planCommentWindows = createServerFn({ method: "POST" })
@@ -2447,6 +2703,12 @@ export async function generateCommentsWindowImpl(supabase: any, data: any) {
     data.settings,
     webinar,
   );
+  // Método Nova: com elenco e blocos, o guião decide tudo menos o texto.
+  const cast = (data.cast ?? []) as CastMember[];
+  if (engine && cast.length > 0) {
+    const comments = await novaWindow(ctx, engine, cast, data.window.from, data.window.to, data.existing);
+    return { comments };
+  }
   const comments = await askWindow(
     ctx,
     data.window.from,
@@ -2477,6 +2739,7 @@ export const generateCommentsWindow = createServerFn({ method: "POST" })
         existing: existingSchema,
         intel: intelSchema,
         slots: z.array(z.any()).optional(),
+        cast: castSchema,
       })
       .parse(data),
   )

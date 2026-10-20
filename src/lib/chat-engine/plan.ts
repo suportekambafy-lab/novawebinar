@@ -5,6 +5,7 @@
  * 30 a 90 segundos anteriores. A IA escolhe texto e pessoa dentro disto.
  */
 import { BLOCK_LABEL, DEPENDENCY_LABEL, INTERACTION_LABEL } from "./labels";
+import { ure } from "./regex";
 import {
   BEFORE_READ_MAX_MS,
   BEFORE_READ_MIN_MS,
@@ -30,6 +31,26 @@ export type PlanOptions = {
 
 /** Depois de nomeada, a mesma pessoa não volta a «aparecer» antes de cada menção seguinte durante este tempo. */
 export const PRESENCE_REPEAT_MS = 45_000;
+/** Uma leitura do chat até este tempo depois de um pedido lê as respostas a esse pedido. */
+export const READ_LINK_MS = 240_000;
+/** As respostas lidas existem, no máximo, este tempo depois do pedido. */
+export const READ_LINK_SPAN_MS = 90_000;
+
+const PRICE_WORDS = ure(
+  String.raw`(€|\bR\$|\beuros?\b|\breais\b|\bkwanzas\b|\bmeticais\b|\bd[óo]lares\b|\bpre[çc]o\b|\binvestimento\b|\bparcel|\bpresta[çc][õo]es\b|\bdesconto\b|\bquanto custa\b|\bvalor\b)`,
+  "i",
+);
+
+/**
+ * Onde a oferta começa quando o editor não a marcou: o primeiro bloco de oferta ou chamada à acção em
+ * que se fala de preço. Antes disso ninguém comenta preço, bónus ou inscrição.
+ */
+export function offerStartFromBlocks(blocks: readonly SemanticBlock[]): number | null {
+  const first = [...blocks]
+    .sort((a, b) => a.startMs - b.startMs)
+    .find((b) => (b.type === "OFFER" || b.type === "CTA") && PRICE_WORDS.test(b.text));
+  return first ? first.startMs : null;
+}
 
 function firstNameOf(name: string | null | undefined) {
   return (name ?? "").trim().split(/\s+/)[0]?.toLocaleLowerCase("pt") ?? "";
@@ -175,6 +196,24 @@ export function planInteractions(
         constrained = true;
         windowStart = previous.endMs + FIRST_ANSWER_MIN_MS;
         if (windowEnd < windowStart) windowEnd = Math.min(block.startMs - 500, windowStart + 300);
+      } else if (suffix === "lido" && !items.some((r) => r.kind === "name" && r.text === "")) {
+        // O apresentador lê respostas a um pedido feito há pouco («quanto cobrariam?» … 2 minutos
+        // depois: «5 mil euros? 2 mil?»): as mensagens lidas são respostas desse pedido, não mensagens
+        // que aparecem mesmo antes de ele as ler.
+        const ask = [...ordered]
+          .reverse()
+          .find(
+            (b) =>
+              b.expectsResponse &&
+              b.endMs < block.startMs - BEFORE_READ_MIN_MS &&
+              block.startMs - b.endMs <= READ_LINK_MS,
+          );
+        if (ask) {
+          constrained = true;
+          windowStart = ask.endMs + FIRST_ANSWER_MIN_MS;
+          windowEnd = Math.min(windowEnd, ask.endMs + READ_LINK_SPAN_MS);
+          if (windowEnd < windowStart + 600) windowEnd = Math.min(block.startMs - 500, windowStart + 600);
+        }
       }
       if (!constrained && windowEnd - windowStart < 600) windowStart = Math.max(0, windowEnd - 600);
       // Caso difícil: o apresentador lê o chat antes de haver tempo para alguém escrever.

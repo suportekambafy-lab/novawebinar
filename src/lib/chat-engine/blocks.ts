@@ -620,6 +620,17 @@ const NAME_THEN_CONTENT = ure(
   String.raw`(?:^|[.!?…]\s+|\b[óo][,.]?\s+)${NAME}\s*,\s*([^.?!,;]{1,80})(?=[.?!;]|$)`,
   "gm",
 );
+const NAME_PROOF = ure(
+  String.raw`(?:^|[.!?…]\s+)${NAME},?\s+(?:que\s+)?[^.?!]{0,80}\b(?:faturou|facturou|fez|vendeu|conseguiu|fechou|ganhou|entrou|come[çc]ou|recebeu|lucrou)\b[^.?!]{0,80}`,
+  "g",
+);
+/** Um valor lido em voz alta ("Olha só! 5 mil euros?", "2 mil?"): só números, com ou sem moeda. */
+const AMOUNT_TOKEN = String.raw`\d[\d.,]*\s*(?:mil|k)?\s*(?:euros?|reais|kwanzas|meticais|d[óo]lares|€|R\$)?`;
+const AMOUNT_READ = ure(
+  String.raw`^\s*(?:(?:olha|olhem|olha s[óo]|vejam|uau|nossa|caramba)[!,.]?\s*)*(?:${AMOUNT_TOKEN}\s*[?!.,]*\s*)+$`,
+  "i",
+);
+const AMOUNT_EACH = ure(AMOUNT_TOKEN, "gi");
 const THANKS = ure(String.raw`obrigad[oa],?\s+(\p{Lu}\p{Ll}{2,})\b`, "g");
 const PLACE_READ = ure(
   String.raw`\b(?:de|da|do|em|desde|até)\s+(\p{Lu}[\p{L}'-]{2,}(?:\s(?:de|do|da|dos|das)\s\p{Lu}[\p{L}'-]{2,}|\s\p{Lu}[\p{L}'-]{2,})?)`,
@@ -667,6 +678,16 @@ export function extractReferences(text: string): ReferencedItem[] {
   for (const match of text.matchAll(THANKS)) {
     const name = match[1]!.trim();
     if (!acceptName(name)) continue;
+    add({ kind: "name", name, place: null, text: "" });
+  }
+  // "Alessandra, que entrou faz uma semana, já faturou 400 euros": o nome abre a frase e a frase conta
+  // um resultado dela (com um número, ou um nome conhecido).
+  for (const match of text.matchAll(NAME_PROOF)) {
+    const name = match[1]!.trim();
+    const first = name.split(" ")[0]!.toLocaleLowerCase("pt");
+    if (!acceptName(name)) continue;
+    if (!KNOWN_FIRST.has(first) && !/\d/.test(match[0])) continue;
+    if (out.some((item) => item.kind === "name" && item.name === name)) continue;
     add({ kind: "name", name, place: null, text: "" });
   }
   // "a minha aluna Letícia": a apresentação da pessoa chega, seja o nome conhecido ou não.
@@ -802,6 +823,26 @@ export function buildSemanticBlocks(sentences: readonly SentenceLike[]): Semanti
       block.interaction = "NONE";
       block.confidence = 0.5;
     }
+  }
+
+  // Um valor solto, lido em voz alta, até 4 minutos depois de um pedido ao público ("quanto
+  // cobrariam?" … "Olha só! 5 mil euros? 2 mil?"): é o apresentador a ler as respostas.
+  for (let i = 0; i < blocks.length; i += 1) {
+    const block = blocks[i]!;
+    if (block.type === "CHAT_READING" || !AMOUNT_READ.test(block.text)) continue;
+    const ask = blocks
+      .slice(0, i)
+      .reverse()
+      .find((b) => b.expectsResponse && block.startMs - b.endMs <= 240_000);
+    if (!ask) continue;
+    const amounts = [...block.text.matchAll(AMOUNT_EACH)].map((m) => m[0].trim()).filter(Boolean);
+    if (amounts.length === 0) continue;
+    block.type = "CHAT_READING";
+    block.readsChat = true;
+    block.expectsResponse = false;
+    block.interaction = "REACTION";
+    block.confidence = Math.max(block.confidence, 0.8);
+    block.referenced = amounts.map((text) => ({ kind: "message" as const, name: null, place: null, text }));
   }
 
   // Silêncios: ninguém reage ao nada, mas o vazio fica registado.

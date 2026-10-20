@@ -79,6 +79,8 @@ export type AiJobPartial = {
   collected: WindowComment[];
   doneWindows: string[];
   totalWindows: number;
+  /** O elenco do Método Nova: as mesmas pessoas em todos os trechos, também numa nova tentativa. */
+  cast?: unknown[];
 };
 
 export type AiSettings = {
@@ -492,6 +494,8 @@ export function startAiJob(input: {
         patch(webinarId, { stage: 4, status: "ready", drafts: result.comments, partial: null });
       } else {
         const plan = await planCommentWindows({ data: base });
+        // O elenco de uma tentativa anterior mantém-se: as pessoas não mudam a meio.
+        const cast = (resume?.cast?.length ? resume.cast : plan.cast) as typeof plan.cast;
         const windowKey = (w: { from: number; to: number }) => `${w.from}-${w.to}`;
         // Trechos já concluídos numa tentativa anterior não voltam a ser gerados.
         const doneWindows = new Set(resume?.doneWindows ?? []);
@@ -513,6 +517,7 @@ export function startAiJob(input: {
               collected,
               doneWindows: [...doneWindows],
               totalWindows: plan.windows.length,
+              cast,
             },
           });
         savePartial();
@@ -538,6 +543,7 @@ export function startAiJob(input: {
                       window,
                       bounds: { start: plan.start, end: plan.end },
                       existing: snapshotExisting,
+                      cast,
                     },
                   });
                   return result.comments as WindowComment[];

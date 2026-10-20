@@ -1,0 +1,522 @@
+/**
+ * Método Nova, parte 2: o guião.
+ *
+ * Antes de a IA escrever uma palavra, o guião decide tudo o que não é texto: quem escreve, ao
+ * milissegundo, a que oportunidade responde, com que intenção, com que tamanho, e a quem responde.
+ * A IA recebe linhas e devolve só a mensagem de cada uma. Assim os tempos, os nomes e a presença
+ * nunca dependem de a IA «se lembrar».
+ *
+ * Regras do guião:
+ * - ninguém escreve antes de chegar nem depois de sair;
+ * - quem responde a um pedido fica ocupado uns segundos: não responde a dois pedidos ao mesmo tempo;
+ * - as respostas a um pedido têm uma cauda (até 60 a 90 s): não acabam todas em 15 s;
+ * - numa cascata de respostas, às vezes alguém responde a outra pessoa («@Nome»);
+ * - os nomes lidos ou nomeados pelo apresentador escrevem (as mensagens obrigatórias);
+ * - as mensagens soltas rodam de intenção (dúvida, identificação, descoberta, objecção, intenção), em
+ *   função do bloco e de a oferta já existir ou não;
+ * - quem chega durante o trecho pode cumprimentar.
+ */
+import { memberByName, present, type CastMember } from "./cast";
+import { FIRST_ANSWER_MIN_MS, placeSlot, rng } from "./timing";
+import type { BlockType, Dependency, InteractionSlot, InteractionType } from "./types";
+
+export type ScriptIntent =
+  | "chegada"
+  | "presenca"
+  | "lida"
+  | "resposta"
+  | "reaccao"
+  | "solta"
+  | "replica";
+
+export type FreeTopic = "duvida" | "identificacao" | "descoberta" | "objecao" | "intencao" | "comentario";
+
+export type ScriptLine = {
+  id: string;
+  atMs: number;
+  memberId: string;
+  author: string;
+  slotId: string | null;
+  blockId: string | null;
+  blockType: BlockType | null;
+  dependency: Dependency;
+  interaction: InteractionType;
+  intent: ScriptIntent;
+  /** O que a IA deve escrever, em palavras. */
+  need: string;
+  /** Texto obrigatório (o que o apresentador vai ler), quando existe. */
+  mustText: string | null;
+  /** Nome a quem responde («@Nome»), quando é uma réplica. */
+  replyTo: string | null;
+  maxWords: number;
+  kind: "provoca" | "responde" | "reage" | "espontaneo";
+  windowStartMs: number | null;
+  windowEndMs: number | null;
+  confidence: number;
+  reason: string;
+};
+
+export type ScriptOptions = {
+  fromMs: number;
+  toMs: number;
+  seed: number;
+  /** Mensagens por minuto nas partes livres. */
+  perMinute: number;
+  offerStartMs: number | null;
+  /** Quem já escreveu antes do trecho (continuidade entre trechos). */
+  existing: readonly { atMs: number; author: string }[];
+};
+
+/** Fracção de quem está na sala que responde a cada tipo de pedido. */
+const RESPONSE_RATE: Partial<Record<BlockType, number>> = {
+  COMMENT_REQUEST: 0.32,
+  POLL: 0.3,
+  FEEDBACK_REQUEST: 0.28,
+  QUESTION_TO_AUDIENCE: 0.2,
+  CTA: 0.14,
+  OFFER: 0.1,
+  SOCIAL_PROOF: 0.1,
+  EMOTIONAL_MOMENT: 0.1,
+  STORY: 0.05,
+  CHAT_READING: 0.04,
+  CHAT_RESPONSE: 0.04,
+};
+
+/** Cauda das respostas depois da janela curta, em ms. */
+const TAIL_MS = 45_000;
+const STRONG_TAIL_MS = 70_000;
+/** Depois de responder a um pedido, a pessoa fica uns segundos sem responder a outro. */
+const BUSY_AFTER_ANSWER_MS = 40_000;
+const BUSY_AFTER_REACTION_MS = 20_000;
+const BUSY_AFTER_FREE_MS = 25_000;
+
+function words(interaction: InteractionType, length: CastMember["length"], random: () => number) {
+  const pick = (lo: number, hi: number) => lo + Math.round(random() * (hi - lo));
+  switch (interaction) {
+    case "YES_NO":
+      return pick(1, 4);
+    case "NUMBER":
+      return pick(1, 4);
+    case "EMOJI":
+      return 1;
+    case "KEYWORD":
+      return pick(1, 2);
+    case "LOCATION":
+      return pick(1, 5);
+    case "NAME":
+      return pick(1, 4);
+    case "LONG_ANSWER":
+      return pick(6, 22);
+    default:
+      return length === "curto" ? pick(2, 6) : length === "longo" ? pick(8, 20) : pick(3, 12);
+  }
+}
+
+function kindFor(dependency: Dependency, blockType: BlockType | null): ScriptLine["kind"] {
+  if (dependency === "BEFORE") return "provoca";
+  if (dependency === "AFTER")
+    return blockType === "QUESTION_TO_AUDIENCE" ||
+      blockType === "COMMENT_REQUEST" ||
+      blockType === "FEEDBACK_REQUEST" ||
+      blockType === "POLL"
+      ? "responde"
+      : "reage";
+  return "espontaneo";
+}
+
+/** A intenção de uma mensagem solta, em função do bloco e de a oferta já existir. */
+export function freeTopic(
+  blockType: BlockType | null,
+  afterOffer: boolean,
+  turn: number,
+): FreeTopic {
+  if (afterOffer) return (["intencao", "duvida", "objecao", "comentario", "intencao"] as const)[turn % 5]!;
+  switch (blockType) {
+    case "STORY":
+    case "EMOTIONAL_MOMENT":
+      return (["identificacao", "comentario", "identificacao", "duvida"] as const)[turn % 4]!;
+    case "TECHNICAL":
+      return (["duvida", "duvida", "descoberta"] as const)[turn % 3]!;
+    case "SOCIAL_PROOF":
+      return (["descoberta", "duvida", "identificacao"] as const)[turn % 3]!;
+    default:
+      return (["descoberta", "duvida", "comentario", "identificacao", "duvida", "comentario"] as const)[
+        turn % 6
+      ]!;
+  }
+}
+
+const TOPIC_TEXT: Record<FreeTopic, string> = {
+  duvida: "uma dúvida genuína sobre o que acabou de ser dito (só sobre o que já foi dito)",
+  identificacao: "identifica-se com o que foi dito (a própria situação, em poucas palavras)",
+  descoberta: "percebeu agora algo que não sabia, nas palavras dela",
+  objecao: "uma hesitação ou objecção honesta (tempo, dinheiro, se serve para o caso dela)",
+  intencao: "mostra que está a pensar entrar, sem exagero",
+  comentario: "um comentário solto sobre o que está a ser dito, coloquial",
+};
+
+export function buildScript(
+  slots: readonly InteractionSlot[],
+  cast: readonly CastMember[],
+  options: ScriptOptions,
+): ScriptLine[] {
+  const random = rng(options.seed);
+  const lines: ScriptLine[] = [];
+  /** Até quando cada pessoa está «ocupada» (acabou de escrever). */
+  const busyUntil = new Map<string, number>();
+  for (const e of options.existing) {
+    const m = memberByName(cast, e.author);
+    if (m) busyUntil.set(m.id, Math.max(busyUntil.get(m.id) ?? 0, e.atMs + BUSY_AFTER_FREE_MS));
+  }
+  let counter = 0;
+  const nextId = () => {
+    counter += 1;
+    return `L${counter}`;
+  };
+  let freeTurn = 0;
+
+  const available = (atMs: number, exclude: ReadonlySet<string>) =>
+    present(cast, atMs).filter((m) => !exclude.has(m.id) && (busyUntil.get(m.id) ?? 0) <= atMs);
+
+  /** Escolhe quem escreve: ponderado pela actividade, entre quem está livre. Se ninguém, quem está. */
+  const pick = (atMs: number, exclude: ReadonlySet<string>): CastMember | null => {
+    let pool = available(atMs, exclude);
+    if (pool.length === 0) pool = present(cast, atMs).filter((m) => !exclude.has(m.id));
+    if (pool.length === 0) return null;
+    const total = pool.reduce((sum, m) => sum + m.activity, 0);
+    let r = random() * total;
+    for (const m of pool) {
+      r -= m.activity;
+      if (r <= 0) return m;
+    }
+    return pool[pool.length - 1]!;
+  };
+
+  const push = (line: Omit<ScriptLine, "id">) => {
+    lines.push({ id: nextId(), ...line });
+  };
+
+  const ordered = [...slots]
+    .filter((s) => s.windowEndMs >= options.fromMs - 1000 && s.windowStartMs <= options.toMs + 1000)
+    .sort((a, b) => a.windowStartMs - b.windowStartMs);
+
+  // Onde começa o próximo pedido ao público: as caudas de respostas não passam por cima dele.
+  const asks = ordered.filter((s) => s.dependency === "AFTER" && s.minComments > 0 && s.strong);
+
+  for (const slot of ordered) {
+    const afterOffer = options.offerStartMs != null && slot.blockStartMs >= options.offerStartMs;
+
+    if (slot.dependency === "BEFORE") {
+      const names = slot.referenced.filter((r) => r.kind === "name");
+      const others = slot.referenced.filter((r) => r.kind !== "name");
+      const count = Math.max(slot.minComments, names.length + others.length, 1);
+      const times = placeSlot(slot, count, options.seed + counter);
+      const usedHere = new Set<string>();
+      let index = 0;
+      for (const item of names) {
+        const member = memberByName(cast, item.name!);
+        const atMs = times[index] ?? slot.windowStartMs;
+        index += 1;
+        const author = member?.name ?? item.name!;
+        const id = member?.id ?? `x-${item.name}`;
+        usedHere.add(id);
+        busyUntil.set(id, atMs + BUSY_AFTER_REACTION_MS);
+        push({
+          atMs,
+          memberId: id,
+          author,
+          slotId: slot.id,
+          blockId: slot.blockId,
+          blockType: slot.blockType,
+          dependency: "BEFORE",
+          interaction: "NONE",
+          intent: slot.id.endsWith("_presenca") ? "presenca" : "lida",
+          need: item.text
+            ? `escreve exactamente o que o apresentador vai ler: "${item.text}"`
+            : item.place
+              ? `diz de onde vê (${item.place}), curto`
+              : slot.id.endsWith("_presenca")
+                ? "uma mensagem curta e natural de quem está na sala (cumprimento, presença, ou o que o apresentador refere sobre ela a seguir)"
+                : `escreve o que o apresentador cita ou resume a seguir (fala: "${slot.speech.slice(0, 160)}")`,
+          mustText: item.text || null,
+          replyTo: null,
+          maxWords: item.text ? Math.max(1, item.text.split(/\s+/).length + 2) : 8,
+          kind: "provoca",
+          windowStartMs: slot.windowStartMs,
+          windowEndMs: slot.windowEndMs,
+          confidence: slot.confidence,
+          reason: slot.reason,
+        });
+      }
+      for (const item of others) {
+        const atMs = times[index] ?? slot.windowStartMs;
+        index += 1;
+        const member = pick(atMs, usedHere);
+        if (!member) continue;
+        usedHere.add(member.id);
+        busyUntil.set(member.id, atMs + BUSY_AFTER_REACTION_MS);
+        push({
+          atMs,
+          memberId: member.id,
+          author: member.name,
+          slotId: slot.id,
+          blockId: slot.blockId,
+          blockType: slot.blockType,
+          dependency: "BEFORE",
+          interaction: "NONE",
+          intent: "lida",
+          need:
+            item.kind === "question"
+              ? `pergunta exactamente isto (nas suas palavras, mesmo sentido): "${item.text}"`
+              : item.kind === "city"
+                ? `diz que vê de ${item.text}`
+                : `a mensagem que o apresentador vai ler a seguir (fala: "${slot.speech.slice(0, 160)}")`,
+          mustText: item.kind === "question" || item.kind === "city" ? item.text : null,
+          replyTo: null,
+          maxWords: item.text ? Math.max(3, item.text.split(/\s+/).length + 3) : 10,
+          kind: "provoca",
+          windowStartMs: slot.windowStartMs,
+          windowEndMs: slot.windowEndMs,
+          confidence: slot.confidence,
+          reason: slot.reason,
+        });
+      }
+      continue;
+    }
+
+    if (slot.dependency === "AFTER") {
+      const here = present(cast, slot.blockEndMs).length;
+      const rate = RESPONSE_RATE[slot.blockType] ?? 0.08;
+      const expected = slot.referenced.filter((r) => r.kind === "name");
+      const wanted = Math.round(here * rate * (0.8 + random() * 0.5));
+      let count = Math.max(slot.minComments, Math.min(slot.maxComments, wanted));
+      count = Math.max(count, expected.length);
+      if (count <= 0) continue;
+      const usedHere = new Set<string>();
+      const authors: CastMember[] = [];
+      for (const item of expected) {
+        const member = memberByName(cast, item.name!);
+        if (member && !usedHere.has(member.id)) {
+          usedHere.add(member.id);
+          authors.push(member);
+        }
+      }
+      // Tempos: a maior parte na janela curta, o resto numa cauda, sem passar o próximo pedido.
+      const short = Math.max(authors.length, Math.ceil(count * 0.65));
+      const tailCount = count - short;
+      const times = placeSlot(slot, short, options.seed + counter);
+      const nextAsk = asks.find((s) => s.blockStartMs > slot.blockEndMs + 2000);
+      const tailLimit = Math.min(
+        slot.windowEndMs + (slot.strong ? STRONG_TAIL_MS : TAIL_MS),
+        nextAsk ? nextAsk.blockEndMs + FIRST_ANSWER_MIN_MS - 1000 : Number.MAX_SAFE_INTEGER,
+        options.toMs + 999,
+      );
+      let previous = times[times.length - 1] ?? slot.windowEndMs;
+      for (let i = 0; i < tailCount; i += 1) {
+        const gap = 2500 + Math.pow(random(), 0.6) * 12_000;
+        const t = previous + gap;
+        if (t > tailLimit) break;
+        times.push(Math.round(t));
+        previous = t;
+      }
+      const busyAfter = kindFor("AFTER", slot.blockType) === "responde" ? BUSY_AFTER_ANSWER_MS : BUSY_AFTER_REACTION_MS;
+      const written: { id: string; author: string; atMs: number; memberId: string }[] = [];
+      times.forEach((atMs, index) => {
+        const member = authors[index] ?? pick(atMs, usedHere);
+        if (!member) return;
+        usedHere.add(member.id);
+        busyUntil.set(member.id, atMs + busyAfter);
+        const kind = kindFor("AFTER", slot.blockType);
+        const late = index >= short;
+        const id = nextId();
+        lines.push({
+          id,
+          atMs,
+          memberId: member.id,
+          author: member.name,
+          slotId: slot.id,
+          blockId: slot.blockId,
+          blockType: slot.blockType,
+          dependency: "AFTER",
+          interaction: slot.interaction,
+          intent: kind === "responde" ? "resposta" : "reaccao",
+          need:
+            kind === "responde"
+              ? `${slot.reason}${late ? " (chega atrasada, sem repetir o que os outros já disseram)" : index === 0 ? " (a primeira: curta e imediata)" : ""}`
+              : `${slot.reason}${late ? " (um pouco depois dos outros)" : ""}`,
+          mustText: null,
+          replyTo: null,
+          maxWords: words(slot.interaction, member.length, random),
+          kind,
+          windowStartMs: slot.windowStartMs,
+          windowEndMs: slot.windowEndMs,
+          confidence: slot.confidence,
+          reason: slot.reason,
+        });
+        written.push({ id, author: member.name, atMs, memberId: member.id });
+      });
+      // Uma réplica a alguém da cascata, quando há conversa possível (não a números nem a sim/não).
+      const talkative =
+        slot.interaction === "SHORT_ANSWER" ||
+        slot.interaction === "LONG_ANSWER" ||
+        slot.interaction === "LOCATION" ||
+        slot.interaction === "REACTION";
+      if (talkative && written.length >= 4 && random() < 0.55) {
+        const target = written[Math.floor(random() * Math.min(3, written.length))]!;
+        const atMs = Math.round(target.atMs + 5000 + random() * 12_000);
+        if (atMs <= tailLimit) {
+          const member = pick(atMs, new Set([...usedHere, target.memberId]));
+          if (member) {
+            busyUntil.set(member.id, atMs + BUSY_AFTER_REACTION_MS);
+            push({
+              atMs,
+              memberId: member.id,
+              author: member.name,
+              slotId: slot.id,
+              blockId: slot.blockId,
+              blockType: slot.blockType,
+              dependency: "AFTER",
+              interaction: "REACTION",
+              intent: "replica",
+              need: `responde a ${target.author} (começa por "@${target.author.split(" ")[0]}"): concorda, acrescenta ou pergunta algo curto sobre o que ${target.author.split(" ")[0]} escreveu`,
+              mustText: null,
+              replyTo: target.author,
+              maxWords: 10,
+              kind: kindFor("AFTER", slot.blockType),
+              windowStartMs: slot.windowStartMs,
+              windowEndMs: slot.windowEndMs,
+              confidence: slot.confidence,
+              reason: `responde a ${target.author}`,
+            });
+          }
+        }
+      }
+      continue;
+    }
+
+    // Livre: poucas, soltas, só sobre o que já foi dito, com intenções a rodar.
+    {
+      const minutes = Math.max(0, slot.windowEndMs - slot.windowStartMs) / 60_000;
+      const here = present(cast, slot.windowStartMs).length;
+      const scale = Math.min(1, here / 20);
+      const max = Math.min(slot.maxComments, Math.round(minutes * options.perMinute * 0.5 * scale + random()));
+      if (max <= 0) continue;
+      const times = placeSlot(slot, max, options.seed + counter);
+      const usedHere = new Set<string>();
+      for (const atMs of times) {
+        const member = pick(atMs, usedHere);
+        if (!member) continue;
+        usedHere.add(member.id);
+        busyUntil.set(member.id, atMs + BUSY_AFTER_FREE_MS);
+        const topic = slot.blockType === "SILENCE" ? "comentario" : freeTopic(slot.blockType, afterOffer, freeTurn);
+        freeTurn += 1;
+        push({
+          atMs,
+          memberId: member.id,
+          author: member.name,
+          slotId: slot.id,
+          blockId: slot.blockId,
+          blockType: slot.blockType,
+          dependency: "INDEPENDENT",
+          interaction: "NONE",
+          intent: "solta",
+          need:
+            slot.blockType === "SILENCE"
+              ? "uma mensagem solta durante a pausa do apresentador, sem reagir a nada (uma dúvida que ficou, ou um comentário leve)"
+              : TOPIC_TEXT[topic],
+          mustText: null,
+          replyTo: null,
+          maxWords: words("NONE", member.length, random),
+          kind: "espontaneo",
+          windowStartMs: slot.windowStartMs,
+          windowEndMs: slot.windowEndMs,
+          confidence: slot.confidence,
+          reason: `${slot.reason} (${topic})`,
+        });
+      }
+    }
+  }
+
+  // Quem chega durante o trecho pode cumprimentar (metade fá-lo), 5 a 40 s depois de entrar.
+  for (const m of cast) {
+    if (m.role !== "publico" || m.arrivalMs < options.fromMs || m.arrivalMs > options.toMs) continue;
+    if (random() >= 0.5) continue;
+    const atMs = Math.round(m.arrivalMs + 5000 + random() * 35_000);
+    if (atMs > options.toMs) continue;
+    if ((busyUntil.get(m.id) ?? 0) > atMs) continue;
+    busyUntil.set(m.id, atMs + BUSY_AFTER_FREE_MS);
+    push({
+      atMs,
+      memberId: m.id,
+      author: m.name,
+      slotId: null,
+      blockId: null,
+      blockType: null,
+      dependency: "INDEPENDENT",
+      interaction: "NONE",
+      intent: "chegada",
+      need:
+        m.arrivalMs < 180_000
+          ? "acabou de entrar: cumprimento curto, presença ou expectativa ligada ao tema (nunca diz de onde vê, a não ser que o apresentador o tenha pedido)"
+          : "chegou atrasada: cumprimento curto, talvez pergunta se perdeu muito",
+      mustText: null,
+      replyTo: null,
+      maxWords: 6,
+      kind: "espontaneo",
+      windowStartMs: null,
+      windowEndMs: null,
+      confidence: 0.6,
+      reason: "acabou de entrar na sala",
+    });
+  }
+
+  // Ordem, e nunca duas no mesmo instante.
+  lines.sort((a, b) => a.atMs - b.atMs);
+  let previous = -Infinity;
+  for (const line of lines) {
+    if (line.atMs - previous < 700) {
+      const latest = line.dependency === "BEFORE" && line.windowEndMs != null ? line.windowEndMs : Infinity;
+      line.atMs = Math.min(latest, previous + 700 + Math.round(random() * 300));
+    }
+    previous = Math.max(previous, line.atMs);
+  }
+  return lines.filter((l) => l.atMs >= options.fromMs && l.atMs <= options.toMs + 999);
+}
+
+function clock(ms: number) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** As linhas do guião em texto, para a IA escrever o que falta. */
+export function describeScript(lines: readonly ScriptLine[], slots: readonly InteractionSlot[]): string {
+  const slotById = new Map(slots.map((s) => [s.id, s] as const));
+  return lines
+    .map((line) => {
+      const slot = line.slotId ? slotById.get(line.slotId) : null;
+      const context =
+        slot && (line.intent === "resposta" || line.intent === "reaccao" || line.intent === "replica")
+          ? ` · fala a que responde (${clock(slot.blockStartMs)}–${clock(slot.blockEndMs)}): "${slot.speech.slice(0, 200)}"`
+          : slot && (line.intent === "lida" || line.intent === "presenca")
+            ? ` · o apresentador vai dizer às ${clock(slot.blockStartMs)}: "${slot.speech.slice(0, 200)}"`
+            : "";
+      const format =
+        line.interaction !== "NONE" && line.interaction !== "REACTION"
+          ? ` · formato: ${
+              {
+                YES_NO: "sim ou não",
+                NUMBER: "um número",
+                EMOJI: "um emoji",
+                KEYWORD: `a palavra pedida${slot?.keyword ? ` ("${slot.keyword}")` : ""}`,
+                LOCATION: "de onde vê",
+                NAME: "o nome",
+                SHORT_ANSWER: "resposta curta",
+                LONG_ANSWER: "resposta longa",
+              }[line.interaction]
+            }`
+          : "";
+      const must = line.mustText ? ` · OBRIGATÓRIO: "${line.mustText}"` : "";
+      return `${line.id} | ${clock(line.atMs)} | ${line.author} (${line.memberId}) | ${line.need}${format}${must} · até ${line.maxWords} palavras${context}`;
+    })
+    .join("\n");
+}

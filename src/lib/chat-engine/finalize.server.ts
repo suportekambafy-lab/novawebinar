@@ -9,7 +9,7 @@ import { latestReadyVersion } from "@/lib/temporal/engine.server";
 import type { CommentCausality } from "@/lib/temporal/types";
 
 import { ensureVersionBlocks } from "./classify.server";
-import { planInteractions } from "./plan";
+import { offerStartFromBlocks, planInteractions } from "./plan";
 import { kindFor } from "./timing";
 import type {
   BlockType,
@@ -272,10 +272,11 @@ export async function finalizeTimelineImpl(input: {
       Number(webinar?.video_sources?.duration_seconds ?? 0),
       Number(webinar?.duration_seconds ?? 0),
     ) * 1000;
+  // A oferta marcada no editor; sem ela, a lida nos blocos (primeiro bloco de oferta com preço).
   const offerStartMs =
     webinar?.cta_text && webinar?.cta_start_seconds != null
       ? Number(webinar.cta_start_seconds) * 1000
-      : null;
+      : offerStartFromBlocks(blocks);
   const slots = planInteractions(blocks, {
     fromMs: 0,
     toMs: durationMs > 0 ? durationMs : Number.MAX_SAFE_INTEGER,
