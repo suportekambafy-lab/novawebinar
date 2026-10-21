@@ -57,7 +57,7 @@ import {
   serializeCast,
   type CastMember,
 } from "@/lib/chat-engine/cast";
-import { buildScript, describeScript, type ScriptLine } from "@/lib/chat-engine/script";
+import { buildScript, describeScript, presenterState, type ScriptLine } from "@/lib/chat-engine/script";
 import {
   buildProfiles,
   describeProfiles,
@@ -1512,8 +1512,22 @@ async function novaWindow(
     perMinute: perMinuteOf(settings),
     offerStartMs: engine.offerStartMs,
     existing: already.map((c) => ({ atMs: c.at * 1000, author: c.author })),
+    // O mapa do webinar (modo Inteligente): estado da audiência, momentos fortes e pedidos vistos pela IA.
+    intel: ctx.intel
+      ? {
+          moments: ctx.intel.moments ?? [],
+          audienceState: ctx.intel.audienceState ?? [],
+          prompts: ctx.intel.prompts ?? [],
+        }
+      : null,
   });
   if (lines.length === 0) return [];
+  // Continuidade de voz: o que cada pessoa escreveu por último, para a IA manter o estilo e a história.
+  const lastByAuthor = new Map<string, string[]>();
+  for (const c of already) {
+    const key = c.author.toLocaleLowerCase("pt");
+    lastByAuthor.set(key, [...(lastByAuthor.get(key) ?? []).slice(-1), c.message.slice(0, 80)]);
+  }
 
   const transcript = condenseTranscript(
     ctx.transcript.filter((s) => s.at >= from - 60 && s.at <= to + 30),
@@ -1548,8 +1562,11 @@ async function novaWindow(
     `Tom do chat: ${tone}. Emojis ${emojiLabel[settings.emojis]}.`,
     variantText(settings.variant),
     "",
-    "PESSOAS (quem escreve neste trecho; cada uma escreve sempre ao seu estilo):",
-    ...members.map(describeMember),
+    "PESSOAS (quem escreve neste trecho; cada uma escreve sempre ao seu estilo e coerente com o que já disse):",
+    ...members.map((m) => {
+      const before = lastByAuthor.get(m.name.toLocaleLowerCase("pt"));
+      return `${describeMember(m)}${before?.length ? ` · já escreveu: ${before.map((t) => `«${t}»`).join(", ")}` : ""}`;
+    }),
     "",
     "LINHAS DO GUIÃO. Cada linha já tem quem escreve, o segundo, o motivo e, entre parênteses rectos, o que o apresentador está a fazer nesse instante (a pedir e à espera, a ler o chat, a responder, a explicar, a sala a abrir): escreve SÓ a mensagem de cada uma, com o id, em conformidade com esse estado. Não mudes nomes, não juntes linhas, não acrescentes linhas.",
     "Escreve como pessoas reais num chat ao vivo, não como um redactor: frases curtas e soltas, vírgulas a menos, sem ponto final na maioria, maiúsculas às vezes esquecidas, «kkk», «haha», «mt», «vc», reticências, uma gralha de vez em quando, interjeições («nossa», «eish», «ya», «fixe», «top»). Exemplos do tom: «boa noite!!», «cheguei agora, perdi muito?», «5 mil?? que incrível», «eu também nunca sabia a legenda kkk», «isso é mesmo comigo…», «@Rita braga aqui tb!». Nada de frases de anúncio, nada de elogios vazios em série, nada de resumir o que o apresentador disse. Cada pessoa é diferente: a mesma pessoa mantém o estilo dela ao longo do trecho. Nunca duas mensagens iguais ou quase. Cada mensagem só pode falar do que o apresentador já disse até esse segundo. Respeita o formato pedido (um número é só um número; sim ou não é curto) e o máximo de palavras. OBRIGATÓRIO quer dizer o texto exacto, ou quase.",
@@ -1580,6 +1597,46 @@ async function novaWindow(
     if (!lines.some((l) => l.mustText || l.intent === "presenca")) throw error;
   }
 
+  // Revisão: a IA relê o que escreveu contra o estado de cada linha e corrige só o que falha
+  // (antecipar o que ainda não foi dito, formato errado, tom de anúncio, repetições, fora do estado).
+  if (texts.size >= 3) {
+    try {
+      const slotById = new Map(engine.slots.map((s) => [s.id, s] as const));
+      const review = [
+        `Webinar: "${webinar.public_title}".`,
+        engine.offerStartMs != null ? `A oferta só é apresentada ao segundo ${Math.round(engine.offerStartMs / 1000)}.` : "",
+        transcript.length ? `O que o apresentador diz neste trecho:\n${transcript.map((s) => `${s.at}s: ${s.text.slice(0, 220)}`).join("\n")}` : "",
+        "",
+        "Mensagens de chat já escritas, com o que o apresentador está a fazer nesse instante e o que a linha pedia. Devolve SÓ as que precisam de correcção, reescritas (mesmo id); as boas ficam de fora. Corrige quando: fala de algo que o apresentador ainda não disse nesse segundo; não respeita o formato ou o máximo de palavras; soa a anúncio, a resumo ou a frase feita; repete outra; não bate com o estado do apresentador (ex.: agradece sem ter sido lida, responde a um pedido que não houve); o OBRIGATÓRIO não está lá. Mantém o tom de chat real e o estilo da pessoa.",
+        "",
+        ...lines
+          .filter((l) => texts.has(l.id))
+          .map((l) => {
+            const state = presenterState(l, l.slotId ? (slotById.get(l.slotId) ?? null) : null);
+            return `${l.id} | ${Math.round(l.atMs / 1000)}s | ${l.author} | [${state}] | pedia: ${l.need.slice(0, 120)}${l.mustText ? ` · OBRIGATÓRIO: "${l.mustText}"` : ""} · máx. ${l.maxWords} palavras\n   escreveu: ${texts.get(l.id)}`;
+          }),
+      ]
+        .filter(Boolean)
+        .join("\n");
+      const checked = await chatJson({
+        task: "analysis",
+        system: "És revisor de chats de webinar simulados: apanhas o que não é humano, o que antecipa o futuro e o que não bate com o que o apresentador está a fazer. Respondes só com o JSON pedido.",
+        user: review,
+        schema: SCRIPT_LINES,
+      });
+      if (checked.ok) {
+        const parsed = checked.json as { lines?: { id?: unknown; message?: unknown }[] };
+        for (const fix of parsed.lines ?? []) {
+          const id = String(fix.id ?? "").trim();
+          const message = String(fix.message ?? "").trim().slice(0, 300);
+          if (id && message && texts.has(id)) texts.set(id, message);
+        }
+      }
+    } catch {
+      // A revisão é um extra: sem ela, fica o que a primeira passagem escreveu.
+    }
+  }
+
   const seen = new Set<string>();
   const out: Comment[] = [];
   lines.forEach((line, index) => {
@@ -1606,7 +1663,9 @@ async function novaWindow(
       anchor:
         line.windowStartMs != null && line.slotId
           ? Math.round((line.dependency === "BEFORE" ? (engine.slots.find((s) => s.id === line.slotId)?.blockStartMs ?? line.atMs) : (engine.slots.find((s) => s.id === line.slotId)?.blockEndMs ?? line.atMs)) / 1000)
-          : null,
+          : line.anchorMs != null
+            ? Math.round(line.anchorMs / 1000)
+            : null,
       reason: line.reason,
       slot: line.slotId,
       dependency: line.dependency,

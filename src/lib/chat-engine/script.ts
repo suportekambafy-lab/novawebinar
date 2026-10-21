@@ -48,12 +48,28 @@ export type ScriptLine = {
   mustText: string | null;
   /** Nome a quem responde («@Nome»), quando é uma réplica. */
   replyTo: string | null;
+  /** A fala a que a linha se liga quando não vem de uma oportunidade (momento ou pedido do mapa). */
+  anchorMs?: number | null;
   maxWords: number;
   kind: "provoca" | "responde" | "reage" | "espontaneo";
   windowStartMs: number | null;
   windowEndMs: number | null;
   confidence: number;
   reason: string;
+};
+
+/** O mapa do webinar (modo Inteligente), em segundos, quando existe. */
+export type ScriptIntel = {
+  moments?: readonly { from: number; to: number; topic: string; summary: string; novelty: number; reactionUntil: number }[];
+  audienceState?: readonly {
+    at: number;
+    estimatedConfusion: number;
+    estimatedExcitement: number;
+    estimatedPurchaseIntent: number;
+    estimatedObjection: number;
+    chatEnergy: number;
+  }[];
+  prompts?: readonly { at: number; ask: string; expects: string; keyword: string; intensity: number }[];
 };
 
 export type ScriptOptions = {
@@ -65,6 +81,35 @@ export type ScriptOptions = {
   offerStartMs: number | null;
   /** Quem já escreveu antes do trecho (continuidade entre trechos). */
   existing: readonly { atMs: number; author: string }[];
+  /** O mapa do webinar: estado da audiência, momentos fortes e pedidos vistos pela IA. */
+  intel?: ScriptIntel | null | undefined;
+};
+
+/** O estado estimado da audiência num instante: o ponto do mapa mais próximo. */
+export function audienceAt(intel: ScriptIntel | null | undefined, ms: number) {
+  const points = intel?.audienceState ?? [];
+  if (points.length === 0) return null;
+  let best = points[0]!;
+  for (const p of points) if (Math.abs(p.at * 1000 - ms) < Math.abs(best.at * 1000 - ms)) best = p;
+  return best;
+}
+
+/** Quanto o chat está vivo neste instante, em relação ao normal (0,6 a 1,5). */
+export function energyAt(intel: ScriptIntel | null | undefined, ms: number): number {
+  const state = audienceAt(intel, ms);
+  if (!state) return 1;
+  return Math.max(0.6, Math.min(1.5, state.chatEnergy / 50));
+}
+
+const EXPECTS_TO_INTERACTION: Record<string, InteractionType> = {
+  cidade: "LOCATION",
+  "sim-nao": "YES_NO",
+  "palavra-chave": "KEYWORD",
+  numero: "NUMBER",
+  duvida: "LONG_ANSWER",
+  experiencia: "SHORT_ANSWER",
+  interesse: "SHORT_ANSWER",
+  livre: "SHORT_ANSWER",
 };
 
 /** Fracção de quem está na sala que responde a cada tipo de pedido. */
@@ -124,12 +169,22 @@ function kindFor(dependency: Dependency, blockType: BlockType | null): ScriptLin
   return "espontaneo";
 }
 
-/** A intenção de uma mensagem solta, em função do bloco e de a oferta já existir. */
+/**
+ * A intenção de uma mensagem solta, em função do bloco, de a oferta já existir e do estado estimado
+ * da audiência (confusa → dúvida; com objecções depois do preço → objecção; decidida → intenção).
+ */
 export function freeTopic(
   blockType: BlockType | null,
   afterOffer: boolean,
   turn: number,
+  state?: ReturnType<typeof audienceAt>,
 ): FreeTopic {
+  if (state) {
+    if (state.estimatedConfusion >= 55 && turn % 2 === 0) return "duvida";
+    if (afterOffer && state.estimatedObjection >= 55 && turn % 3 !== 2) return "objecao";
+    if (afterOffer && state.estimatedPurchaseIntent >= 60 && turn % 2 === 0) return "intencao";
+    if (state.estimatedExcitement >= 60 && turn % 3 === 0) return "descoberta";
+  }
   if (afterOffer) return (["intencao", "duvida", "objecao", "comentario", "intencao"] as const)[turn % 5]!;
   switch (blockType) {
     case "STORY":
@@ -295,7 +350,7 @@ export function buildScript(
       const here = present(cast, slot.blockEndMs).length;
       const rate = RESPONSE_RATE[slot.blockType] ?? 0.08;
       const expected = slot.referenced.filter((r) => r.kind === "name");
-      const wanted = Math.round(here * rate * (0.8 + random() * 0.5));
+      const wanted = Math.round(here * rate * (0.8 + random() * 0.5) * energyAt(options.intel, slot.blockEndMs));
       let count = Math.max(slot.minComments, Math.min(slot.maxComments, wanted));
       // Quem é lido agradece: uma pessoa, às vezes duas. Quem foi nomeado num pedido responde sempre.
       if (slot.id.endsWith("_agradece")) count = Math.min(Math.max(1, expected.length), random() < 0.3 ? 2 : 1);
@@ -409,7 +464,7 @@ export function buildScript(
     {
       const minutes = Math.max(0, slot.windowEndMs - slot.windowStartMs) / 60_000;
       const here = present(cast, slot.windowStartMs).length;
-      const scale = Math.min(1, here / 20);
+      const scale = Math.min(1, here / 20) * energyAt(options.intel, slot.windowStartMs);
       const max = Math.min(slot.maxComments, Math.round(minutes * options.perMinute * 0.5 * scale + random()));
       if (max <= 0) continue;
       const times = placeSlot(slot, max, options.seed + counter);
@@ -423,7 +478,10 @@ export function buildScript(
         // curta (menos de 12 s) também não há descoberta possível.
         const opening = atMs < 90_000;
         const shortSpeech = slot.blockEndMs - slot.blockStartMs < 12_000;
-        let topic: FreeTopic = slot.blockType === "SILENCE" ? "comentario" : freeTopic(slot.blockType, afterOffer, freeTurn);
+        let topic: FreeTopic =
+          slot.blockType === "SILENCE"
+            ? "comentario"
+            : freeTopic(slot.blockType, afterOffer, freeTurn, audienceAt(options.intel, atMs));
         if (shortSpeech && (topic === "descoberta" || topic === "duvida")) topic = "comentario";
         freeTurn += 1;
         push({
@@ -450,6 +508,103 @@ export function buildScript(
           confidence: slot.confidence,
           reason: `${slot.reason} (${topic})`,
         });
+      }
+    }
+  }
+
+  // O mapa do webinar (modo Inteligente) acrescenta o que os blocos não vêem.
+  if (options.intel) {
+    const asksCovered = (ms: number) =>
+      ordered.some(
+        (s) => s.dependency === "AFTER" && s.minComments > 0 && Math.abs((s.cueEndMs ?? s.blockEndMs) - ms) <= 12_000,
+      );
+    const reactionsCovered = (ms: number) =>
+      ordered.some((s) => s.dependency === "AFTER" && Math.abs(s.blockEndMs - ms) <= 8000);
+
+    // Pedidos ao público que a IA viu e o classificador não: ficam com respostas na mesma.
+    for (const prompt of options.intel.prompts ?? []) {
+      const atMs = prompt.at * 1000;
+      if (atMs < options.fromMs || atMs > options.toMs || prompt.intensity < 50 || asksCovered(atMs)) continue;
+      const here = present(cast, atMs).length;
+      const count = Math.max(2, Math.min(8, Math.round(here * 0.2 * energyAt(options.intel, atMs))));
+      const interaction = EXPECTS_TO_INTERACTION[prompt.expects] ?? "SHORT_ANSWER";
+      const pseudo = {
+        dependency: "AFTER" as const,
+        blockStartMs: Math.max(0, atMs - 4000),
+        blockEndMs: atMs,
+        cueEndMs: atMs,
+        windowStartMs: atMs + FIRST_ANSWER_MIN_MS,
+        windowEndMs: atMs + 28_000,
+        strong: prompt.intensity >= 70,
+      };
+      const times = placeSlot(pseudo, count, options.seed + counter + 7);
+      const usedHere = new Set<string>();
+      times.forEach((t, index) => {
+        if (t > options.toMs) return;
+        const member = pick(t, usedHere);
+        if (!member) return;
+        usedHere.add(member.id);
+        busyUntil.set(member.id, t + BUSY_AFTER_ANSWER_MS);
+        push({
+          atMs: t,
+          memberId: member.id,
+          author: member.name,
+          slotId: null,
+          blockId: null,
+          blockType: "QUESTION_TO_AUDIENCE",
+          dependency: "AFTER",
+          interaction,
+          intent: "resposta",
+          need: `responde ao pedido do apresentador: "${prompt.ask.slice(0, 140)}"${prompt.keyword ? ` (a palavra pedida: "${prompt.keyword}")` : ""}${index === 0 ? " (a primeira: curta e imediata)" : ""}`,
+          mustText: null,
+          replyTo: null,
+          anchorMs: atMs,
+          maxWords: words(interaction, member.length, random),
+          kind: "responde",
+          windowStartMs: pseudo.windowStartMs,
+          windowEndMs: pseudo.windowEndMs,
+          confidence: Math.min(0.9, prompt.intensity / 100),
+          reason: "responde ao pedido do apresentador (visto no mapa do webinar)",
+        });
+      });
+    }
+
+    // Ideias fortes («momentos aha»): reacções logo a seguir a a ideia fechar.
+    for (const moment of options.intel.moments ?? []) {
+      const toMs = moment.to * 1000;
+      if (toMs < options.fromMs || toMs > options.toMs || moment.novelty < 55 || reactionsCovered(toMs)) continue;
+      const here = present(cast, toMs).length;
+      const count = Math.max(1, Math.min(4, Math.round(here * 0.08 * (moment.novelty / 70) * energyAt(options.intel, toMs))));
+      const until = Math.min(Math.max(toMs + 6000, moment.reactionUntil * 1000), toMs + 25_000, options.toMs);
+      const usedHere = new Set<string>();
+      let t = toMs + 2000 + random() * 3000;
+      for (let i = 0; i < count && t <= until; i += 1) {
+        const member = pick(t, usedHere);
+        if (!member) break;
+        usedHere.add(member.id);
+        busyUntil.set(member.id, t + BUSY_AFTER_REACTION_MS);
+        push({
+          atMs: Math.round(t),
+          memberId: member.id,
+          author: member.name,
+          slotId: null,
+          blockId: null,
+          blockType: "CONTENT",
+          dependency: "AFTER",
+          interaction: "REACTION",
+          intent: "reaccao",
+          need: `reage à ideia que o apresentador acabou de fechar: "${moment.summary.slice(0, 160)}" (${moment.topic}); nas palavras dela, sem repetir a frase dele`,
+          mustText: null,
+          replyTo: null,
+          anchorMs: toMs,
+          maxWords: words("REACTION", member.length, random),
+          kind: "reage",
+          windowStartMs: toMs + 2000,
+          windowEndMs: until,
+          confidence: 0.7,
+          reason: `reage ao momento «${moment.topic}»`,
+        });
+        t += 2500 + Math.pow(random(), 0.7) * 9000;
       }
     }
   }
@@ -494,6 +649,34 @@ export function buildScript(
       confidence: 0.6,
       reason: opening ? "a sala acabou de abrir" : "acabou de entrar na sala",
     });
+    // Quem chega atrasado às vezes recebe resposta de alguém que já lá está («@Nome ainda vai no início»).
+    if (!early && random() < 0.5) {
+      const replyAt = Math.round(atMs + 8000 + random() * 17_000);
+      if (replyAt > options.toMs) continue;
+      const helper = pick(replyAt, new Set([m.id]));
+      if (!helper || !freeAround(helper.id, replyAt, 10_000)) continue;
+      busyUntil.set(helper.id, replyAt + BUSY_AFTER_REACTION_MS);
+      push({
+        atMs: replyAt,
+        memberId: helper.id,
+        author: helper.name,
+        slotId: null,
+        blockId: null,
+        blockType: null,
+        dependency: "INDEPENDENT",
+        interaction: "NONE",
+        intent: "replica",
+        need: `responde a ${m.name.split(" ")[0]} que acabou de chegar (começa por "@${m.name.split(" ")[0]}"): diz em poucas palavras onde vai a aula ou que ainda vai a tempo`,
+        mustText: null,
+        replyTo: m.name,
+        maxWords: 10,
+        kind: "espontaneo",
+        windowStartMs: null,
+        windowEndMs: null,
+        confidence: 0.6,
+        reason: `responde a ${m.name}, que chegou atrasado`,
+      });
+    }
   }
 
   // Ordem, e nunca duas no mesmo instante.
@@ -520,7 +703,12 @@ function clock(ms: number) {
  */
 export function presenterState(line: ScriptLine, slot: InteractionSlot | null): string {
   if (line.intent === "chegada") return line.atMs < 20_000 ? "a sala está a abrir; o apresentador ainda mal falou" : "o apresentador está a falar; esta pessoa acabou de entrar";
-  if (!slot) return "o apresentador está a explicar; ninguém pediu nada";
+  if (!slot) {
+    if (line.intent === "resposta") return "o apresentador acabou de pedir e está à espera das respostas";
+    if (line.intent === "reaccao") return "o apresentador acabou de fechar uma ideia forte";
+    if (line.intent === "replica") return "o apresentador está a falar; esta pessoa responde a alguém que acabou de entrar";
+    return "o apresentador está a explicar; ninguém pediu nada";
+  }
   const cue = slot.cueEndMs ?? slot.blockEndMs;
   const since = Math.max(0, Math.round((line.atMs - cue) / 1000));
   switch (line.intent) {
@@ -535,7 +723,9 @@ export function presenterState(line: ScriptLine, slot: InteractionSlot | null): 
           ? "o apresentador pediu há pouco e continua à espera; já há respostas no chat"
           : "o apresentador pediu há mais de 20 s e já seguiu em frente; esta resposta chega atrasada";
     case "replica":
-      return "o chat está animado com as respostas; o apresentador continua";
+      return line.replyTo && !line.slotId
+        ? "o apresentador está a falar; esta pessoa responde a alguém que acabou de entrar"
+        : "o chat está animado com as respostas; o apresentador continua";
     case "reaccao":
       if (slot.id.endsWith("_agradece")) return "o apresentador acabou de ler a mensagem desta pessoa em voz alta";
       return slot.blockType === "CHAT_READING" || slot.blockType === "CHAT_RESPONSE"

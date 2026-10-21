@@ -22,8 +22,17 @@ decidível por regras (quem, quando, a quê) do que só a IA escreve bem (o text
    intenção, o tamanho e, quando há, o texto obrigatório. Ninguém escreve antes de chegar; quem responde
    a um pedido não responde a outro nos 40 s seguintes; as respostas têm cauda; há réplicas «@Nome»; as
    mensagens soltas rodam de intenção (dúvida, identificação, descoberta, objecção, intenção).
-6. **Escrita** (`novaWindow` em `ai-comments.functions.ts`): a IA recebe o guião e devolve só o texto de
-   cada linha. Linhas obrigatórias sem texto levam o que o apresentador cita ou uma presença curta.
+   No modo Inteligente, o mapa do webinar entra no guião: os pedidos ao público que a IA viu e o
+   classificador não ficam com respostas; as ideias fortes («momentos aha») têm reacções logo a seguir a
+   fechar; o estado estimado da audiência escolhe a intenção das mensagens soltas (confusa → dúvida,
+   com objecções depois do preço → objecção, decidida → intenção) e a energia do chat escala a
+   densidade. Quem chega atrasado às vezes recebe resposta de quem já lá está.
+6. **Escrita** (`novaWindow` em `ai-comments.functions.ts`): a IA recebe o guião, com o estado do
+   apresentador em cada linha (a pedir e à espera, a ler o chat, a responder, a explicar, a sala a abrir)
+   e o que cada pessoa já escreveu antes, e devolve só o texto de cada linha. Linhas obrigatórias sem
+   texto levam o que o apresentador cita ou uma presença curta.
+   **Revisão**: a IA relê o que escreveu contra o estado de cada linha e corrige só o que falha
+   (antecipa o futuro, formato errado, tom de anúncio, repetição, não bate com o estado).
 7. **Validação** (`validate.ts`, `finalize.server.ts`): as dez verificações de cronologia, formato, nome
    lido, duplicados, conhecimento do futuro e densidade. Cada mensagem sai com causa e confiança.
 

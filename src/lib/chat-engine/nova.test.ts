@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildSemanticBlocks, cueEndFor, type SentenceLike } from "./blocks";
 import { buildCast, memberByName, namedPeople, present } from "./cast";
 import { offerStartFromBlocks, planInteractions } from "./plan";
-import { buildScript, freeTopic, presenterState } from "./script";
+import { buildScript, energyAt, freeTopic, presenterState } from "./script";
 import { placeSlot } from "./timing";
 
 let n = 0;
@@ -150,6 +150,40 @@ describe("guião", () => {
     const times = placeSlot(slot, 3, 2);
     expect(Math.min(...times)).toBeGreaterThanOrEqual(505_500);
     expect(Math.min(...times)).toBeLessThan(520_000);
+  });
+
+  it("o mapa do webinar entra no guião: pedidos perdidos têm respostas, ideias fortes têm reacções, a audiência confusa pergunta", () => {
+    const withMap = buildScript(slots, cast, {
+      fromMs: 0,
+      toMs: 600_000,
+      seed: 3,
+      perMinute: 8,
+      offerStartMs: null,
+      existing: [],
+      intel: {
+        // Um pedido que o classificador não viu (não há bloco a pedir aos 220 s).
+        prompts: [{ at: 220, ask: "quem já tentou vender online, escreve EU", expects: "palavra-chave", keyword: "EU", intensity: 80 }],
+        // Uma ideia forte que fecha aos 250 s.
+        moments: [{ from: 230, to: 250, topic: "o primeiro cliente", summary: "os três primeiros clientes vieram de troca de serviços", novelty: 80, reactionUntil: 275 }],
+        audienceState: [{ at: 500, estimatedConfusion: 80, estimatedExcitement: 20, estimatedPurchaseIntent: 10, estimatedObjection: 10, chatEnergy: 50 }],
+      },
+    });
+    const answers = withMap.filter((l) => l.anchorMs === 220_000);
+    expect(answers.length).toBeGreaterThanOrEqual(2);
+    for (const l of answers) {
+      expect(l.interaction).toBe("KEYWORD");
+      expect(l.atMs).toBeGreaterThanOrEqual(221_500);
+      expect(l.atMs).toBeLessThanOrEqual(248_000);
+    }
+    const reactions = withMap.filter((l) => l.anchorMs === 250_000);
+    expect(reactions.length).toBeGreaterThanOrEqual(1);
+    for (const l of reactions) {
+      expect(l.atMs).toBeGreaterThanOrEqual(252_000);
+      expect(l.atMs).toBeLessThanOrEqual(275_000);
+      expect(l.need).toMatch(/troca de serviços/);
+    }
+    expect(freeTopic("CONTENT", false, 0, { at: 500, estimatedConfusion: 80, estimatedExcitement: 20, estimatedPurchaseIntent: 10, estimatedObjection: 10, chatEnergy: 50 })).toBe("duvida");
+    expect(energyAt({ audienceState: [{ at: 10, estimatedConfusion: 0, estimatedExcitement: 0, estimatedPurchaseIntent: 0, estimatedObjection: 0, chatEnergy: 90 }] }, 12_000)).toBeCloseTo(1.5, 5);
   });
 
   it("o guião de um trecho só tem linhas desse trecho e identifica cada uma", () => {
