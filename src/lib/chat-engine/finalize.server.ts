@@ -34,6 +34,8 @@ export type FinalizeInput = {
   reason?: string | null | undefined;
   persona?: string | undefined;
   replyTo?: string | null | undefined;
+  /** A pessoa do elenco (Método Nova) que assina a mensagem. */
+  profileId?: string | null | undefined;
 };
 
 export type FinalizedComment = FinalizeInput & {

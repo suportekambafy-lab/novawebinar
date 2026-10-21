@@ -309,8 +309,12 @@ export function applyChatRealism<T extends ChatDraft>(
     return { ...c, message: message || c.message, at };
   });
 
-  // 2. Quem chega atrasado, nos primeiros minutos (um de cada país escolhido, até três).
-  if (rules.late) {
+  // Mensagens do motor do chat (ligadas à fala): o nome é o que o apresentador diz, o instante é o certo.
+  const engineDriven = drafts.some((c) => c.fixed);
+
+  // 2. Quem chega atrasado, nos primeiros minutos (um de cada país escolhido, até três). Com o motor
+  //    do chat, as chegadas já lá estão (elenco): não se acrescentam as genéricas.
+  if (rules.late && !engineDriven) {
     [40, 78, 121].forEach((at, i) => {
       const country = countries[i % countries.length]!;
       if (at < d) {
@@ -371,6 +375,11 @@ export function applyChatRealism<T extends ChatDraft>(
   let k = 0;
   out = out.map((c) => {
     if (c.tag === "manual" && c.author) return c;
+    // Do motor do chat: «Letícia» é a aluna que o apresentador vai nomear; fica como está, sem apelido.
+    if (c.fixed && c.author) {
+      seen.set(c.author, c.at);
+      return c;
+    }
     if (!c.tag && fullName(c.author)) {
       seen.set(c.author, c.at);
       return c;

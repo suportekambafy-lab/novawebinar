@@ -674,7 +674,10 @@ export function extractReferences(text: string): ReferencedItem[] {
     );
     // "colocou ali", "escreveu aqui no chat": o advérbio não é o que a pessoa escreveu.
     const said = after
-      .replace(/^\s*(?:aqui|ali|a[ií]|agora|também|no chat|nos coment[áa]rios|l[áa])(?:\s+(?:no chat|nos coment[áa]rios|em ?baixo))?/iu, "")
+      .replace(
+        /^(?:[,:]?\s*(?:aqui|ali|a[ií]|agora|também|no chat|nos coment[áa]rios|em ?baixo|l[áa]|[óo]|olha|olhem)\b)*[,:]?\s*/iu,
+        "",
+      )
       .match(/^\s*(?:que\s+)?["“«]?([^.?!"”»]{4,140})/u);
     const quote = said && said[1]!.trim().split(/\s+/).length >= 2 ? said[1]!.trim() : "";
     add({ kind: "name", name, place, text: q ? q[0].trim() : quote });

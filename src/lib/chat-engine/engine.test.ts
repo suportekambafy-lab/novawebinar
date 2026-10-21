@@ -391,6 +391,9 @@ describe("quem o apresentador nomeia já está no chat", () => {
     // «colocou ali»: o advérbio não é a mensagem.
     const placed = extractReferences("A Alessandra colocou ali. O caminho não é complicado.");
     expect(placed.filter((r) => r.kind === "name").map((r) => [r.name, r.text])).toEqual([["Alessandra", ""]]);
+    // «comentou aqui, é muito verdade»: a mensagem começa depois do advérbio e da vírgula.
+    const quoted = extractReferences("A Letícia comentou aqui, é muito verdade.");
+    expect(quoted.find((r) => r.kind === "name")?.text).toBe("é muito verdade");
   });
 
   it("nomear e pedir no mesmo bloco: as alunas existem antes e estão entre quem responde", () => {

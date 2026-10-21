@@ -135,6 +135,19 @@ describe("regras do chat simulado", () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
+  it("as mensagens do motor do chat ficam com o nome que o apresentador diz, mesmo só o primeiro nome", () => {
+    const engine: ChatDraft[] = [
+      { at: 32, author: "Letícia", message: "sou eu aqui", fixed: true },
+      { at: 35, author: "Joana", message: "aqui 😊", fixed: true },
+      ...drafts.slice(0, 5),
+    ];
+    const out = applyChatRealism(engine, DEFAULT_CHAT_RULES, ctx);
+    expect(out.find((c) => c.message.startsWith("sou eu aqui"))?.author).toBe("Letícia");
+    expect(out.find((c) => c.message.startsWith("aqui"))?.author).toBe("Joana");
+    // Com o motor, as chegadas genéricas («Já começou? A ver de…») não entram: o elenco já chega sozinho.
+    expect(out.some((c) => c.tag === "late")).toBe(false);
+  });
+
   it("o que foi escrito à mão fica como está", () => {
     const manual: ChatDraft = { at: 50, author: "", message: "Escrito por mim!", tag: "manual" };
     const out = applyChatRealism([manual], DEFAULT_CHAT_RULES, ctx);

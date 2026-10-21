@@ -669,6 +669,7 @@ export function startAiJob(input: {
                 dependency: c.dependency ?? null,
                 reason: c.reason ?? null,
                 ...(c.persona ? { persona: c.persona } : {}),
+                profileId: c.profileId ?? null,
               })),
               participants: Math.max(3, Math.min(5000, input.settings.participants)),
               perMinute: Math.max(1, Math.min(120, perMinute)),
@@ -701,6 +702,7 @@ export function startAiJob(input: {
               confidence: c.confidence,
               needsReview: c.needsReview,
               ...(c.replyTo ? { replyTo: c.replyTo } : {}),
+              ...(c.profileId ? { profileId: c.profileId } : {}),
             }));
           }
         } catch {
