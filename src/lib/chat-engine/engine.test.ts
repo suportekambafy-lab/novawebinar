@@ -159,7 +159,8 @@ describe("plano e tempos", () => {
       s(16, 20, "Vejo aqui a Kátia de Luanda, boa!"),
     ]);
     const before = plan(blocks).find((slot) => slot.dependency === "BEFORE")!;
-    expect(before.windowStartMs).toBeGreaterThanOrEqual(15_500);
+    // Quem é lido logo a seguir escreveu enquanto o pedido ainda decorria: a partir de 3 s do início dele.
+    expect(before.windowStartMs).toBeGreaterThanOrEqual(13_000);
     expect(before.windowEndMs).toBeGreaterThanOrEqual(before.windowStartMs);
     expect(before.windowEndMs).toBeLessThan(16_000);
     // Sem janela real, a mensagem fica colada antes da leitura e nunca depois.
@@ -387,6 +388,9 @@ describe("quem o apresentador nomeia já está no chat", () => {
     ]);
     // Falar com alguém não é ler o que ela escreveu.
     expect(extractReferences("Mariana, que bom te ver por aqui.").filter((r) => r.kind === "name")).toEqual([]);
+    // «colocou ali»: o advérbio não é a mensagem.
+    const placed = extractReferences("A Alessandra colocou ali. O caminho não é complicado.");
+    expect(placed.filter((r) => r.kind === "name").map((r) => [r.name, r.text])).toEqual([["Alessandra", ""]]);
   });
 
   it("nomear e pedir no mesmo bloco: as alunas existem antes e estão entre quem responde", () => {

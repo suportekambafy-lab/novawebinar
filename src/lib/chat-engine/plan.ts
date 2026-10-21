@@ -155,11 +155,12 @@ export function planInteractions(
       strong: boolean,
       reason: string,
       spanMs = strong ? STRONG_SPAN_MS : ANSWER_SPAN_MS,
+      who?: InteractionSlot["referenced"],
     ) => {
       const cap = low ? Math.max(1, Math.floor(max / 2)) : max;
       // As pessoas que o apresentador nomeou ao pedir ("Letícia, Joana, coloquem quanto já faturaram")
-      // estão entre quem responde.
-      const expected = block.expectsResponse ? names : [];
+      // estão entre quem responde; quem é lido é quem agradece.
+      const expected = who ?? (block.expectsResponse ? names : []);
       out.push({
         ...base,
         id: `${block.id}_${suffix}`,
@@ -194,20 +195,32 @@ export function planInteractions(
         previous.endMs + FIRST_ANSWER_MIN_MS > windowStart
       ) {
         constrained = true;
-        windowStart = previous.endMs + FIRST_ANSWER_MIN_MS;
-        if (windowEnd < windowStart) windowEnd = Math.min(block.startMs - 500, windowStart + 300);
+        // Quem é lido logo a seguir ao pedido escreveu enquanto o apresentador ainda o fazia: a resposta
+        // pode existir 3 s depois de o pedido começar (ninguém espera que ele acabe a frase).
+        const earliest = Math.min(
+          previous.endMs + FIRST_ANSWER_MIN_MS,
+          Math.max(previous.startMs + 3000, previous.endMs - 6000),
+        );
+        windowStart = Math.max(windowStart, earliest);
+        if (windowEnd < windowStart + 600) windowEnd = block.startMs - 500;
+        if (windowEnd < windowStart) windowStart = Math.max(earliest, windowEnd - 2000);
       } else if (suffix === "lido" && !items.some((r) => r.kind === "name" && r.text === "")) {
         // O apresentador lê respostas a um pedido feito há pouco («quanto cobrariam?» … 2 minutos
         // depois: «5 mil euros? 2 mil?»): as mensagens lidas são respostas desse pedido, não mensagens
         // que aparecem mesmo antes de ele as ler.
-        const ask = [...ordered]
+        const recentAsks = [...ordered]
           .reverse()
-          .find(
+          .filter(
             (b) =>
               b.expectsResponse &&
               b.endMs < block.startMs - BEFORE_READ_MIN_MS &&
               block.startMs - b.endMs <= READ_LINK_MS,
           );
+        // Valores lidos («5 mil euros? 2 mil?») são respostas ao pedido de um número, mesmo que tenha
+        // havido outra pergunta pelo meio.
+        const numeric = items.length > 0 && items.every((r) => /\d/.test(r.text));
+        const ask =
+          (numeric ? recentAsks.find((b) => b.interaction === "NUMBER") : undefined) ?? recentAsks[0];
         if (ask) {
           constrained = true;
           windowStart = ask.endMs + FIRST_ANSWER_MIN_MS;
@@ -306,6 +319,7 @@ export function planInteractions(
             false,
             "a pessoa lida reage a ser mencionada",
             12_000,
+            names,
           );
         break;
       }
@@ -314,7 +328,7 @@ export function planInteractions(
           ? referenced
           : [{ kind: "question" as const, name: null, place: null, text: "" }];
         before("pergunta", items, "é a pergunta a que o apresentador vai responder", 25_000);
-        after("agradece", "REACTION", 2, 0, false, "agradece a resposta", 12_000);
+        after("agradece", "REACTION", 2, 0, false, "agradece a resposta", 12_000, names);
         break;
       }
       case "SOCIAL_PROOF":

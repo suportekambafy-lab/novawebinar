@@ -270,8 +270,10 @@ export function buildScript(
               ? `pergunta exactamente isto (nas suas palavras, mesmo sentido): "${item.text}"`
               : item.kind === "city"
                 ? `diz que vê de ${item.text}`
-                : `a mensagem que o apresentador vai ler a seguir (fala: "${slot.speech.slice(0, 160)}")`,
-          mustText: item.kind === "question" || item.kind === "city" ? item.text : null,
+                : item.text
+                  ? `escreve exactamente o que o apresentador vai ler: "${item.text}"`
+                  : `a mensagem que o apresentador vai ler a seguir (fala: "${slot.speech.slice(0, 160)}")`,
+          mustText: item.text || null,
           replyTo: null,
           maxWords: item.text ? Math.max(3, item.text.split(/\s+/).length + 3) : 10,
           kind: "provoca",
@@ -290,11 +292,14 @@ export function buildScript(
       const expected = slot.referenced.filter((r) => r.kind === "name");
       const wanted = Math.round(here * rate * (0.8 + random() * 0.5));
       let count = Math.max(slot.minComments, Math.min(slot.maxComments, wanted));
-      count = Math.max(count, expected.length);
+      // Quem é lido agradece: uma pessoa, às vezes duas. Quem foi nomeado num pedido responde sempre.
+      if (slot.id.endsWith("_agradece")) count = Math.min(Math.max(1, expected.length), random() < 0.3 ? 2 : 1);
+      else count = Math.max(count, expected.length);
       if (count <= 0) continue;
       const usedHere = new Set<string>();
       const authors: CastMember[] = [];
       for (const item of expected) {
+        if (authors.length >= count) break;
         const member = memberByName(cast, item.name!);
         if (member && !usedHere.has(member.id)) {
           usedHere.add(member.id);
@@ -408,7 +413,12 @@ export function buildScript(
         if (!member) continue;
         usedHere.add(member.id);
         busyUntil.set(member.id, atMs + BUSY_AFTER_FREE_MS);
-        const topic = slot.blockType === "SILENCE" ? "comentario" : freeTopic(slot.blockType, afterOffer, freeTurn);
+        // Nos primeiros 90 s ninguém «descobre» nada: as soltas são chegadas e expectativa. Numa fala
+        // curta (menos de 12 s) também não há descoberta possível.
+        const opening = atMs < 90_000;
+        const shortSpeech = slot.blockEndMs - slot.blockStartMs < 12_000;
+        let topic: FreeTopic = slot.blockType === "SILENCE" ? "comentario" : freeTopic(slot.blockType, afterOffer, freeTurn);
+        if (shortSpeech && (topic === "descoberta" || topic === "duvida")) topic = "comentario";
         freeTurn += 1;
         push({
           atMs,
@@ -419,9 +429,10 @@ export function buildScript(
           blockType: slot.blockType,
           dependency: "INDEPENDENT",
           interaction: "NONE",
-          intent: "solta",
-          need:
-            slot.blockType === "SILENCE"
+          intent: opening ? "chegada" : "solta",
+          need: opening
+            ? "chegada à sala: cumprimento curto, presença ou expectativa ligada ao tema (nunca diz de onde vê, a não ser que o apresentador o tenha pedido)"
+            : slot.blockType === "SILENCE"
               ? "uma mensagem solta durante a pausa do apresentador, sem reagir a nada (uma dúvida que ficou, ou um comentário leve)"
               : TOPIC_TEXT[topic],
           mustText: null,
@@ -516,7 +527,7 @@ export function describeScript(lines: readonly ScriptLine[], slots: readonly Int
             }`
           : "";
       const must = line.mustText ? ` · OBRIGATÓRIO: "${line.mustText}"` : "";
-      return `${line.id} | ${clock(line.atMs)} | ${line.author} (${line.memberId}) | ${line.need}${format}${must} · até ${line.maxWords} palavras${context}`;
+      return `${line.id} | ${clock(line.atMs)} | ${line.author} (${line.memberId}) | ${line.need}${format}${must} · máx. ${line.maxWords} ${line.maxWords === 1 ? "palavra" : "palavras"}${context}`;
     })
     .join("\n");
 }

@@ -672,8 +672,12 @@ export function extractReferences(text: string): ReferencedItem[] {
     const q = after.match(
       /^\s*(?:é\s+)?(?:se|como|o que|qual|quando|quanto|por ?qu[eê]|onde|aonde)\s+([^.?!]{4,140})/iu,
     );
-    const said = after.match(/^\s*(?:que\s+)?["“«]?([^.?!"”»]{4,140})/u);
-    add({ kind: "name", name, place, text: q ? q[0].trim() : said ? said[1]!.trim() : "" });
+    // "colocou ali", "escreveu aqui no chat": o advérbio não é o que a pessoa escreveu.
+    const said = after
+      .replace(/^\s*(?:aqui|ali|a[ií]|agora|também|no chat|nos coment[áa]rios|l[áa])(?:\s+(?:no chat|nos coment[áa]rios|em ?baixo))?/iu, "")
+      .match(/^\s*(?:que\s+)?["“«]?([^.?!"”»]{4,140})/u);
+    const quote = said && said[1]!.trim().split(/\s+/).length >= 2 ? said[1]!.trim() : "";
+    add({ kind: "name", name, place, text: q ? q[0].trim() : quote });
   }
   for (const match of text.matchAll(THANKS)) {
     const name = match[1]!.trim();

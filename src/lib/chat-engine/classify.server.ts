@@ -221,7 +221,11 @@ export async function ensureVersionBlocks(
   options: { ai: boolean; force?: boolean; hostName?: string | null } = { ai: false },
 ): Promise<{ blocks: SemanticBlock[]; refined: number; fresh: boolean }> {
   const saved = (version.blocks ?? []) as SemanticBlock[];
-  if (saved.length > 0 && !options.force) return { blocks: saved, refined: 0, fresh: false };
+  // Blocos guardados só pelas regras (uma leitura sem IA passou primeiro) ainda levam a afinação da IA,
+  // a partir das regras actuais (as guardadas podem ser de uma versão anterior das regras).
+  const refinedBefore = saved.some((b) => b.source !== "regras");
+  if (saved.length > 0 && !options.force && (!options.ai || refinedBefore))
+    return { blocks: saved, refined: 0, fresh: false };
   const rules = buildSemanticBlocks(version.sentences);
   if (rules.length === 0) return { blocks: [], refined: 0, fresh: true };
   const result = options.ai
