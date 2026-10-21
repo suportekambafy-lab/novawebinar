@@ -74,7 +74,7 @@ describe("guião", () => {
     for (const l of presence) expect(l.atMs).toBeLessThan(40_000);
     const answers = lines.filter((l) => l.slotId?.endsWith("_resp") && l.windowStartMs! > 50_000 && l.windowStartMs! < 60_000);
     expect(answers.map((l) => l.author)).toEqual(expect.arrayContaining(["Letícia", "Joana", "Lúcia"]));
-    const read = lines.filter((l) => l.intent === "lida" && l.mustText);
+    const read = lines.filter((l) => l.intent === "lida" && l.mustText && l.atMs < 100_000);
     expect(read.map((l) => [l.author, l.mustText])).toEqual(
       expect.arrayContaining([
         ["Letícia", "5 mil"],
