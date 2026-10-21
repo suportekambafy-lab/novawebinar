@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildSemanticBlocks, type SentenceLike } from "./blocks";
+import { buildSemanticBlocks, cueEndFor, type SentenceLike } from "./blocks";
 import { buildCast, memberByName, namedPeople, present } from "./cast";
 import { offerStartFromBlocks, planInteractions } from "./plan";
-import { buildScript, freeTopic } from "./script";
+import { buildScript, freeTopic, presenterState } from "./script";
+import { placeSlot } from "./timing";
 
 let n = 0;
 function s(startS: number, endS: number, text: string): SentenceLike {
@@ -123,6 +124,32 @@ describe("guião", () => {
     const free = lines.filter((l) => l.intent === "solta");
     expect(free.length).toBeGreaterThan(0);
     for (const l of free) expect(l.maxWords).toBeLessThanOrEqual(22);
+  });
+
+  it("a sala abre vibrante: cumprimentos nos primeiros segundos, antes de a apresentadora falar", () => {
+    const opening = lines.filter((l) => l.intent === "chegada" && l.atMs < 20_000);
+    expect(opening.length).toBeGreaterThanOrEqual(4);
+    expect(Math.min(...opening.map((l) => l.atMs))).toBeLessThan(8000);
+    for (const l of opening) expect(l.maxWords).toBeLessThanOrEqual(5);
+    expect(presenterState(opening[0]!, null)).toMatch(/a sala está a abrir/);
+  });
+
+  it("as respostas contam do fim da frase que pergunta, não do fim do bloco", () => {
+    const group = [
+      s(500, 504, "Quantos clientes é preciso para viver disto?"),
+      s(504.5, 520, "Eu vou dizer-vos já a seguir, porque isto muda tudo no que vem depois."),
+    ];
+    expect(cueEndFor(group)).toBe(504_000);
+    const [block] = buildSemanticBlocks(group);
+    expect(block!.cueEndMs).toBe(504_000);
+    // Se a IA disser que ele ficou mesmo à espera, a janela de respostas abre 1,5 s depois dos 504 s.
+    const asking = { ...block!, type: "QUESTION_TO_AUDIENCE" as const, expectsResponse: true, interaction: "NUMBER" as const, confidence: 0.9 };
+    const slot = planInteractions([asking], { fromMs: 0, toMs: 600_000, participants: 25, perMinute: 8, offerStartMs: null })[0]!;
+    expect(slot.cueEndMs).toBe(504_000);
+    expect(slot.windowStartMs).toBe(505_500);
+    const times = placeSlot(slot, 3, 2);
+    expect(Math.min(...times)).toBeGreaterThanOrEqual(505_500);
+    expect(Math.min(...times)).toBeLessThan(520_000);
   });
 
   it("o guião de um trecho só tem linhas desse trecho e identifica cada uma", () => {

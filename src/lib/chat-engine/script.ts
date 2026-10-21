@@ -192,9 +192,14 @@ export function buildScript(
     return pool[pool.length - 1]!;
   };
 
+  /** Quando cada pessoa escreveu, para as chegadas não colidirem com linhas já marcadas. */
+  const writtenAt = new Map<string, number[]>();
   const push = (line: Omit<ScriptLine, "id">) => {
     lines.push({ id: nextId(), ...line });
+    writtenAt.set(line.memberId, [...(writtenAt.get(line.memberId) ?? []), line.atMs]);
   };
+  const freeAround = (memberId: string, atMs: number, gapMs: number) =>
+    !(writtenAt.get(memberId) ?? []).some((t) => Math.abs(t - atMs) < gapMs);
 
   const ordered = [...slots]
     .filter((s) => s.windowEndMs >= options.fromMs - 1000 && s.windowStartMs <= options.toMs + 1000)
@@ -313,7 +318,7 @@ export function buildScript(
       const nextAsk = asks.find((s) => s.blockStartMs > slot.blockEndMs + 2000);
       const tailLimit = Math.min(
         slot.windowEndMs + (slot.strong ? STRONG_TAIL_MS : TAIL_MS),
-        nextAsk ? nextAsk.blockEndMs + FIRST_ANSWER_MIN_MS - 1000 : Number.MAX_SAFE_INTEGER,
+        nextAsk ? (nextAsk.cueEndMs ?? nextAsk.blockEndMs) + FIRST_ANSWER_MIN_MS - 1000 : Number.MAX_SAFE_INTEGER,
         options.toMs + 999,
       );
       let previous = times[times.length - 1] ?? slot.windowEndMs;
@@ -359,6 +364,7 @@ export function buildScript(
           reason: slot.reason,
         });
         written.push({ id, author: member.name, atMs, memberId: member.id });
+        writtenAt.set(member.id, [...(writtenAt.get(member.id) ?? []), atMs]);
       });
       // Uma réplica a alguém da cascata, quando há conversa possível (não a números nem a sim/não).
       const talkative =
@@ -448,14 +454,20 @@ export function buildScript(
     }
   }
 
-  // Quem chega durante o trecho pode cumprimentar (metade fá-lo), 5 a 40 s depois de entrar.
+  // Quem chega cumprimenta. A sala abre vibrante: quem já lá está nos primeiros 20 s escreve quase
+  // sempre (olá, boa noite, ansiosa), logo 1 a 8 s depois de entrar, sem esperar que o apresentador
+  // fale; nos primeiros 2 minutos, dois em cada três; depois, metade, com mais calma.
   for (const m of cast) {
-    if (m.role !== "publico" || m.arrivalMs < options.fromMs || m.arrivalMs > options.toMs) continue;
-    if (random() >= 0.5) continue;
-    const atMs = Math.round(m.arrivalMs + 5000 + random() * 35_000);
+    if (m.arrivalMs < options.fromMs || m.arrivalMs > options.toMs) continue;
+    const opening = m.arrivalMs < 20_000;
+    const early = m.arrivalMs < 120_000;
+    const chance = m.role === "aluna" ? 0.9 : opening ? 0.85 : early ? 0.65 : 0.5;
+    if (random() >= chance) continue;
+    const delay = opening ? 1000 + random() * 7000 : early ? 3000 + random() * 17_000 : 5000 + random() * 35_000;
+    const atMs = Math.round(m.arrivalMs + delay);
     if (atMs > options.toMs) continue;
-    if ((busyUntil.get(m.id) ?? 0) > atMs) continue;
-    busyUntil.set(m.id, atMs + BUSY_AFTER_FREE_MS);
+    // As linhas das oportunidades já estão marcadas: a chegada só entra se não colar a uma delas.
+    if (!freeAround(m.id, atMs, 12_000)) continue;
     push({
       atMs,
       memberId: m.id,
@@ -466,18 +478,21 @@ export function buildScript(
       dependency: "INDEPENDENT",
       interaction: "NONE",
       intent: "chegada",
-      need:
-        m.arrivalMs < 180_000
+      need: opening
+        ? m.role === "aluna"
+          ? "a sala acabou de abrir e ela já conhece a apresentadora: cumprimento caloroso e curto (olá, boa noite, «cheguei!», «ansiosa»), sem dizer de onde vê"
+          : "a sala acabou de abrir, o apresentador ainda mal falou: olá, boa noite, «presente», «ansioso(a)», «vamos lá», «primeira vez aqui», sem dizer de onde vê"
+        : early
           ? "acabou de entrar: cumprimento curto, presença ou expectativa ligada ao tema (nunca diz de onde vê, a não ser que o apresentador o tenha pedido)"
           : "chegou atrasada: cumprimento curto, talvez pergunta se perdeu muito",
       mustText: null,
       replyTo: null,
-      maxWords: 6,
+      maxWords: opening ? 5 : 6,
       kind: "espontaneo",
       windowStartMs: null,
       windowEndMs: null,
       confidence: 0.6,
-      reason: "acabou de entrar na sala",
+      reason: opening ? "a sala acabou de abrir" : "acabou de entrar na sala",
     });
   }
 
@@ -499,12 +514,45 @@ function clock(ms: number) {
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
+/**
+ * O que o apresentador está a fazer no instante da linha, para a IA escrever em conformidade: a pedir
+ * e à espera, a ler o chat, a responder a alguém, a contar, a explicar, ou a sala a abrir.
+ */
+export function presenterState(line: ScriptLine, slot: InteractionSlot | null): string {
+  if (line.intent === "chegada") return line.atMs < 20_000 ? "a sala está a abrir; o apresentador ainda mal falou" : "o apresentador está a falar; esta pessoa acabou de entrar";
+  if (!slot) return "o apresentador está a explicar; ninguém pediu nada";
+  const cue = slot.cueEndMs ?? slot.blockEndMs;
+  const since = Math.max(0, Math.round((line.atMs - cue) / 1000));
+  switch (line.intent) {
+    case "lida":
+      return `o apresentador vai ler isto em voz alta daqui a ${Math.max(1, Math.round((slot.blockStartMs - line.atMs) / 1000))} s`;
+    case "presenca":
+      return `o apresentador vai nomear esta pessoa daqui a ${Math.max(1, Math.round((slot.blockStartMs - line.atMs) / 1000))} s`;
+    case "resposta":
+      return since <= 4
+        ? "o apresentador acabou de pedir e está à espera das respostas"
+        : since <= 20
+          ? "o apresentador pediu há pouco e continua à espera; já há respostas no chat"
+          : "o apresentador pediu há mais de 20 s e já seguiu em frente; esta resposta chega atrasada";
+    case "replica":
+      return "o chat está animado com as respostas; o apresentador continua";
+    case "reaccao":
+      if (slot.id.endsWith("_agradece")) return "o apresentador acabou de ler a mensagem desta pessoa em voz alta";
+      return slot.blockType === "CHAT_READING" || slot.blockType === "CHAT_RESPONSE"
+        ? "o apresentador acabou de ler ou responder ao chat"
+        : `o apresentador acabou de ${slot.blockType === "STORY" ? "contar isto" : slot.blockType === "OFFER" || slot.blockType === "CTA" ? "apresentar isto" : "dizer isto"}`;
+    default:
+      return slot.blockType === "SILENCE" ? "o apresentador está em pausa, sem falar" : "o apresentador está a explicar; ninguém pediu nada";
+  }
+}
+
 /** As linhas do guião em texto, para a IA escrever o que falta. */
 export function describeScript(lines: readonly ScriptLine[], slots: readonly InteractionSlot[]): string {
   const slotById = new Map(slots.map((s) => [s.id, s] as const));
   return lines
     .map((line) => {
       const slot = line.slotId ? slotById.get(line.slotId) : null;
+      const state = ` · [${presenterState(line, slot ?? null)}]`;
       const context =
         slot && (line.intent === "resposta" || line.intent === "reaccao" || line.intent === "replica")
           ? ` · fala a que responde (${clock(slot.blockStartMs)}–${clock(slot.blockEndMs)}): "${slot.speech.slice(0, 200)}"`
@@ -527,7 +575,7 @@ export function describeScript(lines: readonly ScriptLine[], slots: readonly Int
             }`
           : "";
       const must = line.mustText ? ` · OBRIGATÓRIO: "${line.mustText}"` : "";
-      return `${line.id} | ${clock(line.atMs)} | ${line.author} (${line.memberId}) | ${line.need}${format}${must} · máx. ${line.maxWords} ${line.maxWords === 1 ? "palavra" : "palavras"}${context}`;
+      return `${line.id} | ${clock(line.atMs)} | ${line.author} (${line.memberId}) | ${line.need}${format}${must} · máx. ${line.maxWords} ${line.maxWords === 1 ? "palavra" : "palavras"}${state}${context}`;
     })
     .join("\n");
 }

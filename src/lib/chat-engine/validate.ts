@@ -167,7 +167,7 @@ export function validateEngine(
 
     // 3. Depois da fala: nunca antes de a pergunta acabar, nem fora da janela.
     if (!drop && c.dependency === "AFTER" && slot) {
-      const earliest = slot.blockEndMs + FIRST_ANSWER_MIN_MS;
+      const earliest = (slot.cueEndMs ?? slot.blockEndMs) + FIRST_ANSWER_MIN_MS;
       if (c.atMs < earliest) {
         const target = Math.round(
           earliest + random() * (FIRST_ANSWER_MAX_MS - FIRST_ANSWER_MIN_MS),

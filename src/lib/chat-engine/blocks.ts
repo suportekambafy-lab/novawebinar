@@ -759,6 +759,25 @@ function timeOf(ms: number) {
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
+/**
+ * O fim da frase que pede ou pergunta ao público, dentro de um grupo de frases: as respostas contam
+ * a partir daí. Primeiro um pedido ou pergunta claros; senão a última frase com «?». null sem nada.
+ */
+export function cueEndFor(sentences: readonly SentenceLike[]): number | null {
+  const ordered = [...sentences].reverse();
+  const asking = ordered.find((sentence) => {
+    const clean = stripFillers(sentence.text);
+    return (
+      RE.request.test(clean) ||
+      RE.feedback.test(clean) ||
+      (RE.poll.test(clean) && RE.question.test(clean)) ||
+      (RE.question.test(clean) && RE.secondPerson.test(clean) && !RE.rhetorical.test(clean))
+    );
+  });
+  const chosen = asking ?? ordered.find((sentence) => RE.question.test(stripFillers(sentence.text)));
+  return chosen ? chosen.endMs : null;
+}
+
 /** Blocos com sentido a partir das frases, só com regras. */
 export function buildSemanticBlocks(sentences: readonly SentenceLike[]): SemanticBlock[] {
   const groups = groupSentences(sentences);
@@ -769,7 +788,10 @@ export function buildSemanticBlocks(sentences: readonly SentenceLike[]): Semanti
     const referenced = rule.readsChat ? extractReferences(text) : [];
     const first = group[0]!;
     const last = group[group.length - 1]!;
+    // A frase que pede ou pergunta: as respostas contam do fim dela, não do fim do bloco.
+    const cue = cueEndFor(group);
     blocks.push({
+      ...(cue != null && cue < last.endMs ? { cueEndMs: cue } : {}),
       id: `b${index + 1}_${timeOf(first.startMs).replace(":", "")}`,
       startMs: first.startMs,
       endMs: Math.max(last.endMs, first.startMs),

@@ -161,13 +161,16 @@ export function planInteractions(
       // As pessoas que o apresentador nomeou ao pedir ("Letícia, Joana, coloquem quanto já faturaram")
       // estão entre quem responde; quem é lido é quem agradece.
       const expected = who ?? (block.expectsResponse ? names : []);
+      // As respostas contam do fim do pedido, não do fim do bloco (que pode continuar a falar).
+      const cue = block.expectsResponse ? (block.cueEndMs ?? block.endMs) : block.endMs;
       out.push({
         ...base,
         id: `${block.id}_${suffix}`,
         dependency: "AFTER",
         interaction,
-        windowStartMs: block.endMs + FIRST_ANSWER_MIN_MS,
-        windowEndMs: block.endMs + spanMs,
+        cueEndMs: cue,
+        windowStartMs: cue + FIRST_ANSWER_MIN_MS,
+        windowEndMs: cue + spanMs,
         minComments: low ? 0 : Math.max(Math.min(min, cap), Math.min(expected.length, cap)),
         maxComments: Math.max(cap, expected.length),
         strong,
@@ -189,17 +192,18 @@ export function planInteractions(
       // Caso difícil: pergunta e leitura imediata. A mensagem lida só pode existir
       // depois da pergunta; se não houver 2 s de folga, fica colada antes da leitura.
       let constrained = false;
+      const previousCue = previous ? (previous.cueEndMs ?? previous.endMs) : 0;
       if (
         previous &&
         previous.expectsResponse &&
-        previous.endMs + FIRST_ANSWER_MIN_MS > windowStart
+        previousCue + FIRST_ANSWER_MIN_MS > windowStart
       ) {
         constrained = true;
         // Quem é lido logo a seguir ao pedido escreveu enquanto o apresentador ainda o fazia: a resposta
         // pode existir 3 s depois de o pedido começar (ninguém espera que ele acabe a frase).
         const earliest = Math.min(
-          previous.endMs + FIRST_ANSWER_MIN_MS,
-          Math.max(previous.startMs + 3000, previous.endMs - 6000),
+          previousCue + FIRST_ANSWER_MIN_MS,
+          Math.max(previous.startMs + 3000, previousCue - 6000),
         );
         windowStart = Math.max(windowStart, earliest);
         if (windowEnd < windowStart + 600) windowEnd = block.startMs - 500;
@@ -223,8 +227,9 @@ export function planInteractions(
           (numeric ? recentAsks.find((b) => b.interaction === "NUMBER") : undefined) ?? recentAsks[0];
         if (ask) {
           constrained = true;
-          windowStart = ask.endMs + FIRST_ANSWER_MIN_MS;
-          windowEnd = Math.min(windowEnd, ask.endMs + READ_LINK_SPAN_MS);
+          const askCue = ask.cueEndMs ?? ask.endMs;
+          windowStart = askCue + FIRST_ANSWER_MIN_MS;
+          windowEnd = Math.min(windowEnd, askCue + READ_LINK_SPAN_MS);
           if (windowEnd < windowStart + 600) windowEnd = Math.min(block.startMs - 500, windowStart + 600);
         }
       }

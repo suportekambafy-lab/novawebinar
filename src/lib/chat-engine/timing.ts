@@ -47,7 +47,7 @@ export function placeSlot(
   slot: Pick<
     InteractionSlot,
     "dependency" | "blockStartMs" | "blockEndMs" | "windowStartMs" | "windowEndMs" | "strong"
-  >,
+  > & { cueEndMs?: number | undefined },
   count: number,
   seed = 1,
 ): number[] {
@@ -57,22 +57,22 @@ export function placeSlot(
   const end = Math.max(slot.windowEndMs, start + MIN_SPACING_MS);
 
   if (slot.dependency === "AFTER") {
+    // As respostas contam do fim do pedido (cueEndMs), não do fim do bloco.
+    const cue = slot.cueEndMs ?? slot.blockEndMs;
     const first = Math.min(
       end,
       Math.max(
         start,
-        slot.blockEndMs +
-          FIRST_ANSWER_MIN_MS +
-          random() * (FIRST_ANSWER_MAX_MS - FIRST_ANSWER_MIN_MS),
+        cue + FIRST_ANSWER_MIN_MS + random() * (FIRST_ANSWER_MAX_MS - FIRST_ANSWER_MIN_MS),
       ),
     );
-    const span = Math.min(end - slot.blockEndMs, slot.strong ? STRONG_SPAN_MS : ANSWER_SPAN_MS);
+    const span = Math.min(end - cue, slot.strong ? STRONG_SPAN_MS : ANSWER_SPAN_MS);
     const rest: number[] = [];
     for (let i = 1; i < count; i += 1) {
       // Cada pessoa seguinte demora mais: a distribuição concentra-se cedo e rareia no fim.
       const u = random();
       const offset = 2000 + Math.pow(u, 0.75) * Math.max(0, span - 2000);
-      rest.push(slot.blockEndMs + offset);
+      rest.push(cue + offset);
     }
     return spaced([first, ...rest], MIN_SPACING_MS, end);
   }

@@ -118,13 +118,17 @@ export function buildCast(options: CastOptions, named: readonly string[] = []): 
       if (used.has(firstName(name))) name = `${name} ${String.fromCharCode(65 + (i % 26))}.`;
     }
     used.add(firstName(name));
+    // A sala abre cheia: 30% já lá estão nos primeiros 20 s, 30% chegam até aos 2 min, 25% até aos
+    // 10 min, o resto mais tarde.
     const r = random();
     const arrivalMs =
-      r < 0.6
-        ? Math.round(random() * 120_000)
-        : r < 0.85
-          ? Math.round(120_000 + random() * 480_000)
-          : Math.round(600_000 + random() * Math.max(0, duration * 0.6 - 600_000));
+      r < 0.3
+        ? Math.round(random() * 20_000)
+        : r < 0.6
+          ? Math.round(20_000 + random() * 100_000)
+          : r < 0.85
+            ? Math.round(120_000 + random() * 480_000)
+            : Math.round(600_000 + random() * Math.max(0, duration * 0.6 - 600_000));
     const leaves = random() < 0.2;
     const leaveMs = leaves
       ? Math.round(duration * 0.4 + random() * duration * 0.55)

@@ -73,6 +73,11 @@ export type SemanticBlock = {
   source: "regras" | "ia" | "ambos";
   /** Silêncio depois deste bloco, em ms. */
   gapAfterMs: number;
+  /**
+   * Fim da frase que faz o pedido ou a pergunta, quando o bloco a tem: é a partir daqui que as
+   * respostas podem chegar (não do fim do bloco, que pode continuar mais uns segundos).
+   */
+  cueEndMs?: number;
 };
 
 export type OfferContext = "antes" | "depois" | "desconhecido";
@@ -85,6 +90,8 @@ export type InteractionSlot = {
   interaction: InteractionType;
   blockStartMs: number;
   blockEndMs: number;
+  /** Fim do pedido ou da pergunta dentro do bloco: as respostas contam a partir daqui. */
+  cueEndMs?: number;
   windowStartMs: number;
   windowEndMs: number;
   minComments: number;

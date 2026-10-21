@@ -1551,8 +1551,8 @@ async function novaWindow(
     "PESSOAS (quem escreve neste trecho; cada uma escreve sempre ao seu estilo):",
     ...members.map(describeMember),
     "",
-    "LINHAS DO GUIÃO. Cada linha já tem quem escreve, o segundo e o motivo: escreve SÓ a mensagem de cada uma, com o id. Não mudes nomes, não juntes linhas, não acrescentes linhas.",
-    "Como num chat ao vivo: mensagens curtas, coloquiais, pontuação imperfeita, maiúsculas às vezes esquecidas, nada de frases de anúncio nem de elogios vazios em série. Nunca duas mensagens iguais ou quase. Cada mensagem só pode falar do que o apresentador já disse até esse segundo. Respeita o formato pedido (um número é só um número; sim ou não é curto) e o máximo de palavras. OBRIGATÓRIO quer dizer o texto exacto, ou quase.",
+    "LINHAS DO GUIÃO. Cada linha já tem quem escreve, o segundo, o motivo e, entre parênteses rectos, o que o apresentador está a fazer nesse instante (a pedir e à espera, a ler o chat, a responder, a explicar, a sala a abrir): escreve SÓ a mensagem de cada uma, com o id, em conformidade com esse estado. Não mudes nomes, não juntes linhas, não acrescentes linhas.",
+    "Escreve como pessoas reais num chat ao vivo, não como um redactor: frases curtas e soltas, vírgulas a menos, sem ponto final na maioria, maiúsculas às vezes esquecidas, «kkk», «haha», «mt», «vc», reticências, uma gralha de vez em quando, interjeições («nossa», «eish», «ya», «fixe», «top»). Exemplos do tom: «boa noite!!», «cheguei agora, perdi muito?», «5 mil?? que incrível», «eu também nunca sabia a legenda kkk», «isso é mesmo comigo…», «@Rita braga aqui tb!». Nada de frases de anúncio, nada de elogios vazios em série, nada de resumir o que o apresentador disse. Cada pessoa é diferente: a mesma pessoa mantém o estilo dela ao longo do trecho. Nunca duas mensagens iguais ou quase. Cada mensagem só pode falar do que o apresentador já disse até esse segundo. Respeita o formato pedido (um número é só um número; sim ou não é curto) e o máximo de palavras. OBRIGATÓRIO quer dizer o texto exacto, ou quase.",
     "",
     describeScript(lines, engine.slots),
   ]

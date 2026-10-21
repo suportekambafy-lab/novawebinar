@@ -112,7 +112,7 @@ export function causalityFor(
     triggerStartMs: slot?.blockStartMs ?? null,
     triggerEndMs: slot?.blockEndMs ?? null,
     reactionLatencyMs:
-      slot && comment.dependency === "AFTER" ? comment.atMs - slot.blockEndMs : null,
+      slot && comment.dependency === "AFTER" ? comment.atMs - (slot.cueEndMs ?? slot.blockEndMs) : null,
     generationReason:
       reason || slot?.reason || "Engajamento espontâneo, sem fala específica a causá-lo.",
     confidence: precisionWord ? comment.confidence : Math.min(comment.confidence, 0.5),

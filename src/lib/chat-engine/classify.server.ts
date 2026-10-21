@@ -11,7 +11,7 @@ import { s, schema } from "@/lib/ai/schema";
 import * as engine from "@/lib/temporal/engine.server";
 import type { TranscriptVersion } from "@/lib/temporal/engine.server";
 
-import { buildSemanticBlocks } from "./blocks";
+import { buildSemanticBlocks, cueEndFor } from "./blocks";
 import {
   BLOCK_TYPES,
   INTERACTION_TYPES,
@@ -77,6 +77,7 @@ async function askBatch(chunk: SemanticBlock[], hostName: string | null): Promis
     "",
     "Tipos: CONTENT (explica), QUESTION_TO_AUDIENCE (pergunta ao público e espera resposta no chat), COMMENT_REQUEST (pede que escrevam algo no chat), FEEDBACK_REQUEST (pede confirmação: faz sentido? manda um sim / um emoji), POLL (quem aqui já…, levanta a mão, 1 ou 2), CHAT_READING (lê ou cita mensagens do chat, nomes, cidades), CHAT_RESPONSE (responde a uma pergunta que veio do chat), SOCIAL_PROOF (resultados de alunos, depoimentos), EMOTIONAL_MOMENT, CTA (clica, inscreve-te, link), OFFER (preço, bónus, garantia, o que inclui), STORY, TRANSITION (muda de assunto), TECHNICAL (passo a passo técnico), OTHER.",
     "Uma pergunta que o próprio apresentador responde a seguir é retórica: rhetorical=true, expectsResponse=false, tipo CONTENT.",
+    "expectsResponse=true só quando ele fica mesmo à espera de que o público escreva (pergunta directa, pedido, «manda um sim», sondagem), mesmo que continue a falar a seguir. Quando lê o que escreveram (nomes, cidades, valores, perguntas) é CHAT_READING; quando responde a uma pergunta que veio do chat é CHAT_RESPONSE; quando comenta o que vê no chat sem ler ninguém em concreto («estou a ver muita gente a dizer que sim») é CHAT_READING sem names.",
     "interaction: o formato que o público deve responder: YES_NO, NUMBER, EMOJI, LOCATION (de onde vê), KEYWORD (uma palavra pedida; põe a palavra em keyword), NAME, SHORT_ANSWER, LONG_ANSWER, REACTION (reagir sem pergunta), NONE.",
     "readsChat=true quando ele lê, cita, agradece ou responde ao chat. Em names põe os nomes que ele diz (só nomes de pessoas, exactamente como ditos), em cities as cidades ou países que ele lê, em questions as perguntas do chat que ele repete (texto curto, sem o nome).",
     "confidence entre 0 e 1: quão seguro estás da classificação. Com dúvida real, dá menos de 0.6.",
@@ -231,6 +232,15 @@ export async function ensureVersionBlocks(
   const result = options.ai
     ? await refineBlocksWithAi(rules, options.hostName ?? null)
     : { blocks: rules, refined: 0 };
+  // Um bloco que a IA passou a «espera resposta» sem a regra ter visto o pedido: as respostas contam do
+  // fim da frase que pergunta, não do fim do bloco.
+  const byId = new Map(version.sentences.map((s) => [s.id, s] as const));
+  for (const block of result.blocks) {
+    if (!block.expectsResponse || block.cueEndMs != null) continue;
+    const sentences = block.sentenceIds.map((id) => byId.get(id)).filter((s): s is NonNullable<typeof s> => Boolean(s));
+    const cue = cueEndFor(sentences);
+    if (cue != null && cue < block.endMs) block.cueEndMs = cue;
+  }
   await engine.saveVersionBlocks(version.id, result.blocks);
   return { ...result, fresh: true };
 }

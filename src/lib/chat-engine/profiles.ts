@@ -107,6 +107,8 @@ export function styleMessage(profile: Profile, message: string, seed = 0): strin
     if (random() < 0.7) text = text.charAt(0).toLocaleLowerCase("pt") + text.slice(1);
     text = text.replace(/\.$/u, "");
   }
+  // Num chat quase ninguém fecha a frase com ponto; quem escreve com cuidado, às vezes.
+  if (!profile.mobile && profile.length !== "longo" && random() < 0.5) text = text.replace(/\.$/u, "");
   if (profile.typos && random() < 0.35) {
     // Uma gralha humana: um acento que cai.
     text = text.replace(/([áéíóú])/u, (m) => ({ á: "a", é: "e", í: "i", ó: "o", ú: "u" })[m] ?? m);
