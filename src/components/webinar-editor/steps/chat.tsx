@@ -113,6 +113,7 @@ export function StepChat({
   onImport,
   onWrite,
   onRemove,
+  onRemoveAll,
   onEdit,
   onShow,
   onWatch,
@@ -139,6 +140,8 @@ export function StepChat({
   onImport: (file: File) => void;
   onWrite: (at: number, message: string) => Promise<boolean>;
   onRemove: (id: string) => void;
+  /** Apaga todos os comentários do chat deste webinar (gerados, importados e escritos à mão). */
+  onRemoveAll: () => void;
   /** Muda o minuto, o nome ou a mensagem de um comentário. */
   onEdit: (id: string, patch: { at: number; author: string; message: string }) => Promise<boolean>;
   /** Mostra este comentário na sala (o vídeo vai para o minuto dele). */
@@ -534,10 +537,23 @@ export function StepChat({
               Clique num comentário: a sala vai para esse minuto e mostra-o, e pode mudar o minuto, o nome e a mensagem.
             </p>
             <CommentList comments={comments} current={current} clock={c} onShow={onShow} onRemove={onRemove} onEdit={onEdit} />
-            <Button variant="outline" onClick={() => onWatch(c.t < 40 || c.t > c.duration - 20 ? Math.min(63, c.duration) : c.t)}>
-              <Play className="fill-current" />
-              Ver o chat a correr na sala
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" onClick={() => onWatch(c.t < 40 || c.t > c.duration - 20 ? Math.min(63, c.duration) : c.t)}>
+                <Play className="fill-current" />
+                Ver o chat a correr na sala
+              </Button>
+              <Button
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                onClick={() => {
+                  if (window.confirm(`Apagar os ${comments.length} comentários do chat? Os escritos à mão também vão. Não há como desfazer.`))
+                    onRemoveAll();
+                }}
+              >
+                <Trash2 className="size-3.5" />
+                Apagar todos os comentários
+              </Button>
+            </div>
           </>
         )}
         <Field label={<><Pin className="size-3.5" />Mensagem fixada no chat</>}>

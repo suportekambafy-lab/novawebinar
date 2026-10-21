@@ -1396,6 +1396,20 @@ function EditWebinar() {
     else invalidate(["scheduled-comments"]);
   };
 
+  /** Apaga o chat inteiro deste webinar: gerados, importados e escritos à mão. */
+  const removeAllComments = async () => {
+    const { error, count } = await supabase
+      .from("scheduled_comments")
+      .delete({ count: "exact" })
+      .eq("webinar_id", webinarId);
+    if (error) {
+      toast.error(friendlyError(error));
+      return;
+    }
+    invalidate(["scheduled-comments"]);
+    toast.success(count ? `${count} comentários apagados.` : "O chat já estava vazio.");
+  };
+
   /* ---------- Formulário para página própria ---------- */
 
   const { data: forms = [], refetch: refetchForms } = useQuery({
@@ -2126,6 +2140,7 @@ function EditWebinar() {
                     onImport={(file) => void importSheet(file)}
                     onWrite={writeComment}
                     onRemove={(id) => void removeComment(id)}
+                    onRemoveAll={() => void removeAllComments()}
                     onEdit={editComment}
                     onShow={(comment) => {
                       // A sala vai para o minuto do comentário e realça-o no chat.
