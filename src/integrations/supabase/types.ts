@@ -2280,6 +2280,119 @@ export type Database = {
           },
         ]
       }
+      smart_links: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          organization_id: string
+          primary_webinar_id: string
+          secondary_webinar_id: string | null
+          slug: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          organization_id: string
+          primary_webinar_id: string
+          secondary_webinar_id?: string | null
+          slug: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          primary_webinar_id?: string
+          secondary_webinar_id?: string | null
+          slug?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "smart_links_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "smart_links_primary_webinar_id_fkey"
+            columns: ["primary_webinar_id"]
+            isOneToOne: false
+            referencedRelation: "webinars"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "smart_links_secondary_webinar_id_fkey"
+            columns: ["secondary_webinar_id"]
+            isOneToOne: false
+            referencedRelation: "webinars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      smart_link_visits: {
+        Row: {
+          created_at: string
+          id: number
+          known_by: string
+          organization_id: string
+          returning_visitor: boolean
+          smart_link_id: string
+          visitor_id: string
+          webinar_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          known_by?: string
+          organization_id: string
+          returning_visitor?: boolean
+          smart_link_id: string
+          visitor_id: string
+          webinar_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          known_by?: string
+          organization_id?: string
+          returning_visitor?: boolean
+          smart_link_id?: string
+          visitor_id?: string
+          webinar_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "smart_link_visits_smart_link_id_fkey"
+            columns: ["smart_link_id"]
+            isOneToOne: false
+            referencedRelation: "smart_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "smart_link_visits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "smart_link_visits_webinar_id_fkey"
+            columns: ["webinar_id"]
+            isOneToOne: false
+            referencedRelation: "webinars"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scheduled_comments: {
         Row: {
           block_id: string | null

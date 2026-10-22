@@ -135,13 +135,25 @@ export async function loadPublicRoom(
   if (bySlug) return bySlug;
   const { resolveTestSlug } = await import("@/lib/ab-tests/assign.server");
   const resolved = await resolveTestSlug(slug, meta, preview, person);
-  if (!resolved) return null;
-  const byId = await cachedRoom(`id:${resolved.webinarId}`, async () => {
-    const row = await readRoomRow("id", resolved.webinarId);
+  if (resolved) {
+    const byId = await cachedRoom(`id:${resolved.webinarId}`, async () => {
+      const row = await readRoomRow("id", resolved.webinarId);
+      return row ? buildRoom(row) : null;
+    });
+    if (!byId) return null;
+    return { ...byId, abTest: { id: resolved.testId, variantId: resolved.variantId, preview: resolved.preview } };
+  }
+  // Webinar Intelligence: um endereço que decide o webinar pela pessoa (favorito para quem chega de novo,
+  // secundário para quem já viu um webinar da organização). Fora dos testes A/B.
+  const { resolveSmartLink } = await import("@/lib/intelligence/resolve.server");
+  const smart = await resolveSmartLink(slug, person);
+  if (!smart) return null;
+  const smartRoom = await cachedRoom(`id:${smart.webinarId}`, async () => {
+    const row = await readRoomRow("id", smart.webinarId);
     return row ? buildRoom(row) : null;
   });
-  if (!byId) return null;
-  return { ...byId, abTest: { id: resolved.testId, variantId: resolved.variantId, preview: resolved.preview } };
+  if (!smartRoom) return null;
+  return { ...smartRoom, smartLink: { id: smart.linkId, returning: smart.returning } };
 }
 
 /** O que a sala pública recebe, a partir da linha do webinar: comentários, oferta, legendas, vídeo assinado. */

@@ -1,6 +1,7 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   Blocks,
+  BrainCircuit,
   Calendar,
   SquareActivity,
   ChevronsUpDown,
@@ -72,6 +73,7 @@ export const NAV_ICON = {
   cases: Inbox,
   analytics: SquareActivity,
   abTests: FlaskConical,
+  intelligence: BrainCircuit,
   library: Library,
   team: UserRoundCog,
   integrations: Blocks,
@@ -102,6 +104,7 @@ const SECTIONS: { heading: string; items: NavItem[] }[] = [
       { to: "/live-view", title: "Ao vivo", icon: NAV_ICON.live },
       { to: "/analytics", title: "Análises", icon: NAV_ICON.analytics },
       { to: "/ab-tests", title: "Testes A/B", icon: NAV_ICON.abTests },
+      { to: "/intelligence", title: "Webinar Intelligence", icon: NAV_ICON.intelligence },
     ],
   },
 ];

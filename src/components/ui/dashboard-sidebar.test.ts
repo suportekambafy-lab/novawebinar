@@ -12,7 +12,7 @@ describe("menu da aplicação", () => {
     expect(navGroups("owner").map((g) => [g.heading, paths(g.items)])).toEqual([
       ["Principal", ["/dashboard", "/webinars", "/calendar", "/automations", "/library"]],
       ["Pessoas", ["/support", "/cases", "/contacts"]],
-      ["Dados", ["/live-view", "/analytics", "/ab-tests"]],
+      ["Dados", ["/live-view", "/analytics", "/ab-tests", "/intelligence"]],
       ["Conta", ["/team", "/integrations", "/credits"]],
     ]);
   });

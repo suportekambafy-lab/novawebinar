@@ -280,6 +280,12 @@ export const joinPublicRoom = createServerFn({ method: "POST" })
       await linkAssignment({ webinarId: webinar.id, participantId: participant.id, email: entry.email });
     }
     const { roomToken } = await import("@/lib/public-room.server");
+    // Webinar Intelligence: fica no cookie que esta pessoa entrou numa sala desta organização (a sala de
+    // teste não conta). Da próxima vez que abrir um endereço inteligente, vai para o secundário.
+    if (!data.teste) {
+      const { rememberSeen } = await import("@/lib/intelligence/resolve.server");
+      await rememberSeen(webinar.organization_id);
+    }
     return { token: roomToken(participant.id), name: participant.name, webinarId: webinar.id, switched };
   });
 

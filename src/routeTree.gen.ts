@@ -18,6 +18,7 @@ import { Route as ContactsRouteImport } from './routes/contacts'
 import { Route as CreditsRouteImport } from './routes/credits'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IntegrationsRouteImport } from './routes/integrations'
+import { Route as IntelligenceRouteImport } from './routes/intelligence'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as LiveViewRouteImport } from './routes/live-view'
 import { Route as ParticipantsRouteImport } from './routes/participants'
@@ -97,6 +98,11 @@ const DashboardRoute = DashboardRouteImport.update({
 const IntegrationsRoute = IntegrationsRouteImport.update({
   id: '/integrations',
   path: '/integrations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IntelligenceRoute = IntelligenceRouteImport.update({
+  id: '/intelligence',
+  path: '/intelligence',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LibraryRoute = LibraryRouteImport.update({
@@ -289,6 +295,7 @@ export interface FileRoutesByFullPath {
   '/credits': typeof CreditsRoute
   '/dashboard': typeof DashboardRoute
   '/integrations': typeof IntegrationsRoute
+  '/intelligence': typeof IntelligenceRoute
   '/library': typeof LibraryRoute
   '/live-view': typeof LiveViewRoute
   '/participants': typeof ParticipantsRoute
@@ -335,6 +342,7 @@ export interface FileRoutesByTo {
   '/credits': typeof CreditsRoute
   '/dashboard': typeof DashboardRoute
   '/integrations': typeof IntegrationsRoute
+  '/intelligence': typeof IntelligenceRoute
   '/library': typeof LibraryRoute
   '/live-view': typeof LiveViewRoute
   '/participants': typeof ParticipantsRoute
@@ -382,6 +390,7 @@ export interface FileRoutesById {
   '/credits': typeof CreditsRoute
   '/dashboard': typeof DashboardRoute
   '/integrations': typeof IntegrationsRoute
+  '/intelligence': typeof IntelligenceRoute
   '/library': typeof LibraryRoute
   '/live-view': typeof LiveViewRoute
   '/participants': typeof ParticipantsRoute
@@ -430,6 +439,7 @@ export interface FileRouteTypes {
     | '/credits'
     | '/dashboard'
     | '/integrations'
+    | '/intelligence'
     | '/library'
     | '/live-view'
     | '/participants'
@@ -476,6 +486,7 @@ export interface FileRouteTypes {
     | '/credits'
     | '/dashboard'
     | '/integrations'
+    | '/intelligence'
     | '/library'
     | '/live-view'
     | '/participants'
@@ -522,6 +533,7 @@ export interface FileRouteTypes {
     | '/credits'
     | '/dashboard'
     | '/integrations'
+    | '/intelligence'
     | '/library'
     | '/live-view'
     | '/participants'
@@ -569,6 +581,7 @@ export interface RootRouteChildren {
   CreditsRoute: typeof CreditsRoute
   DashboardRoute: typeof DashboardRoute
   IntegrationsRoute: typeof IntegrationsRoute
+  IntelligenceRoute: typeof IntelligenceRoute
   LibraryRoute: typeof LibraryRoute
   LiveViewRoute: typeof LiveViewRoute
   ParticipantsRoute: typeof ParticipantsRoute
@@ -669,6 +682,13 @@ declare module '@tanstack/react-router' {
       path: '/integrations'
       fullPath: '/integrations'
       preLoaderRoute: typeof IntegrationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/intelligence': {
+      id: '/intelligence'
+      path: '/intelligence'
+      fullPath: '/intelligence'
+      preLoaderRoute: typeof IntelligenceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/library': {
@@ -929,6 +949,7 @@ const rootRouteChildren: RootRouteChildren = {
   CreditsRoute: CreditsRoute,
   DashboardRoute: DashboardRoute,
   IntegrationsRoute: IntegrationsRoute,
+  IntelligenceRoute: IntelligenceRoute,
   LibraryRoute: LibraryRoute,
   LiveViewRoute: LiveViewRoute,
   ParticipantsRoute: ParticipantsRoute,

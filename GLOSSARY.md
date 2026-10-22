@@ -38,6 +38,20 @@ _Avoid_: Fonte, canal de tráfego
 O grupo em que fica quem não comprou quando a sessão termina, conforme o que viu: não acessou, saiu antes do pitch ou assistiu o pitch. Cada pessoa está num só.
 _Avoid_: Público, lista
 
+### Webinar Intelligence
+
+**Webinar Intelligence**:
+A página e o endereço único que decidem o webinar pela pessoa: quem chega pela primeira vez vê o favorito, quem já viu um webinar da organização vê o secundário. O endereço nunca muda. Fora dos testes A/B.
+_Avoid_: Link inteligente, redirecionamento, smart link (no ecrã)
+
+**Favorito**:
+O webinar principal de um endereço do Webinar Intelligence, para quem chega de novo.
+_Avoid_: Principal, primário
+
+**Secundário**:
+O webinar para quem já viu um webinar da organização (entrou numa sala neste aparelho, já abriu o endereço, ou o e-mail ou WhatsApp do link já participou).
+_Avoid_: Alternativo, fallback
+
 ### Testes A/B
 
 **Teste A/B**:
