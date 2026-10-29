@@ -127,10 +127,21 @@ describe("recarga: decisão sobre o evento", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("reembolso de uma recarga retira os créditos dela (apply_credit_refund, 0087)", async () => {
+    answers["rpc.apply_credit_refund"] = { data: { status: "applied", removed_micros: 25_000_000 }, error: null };
+    const outcome = await applyBillingEvent({ ...PAYMENT, event: "refund.approved" });
+    expect(outcome.status).toBe("accepted");
+    expect(calls.find((c) => c.name === "apply_credit_refund")?.args).toMatchObject({
+      _organization_id: "org-1",
+      _purchase_ref: "kambafy:ORD-1",
+      _refunded_total: 22500,
+    });
+    expect(calls.some((c) => c.name === "apply_credit_topup")).toBe(false);
+  });
+
   it("evento que não é pagamento aprovado fica ignorado sem ler produtos", async () => {
     for (const body of [
       { ...PAYMENT, event: "order.pending" },
-      { ...PAYMENT, event: "refund.approved" },
       { ...PAYMENT, event: "test.webhook" },
       { ...PAYMENT, event: "customer.updated" },
     ]) {

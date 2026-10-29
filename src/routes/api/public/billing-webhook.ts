@@ -6,21 +6,9 @@ import { createFileRoute } from "@tanstack/react-router";
  * `x-webhook-secret` (ou `authorization: Bearer …`). A decisão fica em billing.server.ts.
  */
 
-// A Kambafy envia o webhook a partir do browser (botão "testar" e pagamentos
-// Express/cartão), por isso as suas origens têm de passar a verificação CORS.
-const BROWSER_SENDERS = /^https:\/\/([a-z0-9-]+\.)?kambafy\.com$/;
-
-function withCors(request: Request, response: Response) {
-  const origin = request.headers.get("origin") ?? "";
-  if (!BROWSER_SENDERS.test(origin)) return response;
-  const headers = new Headers(response.headers);
-  headers.set("access-control-allow-origin", origin);
-  headers.set("access-control-allow-methods", "POST, OPTIONS");
-  headers.set("access-control-allow-headers", "content-type, x-webhook-secret, authorization");
-  headers.set("access-control-max-age", "86400");
-  headers.set("vary", "origin");
-  return new Response(response.body, { status: response.status, headers });
-}
+// Sem CORS: a Kambafy envia este aviso do servidor (incluindo o botão «testar», desde 25/10/2026). Um
+// browser nunca precisa de o chamar, e sem os cabeçalhos CORS nenhum site consegue fazê-lo por alguém.
+const withCors = (_request: Request, response: Response) => response;
 
 /** O IP do socket, quando o runtime o dá (fora de um pedido, como nos testes, não há). */
 async function socketIp() {

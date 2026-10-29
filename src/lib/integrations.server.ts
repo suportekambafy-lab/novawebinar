@@ -2,6 +2,7 @@
  * Receptor dos webhooks das plataformas de venda e envio do webhook de saída.
  * Tudo o que chega fica em integration_events, aceite ou não, com o motivo.
  */
+import { unsignedAllowed, verifyKambafySignature } from "@/lib/kambafy-signature";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -49,10 +50,23 @@ function verify(provider: ProviderId, secret: string, request: Request, raw: str
         ? null
         : "Assinatura do Stripe inválida.";
     }
-    case "kambafy":
+    case "kambafy": {
+      if (!secret) return "Falta gerar o segredo do webhook nas definições da integração.";
+      // A Kambafy assina no servidor (desde 25/10/2026): a assinatura liga o aviso a este corpo e a esta
+      // hora. O segredo em claro só vale na transição, para contas configuradas antes disso.
+      const signature = request.headers.get("x-kambafy-signature");
+      if (signature) {
+        const check = verifyKambafySignature(secret, raw, signature);
+        return check.ok ? null : `Assinatura da Kambafy inválida (${check.reason}).`;
+      }
+      if (!unsignedAllowed()) return "Aviso da Kambafy sem assinatura.";
+      const sent =
+        request.headers.get("x-webhook-secret") ??
+        (request.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
+      return same(sent, secret) ? null : "Segredo do webhook inválido.";
+    }
     case "webhook": {
-      // A Kambafy chama a partir do navegador do comprador: o endereço fica à vista de quem comprou.
-      // Sem segredo, qualquer comprador forjava vendas; por isso ele é obrigatório.
+      // Webhook genérico (outras plataformas): o segredo é obrigatório e vai num cabeçalho, nunca no endereço.
       if (!secret) return "Falta gerar o segredo do webhook nas definições da integração.";
       const sent =
         request.headers.get("x-webhook-secret") ??
