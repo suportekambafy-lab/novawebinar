@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * aqui confirma-se que o executor só corre o que reservou, uma vez, e grava o resultado
  * certo para cada desfecho da acção.
  */
-type Result = { data: unknown; error: { message: string } | null };
+type Result = { data: unknown; error: { message: string; code?: string } | null };
 
 let answers: Record<string, Result>;
 let rpcCalls: { name: string; args: Record<string, unknown> }[];
@@ -81,6 +81,8 @@ beforeEach(() => {
   filters = [];
   answers = {
     "rpc.claim_automation_runs": { data: [RUN], error: null },
+    // Por omissão a base ainda não tem a 0088: os factos da sessão vêm pelo caminho antigo.
+    "rpc.automation_contact_session_facts": { data: null, error: { code: "PGRST202", message: "Could not find the function" } },
     automations: { data: { id: "auto-1", name: "Recuperação" }, error: null },
     contacts: { data: { id: "contact-1", name: "Ana", email: "ana@exemplo.com", phone: null }, error: null },
     webinars: { data: { id: "web-1", public_title: "Aula", internal_name: "aula", slug: "aula" }, error: null },
@@ -580,6 +582,19 @@ describe("reserva, leitura falhada e concorrência", () => {
     await runDueAutomations();
     const asked = filters.filter((f) => f.table === "rpc.automation_session_facts").map((f) => [f.name, ...f.args]);
     expect(asked).toEqual([["eq", "contact_id", "contact-1"], ["maybeSingle"]]);
+  });
+
+  it("com a 0088: os factos vêm só desta pessoa, sem pedir a sessão inteira", async () => {
+    answers["automations"] = {
+      data: { id: "auto-1", name: "Pós", trigger_event: "webinar_session_ended", conditions: [], steps: { start: null, nodes: [] }, organizations: { is_test: true } },
+      error: null,
+    };
+    answers["rpc.automation_contact_session_facts"] = { data: { purchased: true }, error: null };
+    answers["rpc.claim_automation_runs"] = { data: [{ ...RUN, occurrence_key: "webinar_session_ended:session-1", cursor: null, guards: [], steps_log: [] }], error: null };
+    await runDueAutomations();
+    const one = rpcCalls.filter((c) => c.name === "automation_contact_session_facts");
+    expect(one[0]?.args).toEqual({ _session_id: RUN.webinar_session_id, _contact_id: "contact-1" });
+    expect(rpcCalls.some((c) => c.name === "automation_session_facts")).toBe(false);
   });
 });
 

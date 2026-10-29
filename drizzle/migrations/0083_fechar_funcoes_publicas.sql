@@ -1,45 +1,57 @@
--- Segurança: funções SECURITY DEFINER que não nasceram neste repositório (nenhum código, tarefa agendada
--- ou função do Supabase as chama) e que qualquer visitante podia chamar com a chave pública do site:
+-- Segurança: funções que vieram do projecto antigo (nenhuma migração deste repositório as cria, nenhum
+-- código, tarefa agendada ou função do Supabase as chama) e que qualquer visitante podia chamar com a
+-- chave pública do site. Verificado em produção a 29/10/2026: anon lia o saldo de créditos de IA de
+-- qualquer organização (ai_credit_balance_for_org) e resolvia utilizadores em organizações.
 --  - ai_credit_grant: dava créditos de IA a qualquer conta, sem verificar nada;
---  - ai_credit_use / ai_credit_balance_for_org / ai_credit_sync_wallet: sem sessão, aceitavam qualquer
---    organização (gastar, «reembolsar» ou ler os créditos de outra conta);
---  - ai_token_consume: sem sessão, gastava os tokens de qualquer utilizador;
---  - presence_external_totals: reescrevia as contagens ao vivo de qualquer webinar;
---  - presence_progress_batch: mudava o tempo visto de qualquer participante;
---  - presence_beat, presence_aggregate, crm_presence_flush, welcome_send, refresh_room_config:
---    tarefas internas (enviar webhooks e mensagens, recalcular) que um visitante podia disparar.
--- Passam a ser só do sistema (service_role); quem as corre como postgres (tarefas agendadas) não muda.
+--  - ai_credit_use / ai_credit_balance / ai_credit_balance_for_org / ai_credit_sync_wallet /
+--    ai_credit_resolve_org / ai_credit_is_member: sem sessão, aceitavam qualquer organização
+--    (gastar, «reembolsar», ler os créditos de outra conta, descobrir membros);
+--  - ai_token_consume / ai_token_balance: gastavam e liam os tokens de qualquer utilizador;
+--  - presence_external_totals / presence_progress_batch / presence_beat: reescreviam contagens ao vivo
+--    e o tempo visto de qualquer participante;
+--  - presence_aggregate, crm_presence_flush, welcome_send, welcome_default_text, refresh_room_config,
+--    rls_auto_enable: tarefas internas (enviar mensagens e webhooks, recalcular) que um visitante
+--    podia disparar.
 --
--- Desfazer: GRANT EXECUTE ON FUNCTION <a mesma lista> TO anon, authenticated.
+-- Fecha-se pelo NOME, em todas as variantes (a versão anterior desta migração revogava assinaturas
+-- exactas e falhava inteira se uma delas fosse diferente em produção). Passam a ser só do sistema
+-- (service_role); quem as corre como postgres (tarefas agendadas, gatilhos) não muda: um gatilho não
+-- precisa de EXECUTE para disparar.
+--
+-- No fim, a própria migração confirma que nenhuma ficou chamável por anon ou authenticated; se ficar,
+-- falha e nada é aplicado.
+--
+-- Desfazer: GRANT EXECUTE ON FUNCTION <função>(<argumentos>) TO anon, authenticated, para cada uma.
 
-REVOKE EXECUTE ON FUNCTION public.ai_credit_grant(uuid, integer, text, text) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.ai_credit_use(text, text, uuid, boolean) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.ai_credit_balance_for_org(uuid) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.ai_credit_sync_wallet(uuid) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.ai_credit_resolve_org(uuid) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.ai_token_consume(integer, text, text, uuid) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.presence_external_totals(uuid, uuid, integer, integer, integer, integer, integer, integer, integer) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.presence_progress_batch(jsonb) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.presence_progress_batch(jsonb, uuid) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.presence_beat(text, uuid, uuid, text, text, real, real, integer, boolean, text, text, text, boolean) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.presence_aggregate() FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.crm_presence_flush() FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.welcome_send(uuid, boolean) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.refresh_room_config(uuid) FROM PUBLIC, anon, authenticated;
+DO $$
+DECLARE
+  internal text[] := ARRAY[
+    'ai_credit_grant', 'ai_credit_use', 'ai_credit_balance', 'ai_credit_balance_for_org',
+    'ai_credit_sync_wallet', 'ai_credit_resolve_org', 'ai_credit_is_member',
+    'ai_token_consume', 'ai_token_balance',
+    'presence_external_totals', 'presence_progress_batch', 'presence_beat', 'presence_aggregate',
+    'crm_presence_flush', 'welcome_send', 'welcome_default_text', 'refresh_room_config', 'rls_auto_enable'
+  ];
+  fn record;
+  closed integer := 0;
+  still_open text;
+BEGIN
+  FOR fn IN
+    SELECT p.oid::regprocedure AS sig
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public' AND p.proname = ANY (internal)
+  LOOP
+    EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM PUBLIC, anon, authenticated', fn.sig);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', fn.sig);
+    closed := closed + 1;
+  END LOOP;
+  RAISE NOTICE 'Funções internas fechadas: %', closed;
 
-GRANT EXECUTE ON FUNCTION
-  public.ai_credit_grant(uuid, integer, text, text),
-  public.ai_credit_use(text, text, uuid, boolean),
-  public.ai_credit_balance_for_org(uuid),
-  public.ai_credit_sync_wallet(uuid),
-  public.ai_credit_resolve_org(uuid),
-  public.ai_token_consume(integer, text, text, uuid),
-  public.presence_external_totals(uuid, uuid, integer, integer, integer, integer, integer, integer, integer),
-  public.presence_progress_batch(jsonb),
-  public.presence_progress_batch(jsonb, uuid),
-  public.presence_beat(text, uuid, uuid, text, text, real, real, integer, boolean, text, text, text, boolean),
-  public.presence_aggregate(),
-  public.crm_presence_flush(),
-  public.welcome_send(uuid, boolean),
-  public.refresh_room_config(uuid)
-TO service_role;
+  SELECT string_agg(p.oid::regprocedure::text, ', ') INTO still_open
+    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+   WHERE n.nspname = 'public' AND p.proname = ANY (internal)
+     AND (has_function_privilege('anon', p.oid, 'EXECUTE') OR has_function_privilege('authenticated', p.oid, 'EXECUTE'));
+  IF still_open IS NOT NULL THEN
+    RAISE EXCEPTION 'Ainda chamáveis por anon/authenticated: %', still_open;
+  END IF;
+END $$;

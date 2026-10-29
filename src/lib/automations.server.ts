@@ -201,9 +201,14 @@ type StepAutomation = {
 /** Os factos de agora: da sessão nos gatilhos de sessão, do contacto nos outros. */
 async function currentFacts(run: Run): Promise<RunFacts> {
   if (run.occurrence_key.startsWith("webinar_session_") && run.webinar_session_id) {
-    // Só a linha desta pessoa sai da base de dados, e não as de todos os inscritos da sessão.
-    // ponytail: a função ainda agrega a sessão inteira (SET search_path impede que o filtro entre
-    // nela); um parâmetro _contact_id na automation_session_facts resolve, com migration.
+    // Só a pessoa é agregada (0088). Sem a migração aplicada, o caminho antigo (a sessão inteira, filtrada).
+    const one = await supabaseAdmin.rpc("automation_contact_session_facts" as never, {
+      _session_id: run.webinar_session_id,
+      _contact_id: run.contact_id,
+    } as never);
+    const missing = one.error && (one.error.code === "PGRST202" || one.error.code === "42883");
+    if (!one.error) return ((one.data as unknown) ?? {}) as RunFacts;
+    if (!missing) throw new Error(`factos da sessão: ${one.error.message}`);
     const row = must(
       await supabaseAdmin
         .rpc("automation_session_facts", { _session_id: run.webinar_session_id })

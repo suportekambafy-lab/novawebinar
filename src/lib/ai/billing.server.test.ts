@@ -21,7 +21,14 @@ const state = (over: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   rpc.mockReset();
-  rpc.mockImplementation(async (name: string) => (name === "credit_state" ? state() : { data: 0, error: null }));
+  // Por omissão a base ainda não tem a 0086: a reserva não existe e vale o caminho antigo.
+  rpc.mockImplementation(async (name: string) =>
+    name === "credit_state"
+      ? state()
+      : name === "reserve_credit"
+        ? { data: null, error: { code: "PGRST202", message: "Could not find the function public.reserve_credit" } }
+        : { data: 0, error: null },
+  );
   // O preço geral é o do modelo em AI_CHAT_MODEL.
   process.env["AI_CHAT_MODEL"] = "m";
   process.env["AI_PRICE_INPUT_PER_MTOK"] = "0.4";
@@ -94,5 +101,50 @@ describe("runBilled", () => {
       meterTokens("m", 1000, 0),
     );
     expect(usageCalls()).toHaveLength(1);
+  });
+});
+
+describe("runBilled com a reserva atómica (0086)", () => {
+  const withHolds = (reserve: unknown) =>
+    rpc.mockImplementation(async (name: string) =>
+      name === "reserve_credit"
+        ? { data: reserve, error: null }
+        : name === "settle_credit"
+          ? { data: { charged_micros: 2040, uncharged_micros: 0, duplicate: false }, error: null }
+          : { data: true, error: null },
+    );
+  const calls = (name: string) => rpc.mock.calls.filter(([n]) => n === name);
+
+  it("reserva antes, liquida depois com o custo real, e não usa o caminho antigo", async () => {
+    withHolds({ hold_id: "h1", amount_micros: 2_000_000, reason: null });
+    await runBilled({ organizationId: "org", action: "chat_generation" }, async () => {
+      await meterTokens("m", 1000, 100);
+      await meterTokens("m", 2000, 0);
+    });
+    expect(calls("reserve_credit")[0]![1]).toMatchObject({ _organization_id: "org", _max_micros: 2_000_000 });
+    expect(calls("settle_credit")[0]![1]).toMatchObject({ _hold_id: "h1", _amount_micros: 2040 });
+    expect(calls("credit_state")).toHaveLength(0);
+    expect(calls("record_credit_usage")).toHaveLength(0);
+  });
+
+  it("sem saldo livre ou no limite mensal, a acção nem corre", async () => {
+    withHolds({ hold_id: null, amount_micros: 0, reason: "monthly_cap" });
+    const fn = vi.fn();
+    await expect(runBilled({ organizationId: "org", action: "agent_reply" }, fn)).rejects.toThrow(/limite mensal/);
+    expect(fn).not.toHaveBeenCalled();
+    withHolds({ hold_id: null, amount_micros: 0, reason: "no_balance" });
+    await expect(runBilled({ organizationId: "org", action: "agent_reply" }, fn)).rejects.toBeInstanceOf(NoCreditsError);
+  });
+
+  it("a acção falha: a reserva é libertada e nada se cobra", async () => {
+    withHolds({ hold_id: "h2", amount_micros: 50_000, reason: null });
+    await expect(
+      runBilled({ organizationId: "org", action: "agent_reply" }, async () => {
+        await meterTokens("m", 5000, 500);
+        throw new Error("falhou a meio");
+      }),
+    ).rejects.toThrow("falhou a meio");
+    expect(calls("release_credit")[0]![1]).toMatchObject({ _hold_id: "h2", _organization_id: "org" });
+    expect(calls("settle_credit")).toHaveLength(0);
   });
 });
