@@ -8,7 +8,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { assertWebinarAccess, requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { assertWebinarWriter as assertWebinarAccess, requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { probeWebinarVideoImpl, saveWebinarTranscriptImpl } from "@/lib/ai-comments.functions";
 import { creditState, meterTranscription, runBilled } from "@/lib/ai/billing.server";
 import { blockedReason } from "@/lib/credits";
@@ -91,8 +91,9 @@ export const pollWordTranscription = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const organizationId = await assertWebinarAccess(context.supabase, data.webinarId);
     const engine = await import("@/lib/temporal/engine.server");
-    // O versionId também vem do cliente: tem de ser uma versão deste webinar.
-    if (data.versionId && !(await engine.versionBelongsTo(data.versionId, data.webinarId))) {
+    // O versionId e o trabalho do fornecedor vêm do cliente: têm de ser uma versão deste webinar, criada
+    // para este trabalho. Sem versão não há como cobrar uma só vez, por isso não se aceita.
+    if (!data.versionId || !(await engine.versionBelongsTo(data.versionId, data.webinarId, data.handle.jobId))) {
       throw new Error("Versão da transcrição não encontrada.");
     }
     const { detectPresenterEvents, mergeClassifiedPrompts, promptCandidates } =
@@ -142,8 +143,11 @@ export const pollWordTranscription = createServerFn({ method: "POST" })
         ...(data.versionId ? { ref: `transcription:${data.versionId}` } : {}),
       },
       async () => {
-        await meterTranscription(data.duration);
         const result = done.result;
+        // Cobra-se a duração real do que foi transcrito (a última palavra), nunca menos: a duração enviada
+        // pelo cliente podia vir a zero e a transcrição saía de graça.
+        const lastWordMs = result.words.reduce((max, w) => Math.max(max, w.endMs ?? 0), 0);
+        await meterTranscription(Math.max(data.duration, Math.ceil(lastWordMs / 1000)));
         const sentences = engine.sentencesFrom(result);
         let events = detectPresenterEvents(sentences);
         try {

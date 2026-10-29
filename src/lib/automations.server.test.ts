@@ -57,7 +57,7 @@ vi.mock("@/integrations/supabase/client.server", () => ({
   },
 }));
 
-const { runDueAutomations } = await import("./automations.server");
+const { runDueAutomations, resetGroupMemory } = await import("./automations.server");
 
 const RUN = {
   id: "run-1",
@@ -76,6 +76,7 @@ const HOOK = { enabled: true, secret: "segredo", settings: { url: "https://hooks
 const finishes = () => rpcCalls.filter((c) => c.name === "finish_automation_run").map((c) => c.args);
 
 beforeEach(() => {
+  resetGroupMemory();
   rpcCalls = [];
   filters = [];
   answers = {
@@ -395,7 +396,7 @@ describe("WhatsApp não oficial (WAHA)", () => {
     await runDueAutomations();
     expect(call(0)).toEqual({
       url: "https://waha.exemplo.com/api/sendText",
-      body: { session: "org_1", chatId: "244923456789@c.us", text: "Olá Ana" },
+      body: { session: "org_org1", chatId: "244923456789@c.us", text: "Olá Ana" },
       headers: expect.objectContaining({ "X-Api-Key": "chave" }),
     });
     const step = advances()[0]!;
@@ -417,8 +418,8 @@ describe("WhatsApp não oficial (WAHA)", () => {
       new Response(JSON.stringify([{ id: { _serialized: "111@g.us" }, name: "Outro" }, { id: { _serialized: "222@g.us" }, name: "Webinar IA" }]), { status: 200 }),
     );
     await runDueAutomations();
-    expect(call(0).url).toBe("https://waha.exemplo.com/api/org_1/groups?exclude=participants");
-    expect(call(1).body).toEqual({ session: "org_1", chatId: "222@g.us", text: "Olá Ana" });
+    expect(call(0).url).toBe("https://waha.exemplo.com/api/org_org1/groups?exclude=participants");
+    expect(call(1).body).toEqual({ session: "org_org1", chatId: "222@g.us", text: "Olá Ana" });
     expect(advances()[0]).toMatchObject({ _status: "done" });
   });
 
@@ -450,7 +451,7 @@ describe("WhatsApp não oficial (WAHA)", () => {
     twoSends({ result: { action: "steps", node: "m", partial: { node: "m", done: [0] } } });
     await runDueAutomations();
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(call(0).body).toEqual({ session: "org_1", chatId: "222@g.us", text: "Começou" });
+    expect(call(0).body).toEqual({ session: "org_org1", chatId: "222@g.us", text: "Começou" });
     const step = advances()[0]!;
     expect(step).toMatchObject({ _status: "done" });
     const sends = (step["_log"] as { sends: { status: string; error?: string | null }[] }[])[0]!.sends;
@@ -504,7 +505,9 @@ describe("reserva, leitura falhada e concorrência", () => {
     ] as never;
     expect(await runDueAutomations()).toEqual({ executed: 2 });
     const claims = rpcCalls.filter((c) => c.name === "claim_automation_runs");
-    expect(claims.map((c) => c.args["_limit"])).toEqual([1, 1, 1]);
+    // Cada trabalhador reserva uma de cada vez; os que não encontram nada param.
+    expect(claims.every((c) => c.args["_limit"] === 1)).toBe(true);
+    expect(claims.length).toBeGreaterThanOrEqual(3);
   });
 
   it("reserva expirada antes do envio (outra passagem retomou-a): o webhook não sai e nada se grava", async () => {

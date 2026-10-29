@@ -230,6 +230,30 @@ const mask = (value: string | null | undefined) =>
  * ponytail: verificação antes do envio, sem trinco (o executor corre as execuções uma a uma);
  * com vários servidores a executar ao mesmo tempo, uma chave única por automação, passo, grupo e sessão.
  */
+/** Envios a grupos em curso e já feitos neste processo, por automação, sessão, passo e posição. */
+const groupInFlight = new Map<string, Promise<boolean>>();
+const deliveredGroups = new Set<string>();
+
+/** Só para os testes: esquece os envios a grupos deste processo. */
+export function resetGroupMemory() {
+  groupInFlight.clear();
+  deliveredGroups.clear();
+}
+
+function groupKey(run: Run, nodeId: string, slot: number) {
+  return `${run.automation_id}|${run.webinar_session_id ?? run.webinar_id ?? ""}|${nodeId}|${slot}`;
+}
+
+function finishGroup(key: string, settle: ((sent: boolean) => void) | null, sent: boolean) {
+  if (!settle) return;
+  if (sent) {
+    if (deliveredGroups.size > 5000) deliveredGroups.clear();
+    deliveredGroups.add(key);
+  }
+  groupInFlight.delete(key);
+  settle(sent);
+}
+
 async function groupAlreadySent(
   run: Run,
   nodeId: string,
@@ -399,16 +423,42 @@ async function executeAction(
       continue;
     }
     if (send.channel === "whatsapp" && !isTest) {
-      if (send.target === "group" && (await groupAlreadySent(run, node.id, send, slot, "delivered"))) {
-        entry.sends!.push({ channel: "whatsapp", target: "group", to, status: "shared", slot });
-        continue;
+      // Envio ao grupo: um só por sessão. Os trabalhadores correm em paralelo, por isso a vez é reservada
+      // neste processo antes de olhar para a base de dados (que só vê os envios já registados).
+      let settleGroup: ((sent: boolean) => void) | null = null;
+      if (send.target === "group") {
+        const key = groupKey(run, node.id, slot);
+        let shared = false;
+        while (groupInFlight.has(key)) {
+          if (await groupInFlight.get(key)) {
+            shared = true;
+            break;
+          }
+        }
+        if (!shared && deliveredGroups.has(key)) shared = true;
+        if (!shared) {
+          groupInFlight.set(key, new Promise<boolean>((resolve) => (settleGroup = resolve)));
+          if (await groupAlreadySent(run, node.id, send, slot, "delivered").catch(() => false)) shared = true;
+        }
+        if (shared) {
+          finishGroup(key, settleGroup, true);
+          entry.sends!.push({ channel: "whatsapp", target: "group", to, status: "shared", slot });
+          continue;
+        }
       }
-      await holdLock(run);
-      const delivery = await sendWhatsapp(
-        run.organization_id,
-        send.target === "group" ? { group: send.group ?? "" } : { phone: data.contact.phone },
-        renderMessage(send.message, sendVars),
-      );
+      let delivery: Awaited<ReturnType<typeof sendWhatsapp>>;
+      try {
+        await holdLock(run);
+        delivery = await sendWhatsapp(
+          run.organization_id,
+          send.target === "group" ? { group: send.group ?? "" } : { phone: data.contact.phone },
+          renderMessage(send.message, sendVars),
+        );
+      } catch (error) {
+        if (send.target === "group") finishGroup(groupKey(run, node.id, slot), settleGroup, false);
+        throw error;
+      }
+      if (send.target === "group") finishGroup(groupKey(run, node.id, slot), settleGroup, delivery.ok);
       entry.sends!.push({
         channel: "whatsapp",
         target: send.target,
@@ -610,16 +660,31 @@ async function runOne(run: Run) {
  * ponytail: o tempo só se confirma entre execuções; uma execução pode durar até ~1 min
  * (6 webhooks de 10 s). Um prazo por envio, se o endpoint agendado tiver um limite mais curto.
  */
-export async function runDueAutomations({ limit = 50, budgetMs = 30_000 } = {}) {
+/**
+ * Executa as execuções prontas até acabar o tempo, com vários trabalhadores em paralelo. Antes era uma de
+ * cada vez e no máximo 50 por chamada (uma por minuto): com 600 inscritos, um lembrete «15 minutos antes»
+ * chegava a 250 pessoas e o resto passava da hora e era saltado sem aviso.
+ */
+export async function runDueAutomations({ limit = 2000, budgetMs = 30_000, workers = 6 } = {}) {
   const started = Date.now();
   let executed = 0;
-  while (executed < limit && Date.now() - started < budgetMs) {
-    const { data: runs, error } = await supabaseAdmin.rpc("claim_automation_runs", { _limit: 1 });
-    if (error) throw new Error(error.message);
-    const run = runs?.[0];
-    if (!run) break;
-    executed += 1;
-    await runOne(run);
-  }
+  let empty = false;
+  const worker = async () => {
+    while (!empty && executed < limit && Date.now() - started < budgetMs) {
+      const { data: runs, error } = await supabaseAdmin.rpc("claim_automation_runs", { _limit: 1 });
+      if (error) throw new Error(error.message);
+      const run = runs?.[0];
+      if (!run) {
+        empty = true;
+        break;
+      }
+      executed += 1;
+      await runOne(run);
+    }
+  };
+  const results = await Promise.allSettled(Array.from({ length: Math.max(1, workers) }, worker));
+  const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+  if (failed && executed === 0) throw failed.reason;
+  if (failed) console.error("[automations] um trabalhador parou", failed.reason);
   return { executed };
 }

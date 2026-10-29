@@ -87,13 +87,13 @@ describe("sala pública com a base de dados em baixo", () => {
 
   it("o vídeo do Storage sai com o mesmo URL assinado para todos, para o CDN o servir da cache", async () => {
     answers["webinars.select"] = {
-      data: { ...WEBINAR, video_sources: { storage_path: "org/aula.mp4", source_url: null } },
+      data: { ...WEBINAR, video_sources: { storage_path: "org-1/aula.mp4", source_url: null } },
       error: null,
     };
     const first = await loadPublicRoom("sessao");
     clearPublicRoomCache();
     const second = await loadPublicRoom("sessao");
-    expect(first?.webinar.video_url).toMatch(/^https:\/\/cdn\/org\/aula\.mp4\?token=/);
+    expect(first?.webinar.video_url).toMatch(/^https:\/\/cdn\/org-1\/aula\.mp4\?token=/);
     expect(second?.webinar.video_url).toBe(first?.webinar.video_url);
   });
 
@@ -101,9 +101,9 @@ describe("sala pública com a base de dados em baixo", () => {
     const live = { live: { waiting: { video: "6f1c2a7e-1b2c-4d5e-8f90-123456789abc" } } };
     answers["webinars.select"] = { data: { ...WEBINAR, waiting_room_enabled: true, chat_settings: live }, error: null };
     expect((await loadPublicRoom("sessao"))?.webinar.waiting_video).toBeNull();
-    answers["video_sources.select"] = { data: { storage_path: "org/fundo.mp4", source_url: null, provider: "upload" }, error: null };
+    answers["video_sources.select"] = { data: { storage_path: "org-1/fundo.mp4", source_url: null, provider: "upload" }, error: null };
     clearPublicRoomCache();
-    expect((await loadPublicRoom("sessao"))?.webinar.waiting_video).toEqual({ url: expect.stringMatching(/^https:\/\/cdn\/org\/fundo\.mp4/), provider: "upload" });
+    expect((await loadPublicRoom("sessao"))?.webinar.waiting_video).toEqual({ url: expect.stringMatching(/^https:\/\/cdn\/org-1\/fundo\.mp4/), provider: "upload" });
     answers["webinars.select"] = { data: { ...WEBINAR, waiting_room_enabled: false, chat_settings: live }, error: null };
     clearPublicRoomCache();
     expect((await loadPublicRoom("sessao"))?.webinar.waiting_video).toBeNull();
@@ -182,5 +182,16 @@ describe("credencial da sala", () => {
     const token = roomToken(PARTICIPANT);
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "chave-nova");
     expect(participantFromToken(token)).toBeNull();
+  });
+});
+
+describe("vídeos de outra conta nunca são assinados", () => {
+  it("só se assina um caminho dentro da pasta da organização do webinar", async () => {
+    const { ownsStoragePath } = await import("./public-room.server");
+    expect(ownsStoragePath("org-1/aula.mp4", "org-1")).toBe(true);
+    expect(ownsStoragePath("org-2/aula.mp4", "org-1")).toBe(false);
+    expect(ownsStoragePath("org-1x/aula.mp4", "org-1")).toBe(false);
+    expect(ownsStoragePath("org-1/../org-2/aula.mp4", "org-1")).toBe(false);
+    expect(ownsStoragePath("aula.mp4", "org-1")).toBe(false);
   });
 });

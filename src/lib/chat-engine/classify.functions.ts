@@ -2,7 +2,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { assertWebinarAccess, requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { assertWebinarWriter as assertWebinarAccess, requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { runBilled } from "@/lib/ai/billing.server";
 import { latestReadyVersion } from "@/lib/temporal/engine.server";
 

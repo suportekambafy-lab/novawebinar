@@ -5,7 +5,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { assertWebinarAccess, requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { assertWebinarAccess, assertWebinarWriter, requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { runBilled } from "@/lib/ai/billing.server";
 import { s, schema } from "@/lib/ai/schema";
 import { defaultPermissions, KNOWLEDGE_FIELDS, type AgentSource } from "./defaults";
@@ -362,7 +362,7 @@ export const simulateAgentReply = createServerFn({ method: "POST" })
       .parse(data),
   )
   .handler(async ({ data, context }): Promise<SimulationResult> => {
-    const organizationId = await assertWebinarAccess(context.supabase, data.webinarId);
+    const organizationId = await assertWebinarWriter(context.supabase, data.webinarId);
     const { decideAgentReply } = await import("./respond.server");
     const result = await runBilled({ organizationId, action: "agent_reply" }, () =>
       decideAgentReply({
@@ -464,6 +464,7 @@ export const generateAgentContent = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }): Promise<GeneratedContent> => {
     const supabase = context.supabase as never as any;
+    await assertWebinarWriter(context.supabase, data.webinarId);
     const agent = await ensureAgentRow(supabase, data.webinarId);
 
     const [{ data: webinar }, { data: knowledge }, { latestReadyVersion }, { chatJson }] =

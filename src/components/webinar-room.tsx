@@ -962,6 +962,9 @@ export function WebinarRoom({
           data: { webinarId: webinar.id, since: realSinceRef.current },
         });
         if (stopped || rows.length === 0) return;
+        // O próximo pedido começa na última compra recebida (as repetidas caem pelo id).
+        const latest = Math.max(...rows.map((row) => Date.parse(row.at ?? "") || 0));
+        if (latest > realSinceRef.current) realSinceRef.current = latest;
         setRealPurchases((prev) => {
           const known = new Set(prev.map((p) => p.id));
           const fresh = rows

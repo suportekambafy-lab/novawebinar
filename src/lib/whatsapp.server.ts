@@ -80,7 +80,9 @@ export async function sendWhatsapp(
   if (!whatsappReady(row ?? undefined))
     return { ...fail("O WhatsApp não oficial não está ligado (Integrações › Canais)."), config: true };
   const settings = row!.settings as Record<string, string>;
-  const session = settings["session"]!;
+  // A sessão de cada organização tem nome fixo no servidor de WhatsApp. Calcula-se aqui, nunca se lê das
+  // definições (que um membro pode escrever): com o nome de outra organização, enviava pelo número dela.
+  const session = `org_${organizationId.replace(/-/g, "")}`;
 
   try {
     let chatId: string | null;
@@ -107,6 +109,10 @@ export async function sendWhatsapp(
     }
     if (res.ok) return { ok: true, transient: false, status: res.status, error: null };
     const detail = (await res.text()).slice(0, 200);
+    // Telemóvel desligado ou sessão parada: o WAHA recusa com 4xx a falar da sessão. Não é a mensagem que
+    // está mal: fica para mais tarde, como um problema de ligação, em vez de se perder para sempre.
+    if (res.status === 422 || (res.status < 500 && /session/i.test(detail)))
+      return { ...fail(`O WhatsApp não está ligado agora (${res.status}): ${detail}`, true, res.status), config: true };
     return fail(
       `O WhatsApp recusou o envio (${res.status}): ${detail}`,
       res.status >= 500 || res.status === 429,

@@ -31,6 +31,8 @@ const joinSchema = z.object({
   // Entrada pela sala de teste: aberta mesmo com a sessão inativa e sem
   // disparar avisos para sistemas externos.
   teste: z.boolean().optional(),
+  /** Prova de que quem abre a sala de teste é da equipa (o link de equipa, pedido com a sessão iniciada). */
+  testPass: z.string().max(200).optional(),
   device: z.enum(["mobile", "tablet", "desktop"]).optional(),
   city: z.string().trim().max(120).optional(),
   country: z.string().trim().max(120).optional(),
@@ -200,10 +202,14 @@ export const joinPublicRoom = createServerFn({ method: "POST" })
 
     let webinar = await loadRegistrationWebinar(data.webinarId).catch(() => null);
     if (!webinar) throw new Error("Webinar indisponível.");
-    if (webinar.status === "draft" && !data.teste) throw new Error("Webinar indisponível.");
+    // A sala de teste só vale com a prova da equipa: «?teste=1» num link reencaminhado abria rascunhos e
+    // replays fechados a qualquer pessoa, e trocava o e-mail de um lead real pelo e-mail fictício do teste.
+    const { isTeamToken } = await import("@/lib/room-team.server");
+    const teste = Boolean(data.teste) && Boolean(data.testPass) && isTeamToken(webinar.id, data.testPass!);
+    if (webinar.status === "draft" && !teste) throw new Error("Webinar indisponível.");
     if (!roomPerTarget.allow(webinar.id)) throw new Error(RATE_LIMITED);
     // O replay só existe com o replay ligado e depois de a sessão terminar (a sala de teste passa sempre).
-    if (data.mode === "replay" && !data.teste && !(await replayOpen(webinar))) {
+    if (data.mode === "replay" && !teste && !(await replayOpen(webinar))) {
       throw new Error("A gravação ainda não está disponível.");
     }
 
@@ -230,7 +236,7 @@ export const joinPublicRoom = createServerFn({ method: "POST" })
     // Teste A/B: um lead que já viu outra variante (noutro aparelho, sem o cookie) volta a essa, ao vivo ou no
     // replay. Sem registo dele, fica a variante que o tráfego lhe deu.
     let switched = false;
-    if (data.abTestId && !data.teste) {
+    if (data.abTestId && !teste) {
       const { variantSwitchFor } = await import("@/lib/ab-tests/assign.server");
       const other = await variantSwitchFor(data.abTestId, webinar.id, { email: entry.email, phone });
       const next = other ? await loadRegistrationWebinar(other).catch(() => null) : null;
@@ -247,7 +253,7 @@ export const joinPublicRoom = createServerFn({ method: "POST" })
 
     // Inscrição ao vivo num webinar com horário: fica ligada à sessão global, com a
     // mesma janela que a sala mostra (o mesmo caminho da captura externa).
-    const sessionId = await openRegistrationSession(webinar, data.mode, Boolean(data.teste), data.shownStartMs ?? null);
+    const sessionId = await openRegistrationSession(webinar, data.mode, teste, data.shownStartMs ?? null);
     const { participant, error } = await createRegistration(
       webinar,
       {
@@ -268,21 +274,21 @@ export const joinPublicRoom = createServerFn({ method: "POST" })
         },
         referrer: data.referrer ?? null,
         source: "room",
-        teste: Boolean(data.teste),
+        teste: teste,
       },
       sessionId,
     );
     if (error || !participant) throw new Error("Não foi possível entrar na sala.");
     // Num teste A/B, a participação e o e-mail ficam ligados à variante desta pessoa (nunca trava a entrada).
     // A sala de teste não entra nos números do teste A/B (nem leva o e-mail de quem testa).
-    if (!data.teste) {
+    if (!teste) {
       const { linkAssignment } = await import("@/lib/ab-tests/assign.server");
       await linkAssignment({ webinarId: webinar.id, participantId: participant.id, email: entry.email });
     }
     const { roomToken } = await import("@/lib/public-room.server");
     // Webinar Intelligence: fica no cookie que esta pessoa entrou numa sala desta organização (a sala de
     // teste não conta). Da próxima vez que abrir um endereço inteligente, vai para o secundário.
-    if (!data.teste) {
+    if (!teste) {
       const { rememberSeen } = await import("@/lib/intelligence/resolve.server");
       await rememberSeen(webinar.organization_id);
     }

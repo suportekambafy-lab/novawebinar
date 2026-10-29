@@ -21,6 +21,22 @@ export async function assertWebinarAccess(
   return data.organization_id;
 }
 
+/**
+ * Acesso ao webinar para ESCREVER ou gastar créditos: o mesmo que assertWebinarAccess, mas quem só
+ * atende (papel «suporte») fica de fora. Usar antes de qualquer escrita com a chave de serviço ou
+ * chamada à IA paga, que passam por cima das regras de leitura da equipa de suporte.
+ */
+export async function assertWebinarWriter(
+  supabase: SupabaseClient<Database>,
+  webinarId: string,
+): Promise<string> {
+  const organizationId = await assertWebinarAccess(supabase, webinarId);
+  const { data: supportOnly, error } = await supabase.rpc('is_support_only', { _organization_id: organizationId });
+  if (error) throw new Error('Não foi possível confirmar a permissão. Tente novamente.');
+  if (supportOnly) throw new Error('A equipa de suporte não pode fazer esta alteração nem gastar créditos.');
+  return organizationId;
+}
+
 
 
 

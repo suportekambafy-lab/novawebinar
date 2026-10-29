@@ -450,6 +450,10 @@ export function VideoPlayer({
         hlsRef.current = null;
         hls.destroy();
       };
+    }).catch(() => {
+      // O ficheiro do leitor não carregou (rede a falhar, ou versão antiga apagada depois de uma publicação):
+      // sem isto o vídeo ficava preto para sempre; assim cai no «leitor novo daí a 5 s».
+      if (!cancelled) setFailed(true);
     });
     return () => {
       cancelled = true;

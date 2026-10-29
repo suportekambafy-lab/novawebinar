@@ -154,15 +154,10 @@ async function dailyOf(testId: string, variants: AbTestVariantRow[]) {
   return days;
 }
 
-/** Um endereço só pode ser de um teste ou de um webinar: é por ele que a sala pública resolve. */
+/** Um endereço só pode ter um dono (webinar, teste ou endereço do Webinar Intelligence): é por ele que a sala resolve. */
 async function slugTaken(slug: string, exceptTestId?: string) {
-  const db = await admin();
-  const [tests, webinars] = await Promise.all([
-    db.from("ab_tests").select("id").eq("slug", slug).limit(2),
-    db.from("webinars").select("id").eq("slug", slug).limit(1),
-  ]);
-  const otherTest = (tests.data ?? []).some((t) => t.id !== exceptTestId);
-  return otherTest || (webinars.data ?? []).length > 0;
+  const { publicSlugTaken } = await import("@/lib/public-slug.functions");
+  return publicSlugTaken(slug, exceptTestId ? { testId: exceptTestId } : {});
 }
 
 export type AbTestSummary = { test: AbTestRow; variants: AbTestVariantRow[]; metrics: TestMetrics; evaluation: Evaluation };

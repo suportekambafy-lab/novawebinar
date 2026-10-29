@@ -145,7 +145,8 @@ LANGUAGE sql STABLE SET search_path = public AS $$
       WHERE f.contact_id = _contact_id
         AND f.joined_at <= _at
         AND length(btrim(coalesce(_product_id, ''))) >= 4
-        AND strpos(coalesce(w.cta_url, ''), btrim(_product_id)) > 0
+        -- O id inteiro, entre separadores do link (/ = ? & #): «1234» não pode bater com «…/12345».
+        AND coalesce(w.cta_url, '') ~ ('(^|[/=?&#])' || regexp_replace(btrim(_product_id), '([.*+?^${}()|\[\]\\])', '\\\1', 'g') || '($|[/?&#])')
       ORDER BY f.joined_at DESC
       LIMIT 1)
     UNION ALL

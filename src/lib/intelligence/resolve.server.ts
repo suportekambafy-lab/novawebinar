@@ -1,8 +1,7 @@
 /**
  * O resolvedor do Webinar Intelligence, só no servidor. Quem abre o endereço vai para o favorito, ou para
  * o secundário se já viu um webinar da organização. «Já viu» reconhece-se por quatro sinais, nesta ordem:
- * o cookie de salas vistas (nw_seen_orgs, posto ao entrar numa sala), uma visita anterior a este endereço
- * com o mesmo cookie anónimo (nw_visitor), e o e-mail ou o WhatsApp que o link traz (links dos e-mails e
+ * o cookie de salas vistas (nw_seen_orgs, posto ao entrar numa sala) e o e-mail ou o WhatsApp que o link traz (links dos e-mails e
  * do WhatsApp), cruzados com as participações da organização. Cada visita fica registada.
  */
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
@@ -62,6 +61,8 @@ export function findSmartLinkBySlug(slug: string): Promise<SmartLinkRow | null> 
   )
     .then(({ data, error }) => {
       if (error) throw new Error(error.message);
+      // Um endereço que ainda não existe fica em cache só 5 s: um link acabado de criar abre logo.
+      if (!data) linkCache.set(slug, { until: Date.now() + 5_000, value: Promise.resolve(null) });
       return (data as SmartLinkRow | null) ?? null;
     })
     .catch((error: unknown) => {
@@ -72,7 +73,11 @@ export function findSmartLinkBySlug(slug: string): Promise<SmartLinkRow | null> 
   return value;
 }
 
+/** «visita» só existe em registos antigos: deixou de ser sinal de «já viu». */
 export type KnownBy = "" | "cookie" | "visita" | "email" | "whatsapp";
+
+/** Durante quanto tempo a mesma pessoa fica no webinar que o endereço lhe deu. */
+export const STICKY_MS = 6 * 60 * 60 * 1000;
 
 const realEmail = (email: string | null | undefined) => {
   const e = (email ?? "").trim().toLowerCase();
@@ -81,14 +86,10 @@ const realEmail = (email: string | null | undefined) => {
 
 /** Como se sabe que a pessoa já viu um webinar desta organização; "" quando não há sinal nenhum. */
 export async function knownBy(link: SmartLinkRow, visitor: string, person: KnownPerson): Promise<KnownBy> {
+  // Abrir o endereço não é ter visto um webinar: a página volta a pedir a sala (hidratação, a cada minuto,
+  // ao voltar ao separador), e contar essas visitas mandava um visitante novo para o secundário.
+  void visitor;
   if ((await seenOrganizations()).includes(link.organization_id)) return "cookie";
-  const { data: previous } = await supabaseAdmin
-    .from("smart_link_visits")
-    .select("id")
-    .eq("organization_id", link.organization_id)
-    .eq("visitor_id", visitor)
-    .limit(1);
-  if (previous && previous.length > 0) return "visita";
   const email = realEmail(person.email);
   const phone = (person.phone ?? "").trim() || null;
   if (!email && !phone) return "";
@@ -123,6 +124,19 @@ export async function resolveSmartLink(slug: string, person: KnownPerson = {}): 
   const visitor = await visitorId();
   // Em pausa, toda a gente vai para o favorito e nada se regista.
   if (link.status !== "active") return { linkId: link.id, webinarId: link.primary_webinar_id, returning: false, knownBy: "" };
+  // A decisão mantém-se durante a mesma ida (6 h): quem entrou no favorito não salta para o secundário
+  // a meio, quando a inscrição põe o cookie de «já viu»; e cada visitante conta uma visita, não uma por pedido.
+  const { data: last } = await supabaseAdmin
+    .from("smart_link_visits")
+    .select("webinar_id, returning_visitor, known_by, created_at")
+    .eq("smart_link_id", link.id)
+    .eq("visitor_id", visitor)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const targets = [link.primary_webinar_id, link.secondary_webinar_id].filter(Boolean);
+  if (last?.webinar_id && targets.includes(last.webinar_id) && Date.parse(last.created_at) > Date.now() - STICKY_MS)
+    return { linkId: link.id, webinarId: last.webinar_id, returning: last.returning_visitor, knownBy: last.known_by as KnownBy };
   const by = await knownBy(link, visitor, person).catch((): KnownBy => "");
   const returning = by !== "";
   const webinarId = decideWebinar(link, returning);

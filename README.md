@@ -40,7 +40,7 @@ A lista completa, com a explicação de cada uma, está em `.env.example`.
 | IA | `AI_PROVIDER`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `AI_*` | Gateway com vários fornecedores; preços e margem do saldo de IA |
 | WhatsApp | `WAHA_URL`, `WAHA_API_KEY` | WhatsApp não oficial pelo WAHA (opcional) |
 | Domínios | `VITE_PUBLIC_APP_URL`, `VITE_ADMIN_HOST`, `VITE_PUBLIC_HOSTS` | Domínio público das salas (opcional) |
-| Fila | `JOB_TICKER` | `off` desliga o motor interno; em serverless a fila corre por `/api/public/run-jobs` |
+| Fila | `JOB_TICKER` | `on` liga o motor interno (só num servidor permanente próprio; desligado por omissão, também em `vite dev`). Na Vercel a fila corre por `/api/public/run-jobs` |
 
 **Para quem colabora:** use um projecto Supabase seu, de desenvolvimento, e nunca as chaves de produção.
 

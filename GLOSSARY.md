@@ -49,7 +49,7 @@ O webinar principal de um endereço do Webinar Intelligence, para quem chega de 
 _Avoid_: Principal, primário
 
 **Secundário**:
-O webinar para quem já viu um webinar da organização (entrou numa sala neste aparelho, já abriu o endereço, ou o e-mail ou WhatsApp do link já participou).
+O webinar para quem já viu um webinar da organização (entrou numa sala neste aparelho, ou o e-mail ou WhatsApp do link já participou).
 _Avoid_: Alternativo, fallback
 
 ### Testes A/B

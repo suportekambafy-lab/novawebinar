@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { assertWebinarAccess, requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { assertWebinarAccess, assertWebinarWriter, requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { runBilled } from "@/lib/ai/billing.server";
 import type { BilledAction } from "@/lib/credits";
 
@@ -12,7 +12,7 @@ async function billed<T>(
   action: BilledAction,
   run: () => Promise<T>,
 ): Promise<T> {
-  const organizationId = await assertWebinarAccess(supabase, webinarId);
+  const organizationId = await assertWebinarWriter(supabase, webinarId);
   return runBilled({ organizationId, action }, run);
 }
 import {
@@ -389,7 +389,7 @@ type VideoRef = {
 export async function loadVideoRef(supabase: any, webinarId: string): Promise<VideoRef> {
   const { data: webinar, error } = await supabase
     .from("webinars")
-    .select("id, duration_seconds, video_sources(source_url, storage_path, duration_seconds)")
+    .select("id, organization_id, duration_seconds, video_sources(source_url, storage_path, duration_seconds)")
     .eq("id", webinarId)
     .maybeSingle();
 
@@ -403,7 +403,8 @@ export async function loadVideoRef(supabase: any, webinarId: string): Promise<Vi
   const duration = source?.duration_seconds || webinar.duration_seconds || 0;
 
   let url = source?.source_url ?? null;
-  if (!url && source?.storage_path) {
+  // Só se assina um caminho dentro da pasta da organização do webinar (o caminho é texto de um membro).
+  if (!url && source?.storage_path && source.storage_path.startsWith(`${webinar.organization_id}/`) && !source.storage_path.split("/").includes("..")) {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: signed } = await supabaseAdmin.storage
       .from("webinar-videos")

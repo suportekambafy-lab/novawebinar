@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeEvent, parseAmount, webhookStatus, whatsappNumber, whatsappReady } from "./integrations";
+import { legacyPurchaseEvent, normalizeEvent, parseAmount, webhookStatus, whatsappNumber, whatsappReady } from "./integrations";
 
 describe("WhatsApp: número e ligação", () => {
   it("o número no formato do WhatsApp: com +, sem +, com 00 e com o indicativo já escrito", () => {
@@ -173,9 +173,26 @@ describe("normalizeEvent", () => {
     expect(yen.kind === "purchase" && yen.amountValue).toBe(500);
     const refund = normalizeEvent("stripe", {
       type: "charge.refunded",
-      data: { object: { id: "ch_1", payment_intent: "pi_1", amount: 1099, currency: "usd" } },
+      data: { object: { id: "ch_1", payment_intent: "pi_1", amount: 1099, amount_refunded: 1099, refunded: true, currency: "usd" } },
     });
     expect(refund.kind === "purchase" && [refund.status, refund.externalId]).toEqual(["refunded", "pi_1"]);
+    // Reembolso parcial: a venda continua a contar.
+    const partial = normalizeEvent("stripe", {
+      type: "charge.refunded",
+      data: { object: { id: "ch_1", payment_intent: "pi_1", amount: 50000, amount_refunded: 500, refunded: false, currency: "usd" } },
+    });
+    expect(partial.kind).toBe("ignore");
+    // Disputa perdida (chargeback): desfaz a venda; ganha ou aberta: não mexe.
+    const lost = normalizeEvent("stripe", {
+      type: "charge.dispute.closed",
+      data: { object: { id: "dp_1", payment_intent: "pi_1", amount: 1099, currency: "usd", status: "lost" } },
+    });
+    expect(lost.kind === "purchase" && [lost.status, lost.externalId]).toEqual(["refunded", "pi_1"]);
+    const won = normalizeEvent("stripe", {
+      type: "charge.dispute.closed",
+      data: { object: { id: "dp_2", payment_intent: "pi_1", amount: 1099, currency: "usd", status: "won" } },
+    });
+    expect(won.kind).toBe("ignore");
     // As tentativas que não acabaram em compra ligam-se pelo mesmo payment_intent.
     const failed = normalizeEvent("stripe", {
       type: "payment_intent.payment_failed",
@@ -274,5 +291,26 @@ describe("parseAmount", () => {
 
   it("sem número, nada", () => {
     expect([parseAmount("abc"), parseAmount(null), parseAmount(Number.NaN)]).toEqual([null, null, null]);
+  });
+});
+
+describe("endereço antigo de compras: o estado", () => {
+  const base = { buyer_email: "a@b.pt", buyer_name: "Ana", amount: "100", order_id: "o1" };
+  it("sem estado é compra feita; aprovado, pendente, falhado e reembolsado lêem-se", () => {
+    const status = (s?: string) => {
+      const { event } = legacyPurchaseEvent(s === undefined ? base : { ...base, status: s });
+      return event.kind === "purchase" ? event.status : event.kind;
+    };
+    expect(status()).toBe("approved");
+    expect(status("approved")).toBe("approved");
+    expect(status("waiting_payment")).toBe("pending");
+    expect(status("refused")).toBe("failed");
+    expect(status("chargeback")).toBe("refunded");
+  });
+  it("cancelado, expirado, abandonado ou um estado desconhecido nunca contam como venda", () => {
+    for (const s of ["cancelled", "canceled", "expired", "abandoned", "declined", "xpto"]) {
+      const { event } = legacyPurchaseEvent({ ...base, status: s });
+      expect(event.kind === "purchase" ? event.status : "ignore").not.toBe("approved");
+    }
   });
 });

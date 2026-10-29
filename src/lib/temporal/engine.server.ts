@@ -191,14 +191,18 @@ export async function saveVersionBlocks(versionId: string, blocks: unknown[]) {
 }
 
 /** A versão é deste webinar? Os ids chegam do cliente e da fila de trabalhos. */
-export async function versionBelongsTo(versionId: string, webinarId: string) {
+export async function versionBelongsTo(versionId: string, webinarId: string, providerJobId?: string | null) {
   const { data } = await db
     .from("webinar_transcript_versions")
-    .select("id")
+    .select("id, provider_job_id")
     .eq("id", versionId)
     .eq("webinar_id", webinarId)
     .maybeSingle();
-  return Boolean(data);
+  if (!data) return false;
+  // O trabalho do fornecedor também vem do cliente: tem de ser o desta versão (senão um id de outra conta
+  // trazia a transcrição alheia para este webinar).
+  if (providerJobId !== undefined && (data as { provider_job_id: string | null }).provider_job_id !== providerJobId) return false;
+  return true;
 }
 
 /** Uma versão concreta da transcrição, para causalidade e inspeção. */

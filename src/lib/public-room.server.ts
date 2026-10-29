@@ -47,8 +47,16 @@ export async function notifyWebhook(
  * Uma assinatura falhada não fecha a sala: fica o link guardado.
  * ponytail: memória da instância da função; cada instância assina o seu. Chega enquanto forem poucas.
  */
+/** O objecto do Storage está na pasta desta organização («<org>/…»), sem «..» a sair dela. */
+export function ownsStoragePath(path: string, organizationId: string): boolean {
+  return path.startsWith(`${organizationId}/`) && !path.split("/").includes("..");
+}
+
 const signedVideos = new Map<string, { url: string; until: number }>();
-async function signedVideoUrl(path: string): Promise<string | null> {
+async function signedVideoUrl(path: string, organizationId: string): Promise<string | null> {
+  // O caminho é texto guardado por um membro: só se assina dentro da pasta da organização do webinar,
+  // senão um membro de outra conta escrevia o caminho de um vídeo alheio e a sala assinava-o.
+  if (!ownsStoragePath(path, organizationId)) return null;
   const cached = signedVideos.get(path);
   if (cached && cached.until > Date.now()) return cached.url;
   const { data } = await supabaseAdmin.storage
@@ -77,7 +85,7 @@ async function waitingVideo(organizationId: string, id: string | null) {
       () => ({ data: null }),
     );
   if (!data) return null;
-  const url = (data.storage_path ? await signedVideoUrl(data.storage_path) : null) ?? data.source_url;
+  const url = (data.storage_path ? await signedVideoUrl(data.storage_path, organizationId) : null) ?? data.source_url;
   return url ? { url, provider: data.provider } : null;
 }
 
@@ -209,7 +217,7 @@ async function buildRoom(webinar: RoomRow) {
       .select("segments, video_source_id")
       .eq("webinar_id", webinar.id)
       .maybeSingle(),
-  ]), source?.storage_path ? signedVideoUrl(source.storage_path) : null,
+  ]), source?.storage_path ? signedVideoUrl(source.storage_path, webinar.organization_id) : null,
     // Nunca rejeita: sem grupo no fluxo (ou com a leitura falhada) vem null e o botão não aparece.
     flowGroupInvite(webinar.organization_id, webinar.id),
     waitingVideo(webinar.organization_id, webinar.waiting_room_enabled ? live.waiting.video : null),
@@ -383,15 +391,20 @@ export async function recordCta(data: {
   if (data.eventType === "click") {
     // Só o primeiro clique avisa os webhooks; a sala de teste (`@sala.local`) nunca avisa ninguém.
     const isTestViewer = !participant.email || participant.email.endsWith("@sala.local");
-    const firstClick = !participant.cta_clicked;
-    const { error: clickError } = await supabaseAdmin
-      .from("participants")
-      .update({ cta_clicked: true })
-      .eq("id", participant.id);
-    if (clickError)
-      console.error(
-        `[cta] participante ${participant.id} sem marca de clique: ${clickError.message}`,
-      );
+    // A marca muda só se ainda não estava: dois cliques seguidos (ou dois separadores) leram os dois
+    // «ainda não clicou» e avisavam os webhooks duas vezes. Só quem a mudou avisa.
+    let firstClick = false;
+    if (!participant.cta_clicked) {
+      const { data: changed, error: clickError } = await supabaseAdmin
+        .from("participants")
+        .update({ cta_clicked: true })
+        .eq("id", participant.id)
+        .eq("cta_clicked", false)
+        .select("id");
+      if (clickError)
+        console.error(`[cta] participante ${participant.id} sem marca de clique: ${clickError.message}`);
+      firstClick = Boolean(changed?.length);
+    }
 
     if (isTestViewer || !firstClick) return { ok: true };
     const { data: webinar } = await supabaseAdmin
@@ -516,13 +529,18 @@ export async function loadRoomPurchases(webinarId: string, sinceMs: number) {
     .eq("organization_id", webinar.organization_id)
     .eq("status", "approved")
     .gte("approved_at", since)
-    .order("approved_at", { ascending: true })
-    .limit(50);
+    // As mais recentes: por ordem crescente com limite, o feed ficava preso nas primeiras 50 da janela
+    // (de qualquer produto da conta) e as compras novas nunca apareciam.
+    .order("approved_at", { ascending: false })
+    .limit(200);
   if (purchasesError) throw new Error(UNAVAILABLE);
-  return (rows ?? [])
+  return [...(rows ?? [])]
+    .reverse()
     .filter((row) => {
       const id = (row.product_id ?? "").trim();
-      return id.length >= 4 && urls.some((url) => url.includes(id));
+      // O id inteiro, entre separadores do link: «1234» não pode bater com «…/12345».
+      const exact = new RegExp(`(^|[/=?&#])${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}($|[/?&#])`);
+      return id.length >= 4 && urls.some((url) => exact.test(url));
     })
     .map((row) => ({
       id: row.id,

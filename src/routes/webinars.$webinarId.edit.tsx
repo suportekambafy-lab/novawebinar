@@ -113,6 +113,7 @@ import {
   type VideoUploadProgress,
 } from "@/lib/video-upload";
 import { HEAVY_BITRATE_MBPS, faststartFile, inspectMp4 } from "@/lib/mp4-inspect";
+import { checkWebinarSlug } from "@/lib/public-slug.functions";
 import {
   EDITOR_STEPS,
   editorLoading,
@@ -858,6 +859,18 @@ function EditWebinar() {
       toast.error(blocking.message);
       setStep(blocking.step);
       return false;
+    }
+    // Endereço novo: tem de estar livre também entre os testes A/B e os endereços do Webinar Intelligence
+    // (de qualquer conta). Senão a sala abria este webinar no lugar do teste ou do link de outra pessoa.
+    const nextSlug = slugify(form.slug || form.public_title || form.internal_name);
+    if (nextSlug !== webinar.slug) {
+      const taken = await checkWebinarSlug({ data: { webinarId: webinar.id, slug: nextSlug } })
+        .then((r) => r.taken)
+        .catch(() => false);
+      if (taken) {
+        toast.error(`O endereço «${nextSlug}» já está a ser usado. Escolha outro.`);
+        return false;
+      }
     }
     const offer = offerTiming(form);
     const whatsapp = entryFields.find((f) => f.kind === "whatsapp");

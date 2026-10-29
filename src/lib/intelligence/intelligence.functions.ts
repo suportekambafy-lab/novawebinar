@@ -38,14 +38,9 @@ async function loadLink(linkId: string): Promise<SmartLinkRow> {
 
 /** O endereço tem de ser único entre webinars, testes A/B e links: todos abrem em /w/<endereço>. */
 async function assertSlugFree(slug: string, exceptLinkId?: string) {
-  const db = await admin();
-  const [w, t, l] = await Promise.all([
-    db.from("webinars").select("id").eq("slug", slug).limit(1),
-    db.from("ab_tests").select("id").eq("slug", slug).limit(1),
-    db.from("smart_links").select("id").eq("slug", slug).limit(1),
-  ]);
-  const taken = (w.data?.length ?? 0) > 0 || (t.data?.length ?? 0) > 0 || (l.data ?? []).some((row) => row.id !== exceptLinkId);
-  if (taken) throw new Error("Esse endereço já está a ser usado por um webinar, um teste A/B ou outro link.");
+  const { publicSlugTaken } = await import("@/lib/public-slug.functions");
+  if (await publicSlugTaken(slug, exceptLinkId ? { linkId: exceptLinkId } : {}))
+    throw new Error("Esse endereço já está a ser usado por um webinar, um teste A/B ou outro link.");
 }
 
 async function assertWebinarsOfOrg(organizationId: string, ids: string[]) {
@@ -74,23 +69,26 @@ async function summaries(links: SmartLinkRow[]): Promise<SmartLinkSummary[]> {
   const db = await admin();
   const webinars = await webinarsById(links.flatMap((l) => [l.primary_webinar_id, l.secondary_webinar_id ?? ""]));
   const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
-  const { data: visits } = await db
-    .from("smart_link_visits")
-    .select("smart_link_id, returning_visitor, created_at")
-    .in("smart_link_id", links.map((l) => l.id))
-    .order("created_at", { ascending: false })
-    .limit(20_000);
+  // Contagens feitas na base de dados: ler as linhas parava aos 1000 (o máximo do PostgREST).
+  const count = async (linkId: string, returning: boolean, since: string | null) => {
+    let q = db.from("smart_link_visits").select("id", { count: "exact", head: true }).eq("smart_link_id", linkId);
+    if (returning) q = q.eq("returning_visitor", true);
+    if (since) q = q.gte("created_at", since);
+    const { count: n } = await q;
+    return n ?? 0;
+  };
   const counts = new Map<string, SmartLinkSummary["visits"]>();
-  for (const v of visits ?? []) {
-    const c = counts.get(v.smart_link_id) ?? { total: 0, returning: 0, week: 0, weekReturning: 0 };
-    c.total += 1;
-    if (v.returning_visitor) c.returning += 1;
-    if (v.created_at >= weekAgo) {
-      c.week += 1;
-      if (v.returning_visitor) c.weekReturning += 1;
-    }
-    counts.set(v.smart_link_id, c);
-  }
+  await Promise.all(
+    links.map(async (link) => {
+      const [total, returning, week, weekReturning] = await Promise.all([
+        count(link.id, false, null),
+        count(link.id, true, null),
+        count(link.id, false, weekAgo),
+        count(link.id, true, weekAgo),
+      ]);
+      counts.set(link.id, { total, returning, week, weekReturning });
+    }),
+  );
   return links.map((link) => ({
     link,
     primary: webinars.get(link.primary_webinar_id) ?? null,
@@ -136,6 +134,8 @@ export const createSmartLink = createServerFn({ method: "POST" })
       .select("id")
       .single();
     if (error || !row) throw new Error(error?.code === "23505" ? "Esse endereço já está a ser usado." : "Não foi possível criar o link.");
+    const { clearSmartLinkCache } = await import("./resolve.server");
+    clearSmartLinkCache();
     return { id: row.id };
   });
 

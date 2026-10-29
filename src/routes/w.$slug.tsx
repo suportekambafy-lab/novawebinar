@@ -157,6 +157,11 @@ type Viewer = {
   position?: number;
   /** Ponto mais avançado já visto: evita repetir eventos ao recuar num replay. */
   maxPosition?: number;
+  /**
+   * O webinar desta inscrição. Um endereço partilhado (teste A/B, Webinar Intelligence) pode abrir outro
+   * webinar noutra visita: aí a inscrição guardada não serve, a pessoa inscreve-se no que está a ver.
+   */
+  webinarId?: string;
 };
 
 function storageKey(slug: string) {
@@ -309,6 +314,20 @@ export function PublicRoom({
 
   // A equipa: confirma o link (ou a sessão iniciada na organização) e guarda o nome escolhido neste browser.
   const getTeamToken = useServerFn(getTeamRoomToken);
+  // Sala de teste: a prova de que quem a abre é da equipa (sessão iniciada na organização). Sem ela, o
+  // servidor trata a entrada como uma inscrição normal. «undefined» enquanto se pergunta.
+  const [testPass, setTestPass] = useState<string | null | undefined>(testMode ? undefined : null);
+  const testWebinarId = data?.webinar.id;
+  useEffect(() => {
+    if (!testMode || !testWebinarId) return;
+    let active = true;
+    getTeamToken({ data: { webinarId: testWebinarId } })
+      .then((r) => active && setTestPass(r.token))
+      .catch(() => active && setTestPass(null));
+    return () => {
+      active = false;
+    };
+  }, [testMode, testWebinarId, getTeamToken]);
   const checkTeamToken = useServerFn(checkTeamRoomToken);
   const [teamToken, setTeamToken] = useState<string | "checking" | "denied" | null>(
     equipa ? "checking" : null,
@@ -399,7 +418,7 @@ export function PublicRoom({
   const movedToken = viewerState.data?.token;
   useEffect(() => {
     if (!movedToken || !viewer || movedToken === viewer.token) return;
-    const next = { token: movedToken, name: viewer.name };
+    const next = { token: movedToken, name: viewer.name, ...(viewer.webinarId ? { webinarId: viewer.webinarId } : {}) };
     rememberViewer(viewerKey, next);
     setResumeSeconds(null);
     setResumePeakSeconds(null);
@@ -437,6 +456,11 @@ export function PublicRoom({
         forgetViewer(viewerKey);
         return;
       }
+      // Inscrição noutro webinar do mesmo endereço: fica guardada (pode voltar a ser esse), mas não entra aqui.
+      if (parsed.webinarId && data?.webinar.id && parsed.webinarId !== data.webinar.id) {
+        setViewer(null);
+        return;
+      }
       if (parsed.name) {
         setViewer(parsed);
         // Com a sincronização desligada, o vídeo retoma a posição guardada.
@@ -450,7 +474,7 @@ export function PublicRoom({
     } catch {
       forgetViewer(viewerKey);
     }
-  }, [slug]);
+  }, [slug, data?.webinar.id]);
 
   // As respostas da equipa de suporte chegam por sondagem: de 30 em 30 segundos e, nos dois minutos
   // a seguir a escrever (quando a resposta é esperada), de 5 em 5. Antes eram 12 pedidos por minuto a
@@ -545,6 +569,8 @@ export function PublicRoom({
   const autoJoinRef = useRef(false);
   useEffect(() => {
     if (!data || !shouldAutoJoin || viewer || autoJoinRef.current) return;
+    // Na sala de teste, espera pela prova da equipa antes de entrar.
+    if (testMode && testPass === undefined) return;
     if (data.webinar.status === "draft" && !testMode) return;
     autoJoinRef.current = true;
     void (async () => {
@@ -556,10 +582,11 @@ export function PublicRoom({
             email: `convidado-${Date.now()}@sala.local`,
             mode: roomMode,
             teste: testMode,
+            ...(testPass ? { testPass } : {}),
             ...audienceMeta(),
           },
         });
-        const next = { token: result.token, name: result.name };
+        const next = { token: result.token, name: result.name, webinarId: result.webinarId };
         rememberViewer(viewerKey, next);
         setViewer(next);
       } catch {
@@ -567,7 +594,7 @@ export function PublicRoom({
         setAutoJoinFailed(true);
       }
     })();
-  }, [data, shouldAutoJoin, viewer, join, roomMode, viewerKey, testMode, audienceMeta]);
+  }, [data, shouldAutoJoin, viewer, join, roomMode, viewerKey, testMode, testPass, audienceMeta]);
 
   const lastSentPeakRef = useRef(0);
   // Segundos vistos que ainda não chegaram ao servidor: se um envio falha, seguem no próximo.
@@ -916,6 +943,7 @@ export function PublicRoom({
             ...(Object.keys(checked.answers).length ? { answers: checked.answers } : {}),
             mode: roomMode,
             teste: testMode,
+            ...(testPass ? { testPass } : {}),
             ...(values["website"] ? { website: values["website"] } : {}),
             ...(abTestId ? { abTestId } : {}),
             // Just in time: a sessão que a página mostrou «Ao vivo», mesmo que o formulário demore a preencher.
@@ -925,7 +953,7 @@ export function PublicRoom({
             ...audienceMeta(),
           },
         });
-        const next = { token: result.token, name: result.name };
+        const next = { token: result.token, name: result.name, webinarId: result.webinarId };
         rememberViewer(viewerKey, next);
         if (!testMode) trackPixels("lead");
         setViewer(next);

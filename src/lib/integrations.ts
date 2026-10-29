@@ -410,14 +410,10 @@ export function legacyPurchaseEvent(body: Body): { event: NormalizedEvent; missi
   const name = text(pick(body, "buyer_name", "name", "data.customer_name", "data.name", "customer.name"));
   const missing = [...(!email ? ["email"] : []), ...(!name ? ["name"] : [])];
   const rawStatus = text(pick(body, "status", "data.status")).toLowerCase();
-  const status: PaymentStatus =
-    rawStatus === "refunded" || rawStatus === "chargeback"
-      ? "refunded"
-      : rawStatus === "pending" || rawStatus === "waiting_payment"
-        ? "pending"
-        : rawStatus === "failed" || rawStatus === "refused"
-          ? "failed"
-          : "approved";
+  // Sem estado nenhum, o formato antigo era «compra feita». Com um estado, lê-se como nos outros
+  // receptores: «cancelled», «expired», «declined» ou um estado desconhecido nunca contam como venda.
+  const status: PaymentStatus | null = rawStatus ? webhookStatus(rawStatus.replace(/_/g, " ")) : "approved";
+  if (!status) return { event: ignore(text(pick(body, "event_type", "type")) || "purchase", `Estado «${rawStatus}» sem significado de venda: ignorado.`), missing: [] };
   return {
     event: purchase(text(pick(body, "event_type", "type")) || "purchase", status, {
       email,
@@ -605,6 +601,14 @@ export function normalizeEvent(provider: ProviderId, body: Body): NormalizedEven
         });
       }
       if (eventType === "charge.refunded") {
+        // A Stripe manda este evento também em reembolsos parciais: só um reembolso total desfaz a venda.
+        const amount = Number(pick(object, "amount")) || 0;
+        const refunded = Number(pick(object, "amount_refunded")) || 0;
+        if (pick(object, "refunded") !== true && (amount <= 0 || refunded < amount))
+          return ignore(eventType, "Reembolso parcial: a venda continua a contar.");
+      }
+      if (eventType === "charge.refunded" || (eventType === "charge.dispute.closed" && text(pick(object, "status")) === "lost")) {
+        // Disputa perdida (chargeback): a venda é desfeita como num reembolso.
         const currency = currencyCode(pick(object, "currency"));
         return purchase(eventType, "refunded", {
           email: text(pick(object, "billing_details.email", "receipt_email")) || null,

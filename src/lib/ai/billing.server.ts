@@ -163,8 +163,15 @@ export async function runBilled<T>(
     images: 0,
     transcribedMinutes: 0,
   };
+  // Uma acção que falha não se cobra ao cliente (regra do produto); a que corre bem regista-se com
+  // novas tentativas, para uma falha momentânea da base de dados não deixar a IA de graça.
   const result = await als.run(m, fn);
-  if (m.costMicros > 0) {
+  if (m.costMicros > 0) await recordUsage(ctx, m, false);
+  return result;
+}
+
+async function recordUsage(ctx: { organizationId: string; action: BilledAction; ref?: string; units?: number }, m: Meter, failed: boolean) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     const { error } = await (await admin()).rpc("record_credit_usage", {
       _organization_id: ctx.organizationId,
       _action: ctx.action,
@@ -178,10 +185,17 @@ export async function runBilled<T>(
         output_tokens: m.outputTokens,
         images: m.images,
         transcribed_minutes: Math.round(m.transcribedMinutes * 10) / 10,
+        ...(failed ? { failed: true } : {}),
       },
     });
-    // Não se perde o resultado que o cliente já recebeu por uma falha a registar.
-    if (error) console.error(`[billing] não foi possível registar ${ctx.action}: ${error.message}`);
+    if (!error) return;
+    // Uma referência repetida é a mesma cobrança: já está registada.
+    if (/duplicate|23505/i.test(`${error.message} ${(error as { code?: string }).code ?? ""}`)) return;
+    if (attempt === 2) {
+      // Não se perde o resultado que o cliente já recebeu por uma falha a registar.
+      console.error(`[billing] não foi possível registar ${ctx.action}: ${error.message}`);
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)));
   }
-  return result;
 }

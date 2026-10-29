@@ -40,6 +40,9 @@ export const enqueueBackgroundJob = createServerFn({ method: "POST" })
       .maybeSingle();
     if (webinarError) throw new Error(webinarError.message);
     if (!webinar) throw new Error("Este webinar já não existe.");
+    // Quem só atende lê os trabalhos, mas não os cria: um trabalho gasta créditos e muda o chat.
+    const { assertWebinarWriter } = await import("@/integrations/supabase/auth-middleware");
+    await assertWebinarWriter(context.supabase, data.webinarId);
 
     // Um trabalho por webinar e por tipo: o anterior dá lugar ao novo pedido.
     await context.supabase

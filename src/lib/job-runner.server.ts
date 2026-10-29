@@ -769,12 +769,19 @@ export async function runPendingJobs(budgetMs = 45000, organizationIds?: string[
 
     // Reserva o trabalho numa só escrita condicional: se outro separador ou a
     // chamada agendada o reservou entretanto, nenhuma linha muda e passa-se à frente.
+    // Uma etapa que derruba a função (tempo esgotado, memória) nunca chega ao «catch»: a tentativa conta-se
+    // já na reserva. Três reservas sem sucesso param o trabalho, em vez de o repetir (e cobrar) sem fim.
+    if ((job.attempts ?? 0) >= 3) {
+      await save(job.id, { status: "error", error: "A etapa falhou três vezes seguidas.", locked_until: null });
+      continue;
+    }
     const lockUntil = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     const { data: claimed, error: claimError } = await supabaseAdmin
       .from("background_jobs")
       .update({
         status: "running",
         locked_until: lockUntil,
+        attempts: (job.attempts ?? 0) + 1,
         updated_at: new Date().toISOString(),
       } as never)
       .eq("id", job.id)
@@ -807,8 +814,7 @@ export async function runPendingJobs(budgetMs = 45000, organizationIds?: string[
               step,
             );
       steps += 1;
-      if (!again) await save(job.id, { locked_until: null });
-      else await save(job.id, { locked_until: null, attempts: 0 });
+      await save(job.id, { locked_until: null, attempts: 0 });
     } catch (error) {
       // Sem saldo, repetir não adianta: o trabalho pára com a razão.
       if (error instanceof NoCreditsError) {

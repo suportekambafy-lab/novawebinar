@@ -22,10 +22,13 @@ const PASSES = {
 };
 
 export function startJobTicker() {
-  // JOB_TICKER=off desliga-o onde a fila já é empurrada por uma chamada agendada. Na Vercel nunca corre: a
+  // Na Vercel nunca corre: a
   // função é congelada entre pedidos e o relógio acordava a meio, com o fetch a falhar de minuto a minuto;
   // aí a fila é empurrada pela chamada agendada a /api/public/run-jobs (pg_cron + pg_net).
-  if (slot.__jobTicker || process.env["JOB_TICKER"] === "off" || process.env["VERCEL"]) return;
+  // Só corre quando se pede (JOB_TICKER=on), num servidor próprio e permanente. Ligado por omissão, um
+  // `vite dev` local com as chaves de produção reservava automações e trabalhos de IA reais: sem WAHA_URL
+  // nem PUBLIC_APP_URL marcava envios como falhados de vez, mandava links partidos e gastava créditos.
+  if (slot.__jobTicker || process.env["JOB_TICKER"] !== "on" || process.env["VERCEL"]) return;
   const running = new Set<string>();
   slot.__jobTicker = setInterval(() => {
     for (const [name, pass] of Object.entries(PASSES)) {

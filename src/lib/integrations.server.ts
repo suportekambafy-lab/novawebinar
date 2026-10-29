@@ -250,6 +250,9 @@ export async function applySaleEvent(ctx: SaleContext, raw: string, event: Norma
           .update({
             status: sale.status,
             amount_value: existing.amount_value ?? sale.amountValue,
+            // As métricas dos testes A/B somam a coluna de texto: tem de acompanhar o valor numérico,
+            // senão uma venda criada sem total e aprovada com ele conta como receita 0.
+            ...(existing.amount_value == null && sale.amountValue != null ? { amount: String(sale.amountValue) } : {}),
             currency: existing.currency ?? sale.currency,
             product_name: existing.product_name || sale.product.slice(0, 120),
           })

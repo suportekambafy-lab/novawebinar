@@ -112,10 +112,9 @@ function IntelligencePage() {
           <h3 className="mb-2 text-base font-semibold text-foreground">Como se sabe que a pessoa já viu um webinar seu</h3>
           <ul className="list-disc space-y-1 pl-5">
             <li>Entrou numa sala sua neste aparelho (fica marcado no navegador durante um ano).</li>
-            <li>Já tinha aberto este endereço neste aparelho.</li>
             <li>O link traz o e-mail ou o WhatsApp dela (links dos e-mails e das mensagens) e esse contacto já participou num webinar seu.</li>
           </ul>
-          <p className="mt-2">Sem nenhum destes sinais, é tratada como nova e vai para o favorito. Com o endereço em pausa, toda a gente vai para o favorito.</p>
+          <p className="mt-2">Sem nenhum destes sinais, é tratada como nova e vai para o favorito. Durante a mesma ida (6 horas) a pessoa fica no webinar que o endereço lhe deu, mesmo depois de se inscrever. Com o endereço em pausa, toda a gente vai para o favorito.</p>
         </section>
       </div>
     </AppShell>
