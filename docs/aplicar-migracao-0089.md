@@ -1,6 +1,6 @@
 # Aplicar a migração 0089: país dos contactos
 
-Estado a 30/10/2026: **por aplicar** em produção (`nazhbxrhoailjwillzju`). Testada em Postgres (PGlite) com
+Estado: **aplicada** em produção (`nazhbxrhoailjwillzju`) a 30/10/2026, pelo terminal (`supabase db query --linked -f`). Resultado: 2025 de 2052 contactos com país. Testada em Postgres (PGlite) com
 a vista anterior, a função `contacts_in_list` que depende dela e dados fictícios. Também se confirmou que
 pode ser aplicada duas vezes sem erro.
 
