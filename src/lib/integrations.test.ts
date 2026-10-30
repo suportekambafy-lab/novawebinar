@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { legacyPurchaseEvent, normalizeEvent, parseAmount, webhookStatus, whatsappNumber, whatsappReady } from "./integrations";
+import {
+  legacyPurchaseEvent,
+  normalizeEvent,
+  parseAmount,
+  saleDateOf,
+  webhookStatus,
+  whatsappNumber,
+  whatsappReady,
+} from "./integrations";
 
 describe("WhatsApp: número e ligação", () => {
   it("o número no formato do WhatsApp: com +, sem +, com 00 e com o indicativo já escrito", () => {
@@ -312,5 +320,37 @@ describe("endereço antigo de compras: o estado", () => {
       const { event } = legacyPurchaseEvent({ ...base, status: s });
       expect(event.kind === "purchase" ? event.status : "ignore").not.toBe("approved");
     }
+  });
+});
+
+describe("data da venda escrita no pedido (envios atrasados ou à mão)", () => {
+  const now = Date.parse("2026-10-30T09:21:00Z");
+
+  it("lê ISO, segundos e milissegundos, na raiz ou em data", () => {
+    expect(saleDateOf({ paid_at: "2026-10-29T22:15:00Z" }, now)).toBe("2026-10-29T22:15:00.000Z");
+    expect(saleDateOf({ data: { paid_at: Date.parse("2026-10-29T22:15:00Z") / 1000 } }, now)).toBe("2026-10-29T22:15:00.000Z");
+    expect(saleDateOf({ data: { purchase: { approved_date: Date.parse("2026-10-29T22:15:00Z") } } }, now)).toBe(
+      "2026-10-29T22:15:00.000Z",
+    );
+    expect(saleDateOf({ created_at: String(Date.parse("2026-10-29T22:15:00Z") / 1000) }, now)).toBe(
+      "2026-10-29T22:15:00.000Z",
+    );
+  });
+
+  it("ignora datas impossíveis: no futuro, de há mais de 90 dias ou ilegíveis", () => {
+    expect(saleDateOf({ paid_at: "2026-10-31T09:00:00Z" }, now)).toBeUndefined();
+    expect(saleDateOf({ paid_at: "2026-01-01T00:00:00Z" }, now)).toBeUndefined();
+    expect(saleDateOf({ paid_at: "ontem" }, now)).toBeUndefined();
+    expect(saleDateOf({}, now)).toBeUndefined();
+  });
+
+  it("a venda do webhook genérico e do endereço antigo leva a data; sem ela, não leva", () => {
+    const iso = new Date(Date.now() - 3_600_000).toISOString();
+    const sale = normalizeEvent("webhook", { email: "a@b.pt", status: "approved", paid_at: iso });
+    expect(sale).toMatchObject({ kind: "purchase", occurredAt: iso });
+    expect(normalizeEvent("webhook", { email: "a@b.pt", status: "approved" })).not.toHaveProperty("occurredAt");
+    expect(legacyPurchaseEvent({ buyer_email: "a@b.pt", buyer_name: "A", paid_at: iso }).event).toMatchObject({
+      occurredAt: iso,
+    });
   });
 });

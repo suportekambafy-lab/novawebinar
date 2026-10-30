@@ -6,6 +6,7 @@
  */
 import {
   ArrowLeft,
+  CalendarDays,
   Check,
   Circle,
   ListChecks,
@@ -62,6 +63,7 @@ import { countryLabel, flagOf } from "@/lib/analytics-geo";
 import type { ContactCountry, CountryRow } from "@/lib/contact-countries";
 import { STAGE_ADVICE, type ContactFile, type PathStep, type Tone } from "@/lib/contacts-journey";
 import { formatDateTime, watchLabel, type SourceRow, type StageCounts } from "@/lib/data";
+import { RANGE_OPTIONS, type RangePreset } from "@/lib/date-range";
 import { cn } from "@/lib/utils";
 import { clockLabel } from "@/lib/webinar-metrics";
 
@@ -92,6 +94,46 @@ const STAGE_ONE: Record<string, string> = {
   checkout: "Iniciou o pagamento",
   customer: "Comprou",
 };
+
+/** Os períodos do filtro (o personalizado fica para as Análises). */
+const PERIODS = RANGE_OPTIONS.filter((o) => o.value !== "personalizado");
+
+/**
+ * As etapas dos filtros. Num período (há `past_customer` nas contagens), «Compraram» é quem
+ * comprou nesse período e quem comprou antes fica em «Já eram clientes».
+ */
+function stageChips(counts: StageCounts | null | undefined): { id: keyof StageCounts; label: string }[] {
+  const inPeriod = counts?.past_customer !== undefined;
+  return [
+    ...STAGES.map((s) => ({
+      id: s.id as keyof StageCounts,
+      label: s.id === "customer" && inPeriod ? "Compraram no período" : s.label,
+    })),
+    ...(inPeriod ? [{ id: "past_customer" as const, label: "Já eram clientes" }] : []),
+    { id: "returning" as const, label: "Voltaram 2+ vezes" },
+  ];
+}
+
+/**
+ * Quem comprou, com quando: «Comprou ontem». Num período, quem comprou fora dele fica com
+ * «Já era cliente» (sem o verde), para não parecer uma venda do período.
+ */
+function PurchaseBadge({ at, range }: { at: string | null | undefined; range?: { from: string; to: string } | undefined }) {
+  if (!at) return <TemperatureBadge temperature="customer" />;
+  const when = relativeDays(at);
+  const date = formatDateTime(at);
+  if (range && (at < range.from || at >= range.to))
+    return (
+      <Badge variant="outline" className="shrink-0" title={`Última compra: ${date}`}>
+        Já era cliente
+      </Badge>
+    );
+  return (
+    <Badge variant="success" className="shrink-0" title={`Última compra: ${date}`}>
+      Comprou {when}
+    </Badge>
+  );
+}
 
 /* ---------- Moldura ---------- */
 
@@ -333,6 +375,8 @@ export function ContactList({
   stage,
   onStage,
   countryFilter,
+  period,
+  range,
   rows,
   activeId,
   onSelect,
@@ -355,6 +399,9 @@ export function ContactList({
   onStage: (stage: string | null) => void;
   /** O país escolhido no resumo do grupo, à vista para se poder tirar. */
   countryFilter?: { code: string; onClear: () => void } | null | undefined;
+  /** O período de actividade (0090); sem ele, o seletor não aparece. */
+  period?: { value: RangePreset; onChange: (value: RangePreset) => void } | undefined;
+  range?: { from: string; to: string } | undefined;
   rows: ContactRow[];
   activeId: string | null;
   onSelect: (id: string) => void;
@@ -365,10 +412,7 @@ export function ContactList({
   bulk?: ReactNode;
   footer?: ReactNode;
 }) {
-  const chips = [
-    ...STAGES.map((s) => ({ id: s.id as string, label: s.label })),
-    { id: "returning", label: "Voltaram 2+ vezes" },
-  ].filter((s) => stage === s.id || (counts?.[s.id as keyof StageCounts] ?? 0) > 0);
+  const chips = stageChips(counts).filter((s) => stage === s.id || (counts?.[s.id] ?? 0) > 0);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -387,6 +431,21 @@ export function ContactList({
           </div>
           {tools}
         </div>
+        {period && (
+          <Select value={period.value} onValueChange={(v) => period.onChange(v as RangePreset)}>
+            <SelectTrigger className="h-9 w-full text-[13px]" aria-label="Período de actividade">
+              <CalendarDays className="size-4 text-muted-foreground" aria-hidden />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PERIODS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.value === "todos" ? "Toda a actividade" : `Activos: ${o.label.toLowerCase()}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <div className="relative">
           <Search
             className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
@@ -424,9 +483,7 @@ export function ContactList({
             {chips.map((s) => (
               <FilterChip key={s.id} active={stage === s.id} onClick={() => onStage(stage === s.id ? null : s.id)}>
                 {s.label}
-                {counts && (
-                  <span className="tabular-nums opacity-70">{counts[s.id as keyof StageCounts] ?? 0}</span>
-                )}
+                {counts && <span className="tabular-nums opacity-70">{counts[s.id] ?? 0}</span>}
               </FilterChip>
             ))}
           </div>
@@ -490,7 +547,11 @@ export function ContactList({
                     </span>
                     <span className="mt-0.5 block truncate text-[13px] text-muted-foreground">{insight.reason}</span>
                     <span className="mt-1.5 flex min-w-0 items-center gap-1">
-                      <TemperatureBadge temperature={insight.temperature} />
+                      {insight.temperature === "customer" ? (
+                        <PurchaseBadge at={c.last_purchase_at} range={range} />
+                      ) : (
+                        <TemperatureBadge temperature={insight.temperature} />
+                      )}
                       {insight.temperature !== "customer" && (
                         <Badge variant="outline" className="shrink-0">
                           {STAGE_ONE[insight.stage]}
@@ -1069,7 +1130,7 @@ export function GroupSummary({
             <p className="text-sm text-muted-foreground">Ninguém neste grupo ainda.</p>
           ) : (
             <ul className="space-y-1">
-              {[...STAGES, { id: "returning" as const, label: "Voltaram 2+ vezes", hint: "" }].map((s) => {
+              {stageChips(counts).map((s) => {
                 const n = counts[s.id] ?? 0;
                 const on = stage === s.id;
                 return (

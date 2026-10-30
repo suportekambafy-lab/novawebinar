@@ -144,6 +144,7 @@ export const PROVIDERS: ProviderInfo[] = [
     steps: [
       { text: "Envie um POST em JSON para este endereço.", show: "url" },
       'Campos: email, name, phone, product, product_id, amount, currency, status ("approved", "pending", "failed", "abandoned" ou "refunded") e id. O id é o do pagamento: o mesmo id em estados seguintes actualiza a venda; um pedido repetido conta uma vez.',
+      'Ao enviar vendas antigas ou à mão, junte paid_at com a data do pagamento (ex.: "2026-10-29T22:15:00Z"). Sem ele, a venda conta no dia em que chegou.',
       "Com product_id presente no link do botão da oferta, a venda fica ligada a esse webinar.",
       { text: "Envie este segredo no cabeçalho X-Webhook-Secret.", show: "secret" },
     ],
@@ -297,6 +298,8 @@ export type NormalizedEvent =
       externalId: string | null;
       /** Id do produto na plataforma: liga a venda ao webinar cuja oferta aponta para ele. */
       productId?: string | null;
+      /** Quando a venda aconteceu, se o pedido o diz (envios atrasados ou feitos à mão). Sem isto, vale a chegada. */
+      occurredAt?: string | undefined;
     }
   | { kind: "ignore"; eventType: string; reason: string };
 
@@ -414,6 +417,7 @@ export function legacyPurchaseEvent(body: Body): { event: NormalizedEvent; missi
   // receptores: «cancelled», «expired», «declined» ou um estado desconhecido nunca contam como venda.
   const status: PaymentStatus | null = rawStatus ? webhookStatus(rawStatus.replace(/_/g, " ")) : "approved";
   if (!status) return { event: ignore(text(pick(body, "event_type", "type")) || "purchase", `Estado «${rawStatus}» sem significado de venda: ignorado.`), missing: [] };
+  const occurredAt = saleDateOf(body);
   return {
     event: purchase(text(pick(body, "event_type", "type")) || "purchase", status, {
       email,
@@ -424,12 +428,54 @@ export function legacyPurchaseEvent(body: Body): { event: NormalizedEvent; missi
       currency: currencyCode(pick(body, "currency", "data.currency")),
       externalId: text(pick(body, "id", "order_id", "transaction_id", "data.order_id", "data.transaction_id")) || null,
       productId: text(pick(body, "product_id", "data.product_id")) || null,
+      ...(occurredAt ? { occurredAt } : {}),
     }),
     missing,
   };
 }
 
+/** Onde as plataformas põem a data do pagamento (a primeira que existir). */
+const SALE_DATE_PATHS = [
+  "paid_at",
+  "approved_at",
+  "purchased_at",
+  "purchase_date",
+  "sale_date",
+  "approved_date",
+  "data.paid_at",
+  "data.approved_at",
+  "data.purchased_at",
+  "data.purchase_date",
+  "data.purchase.approved_date",
+  "data.created_at",
+  "data.object.created",
+  "order_date",
+  "created_at",
+  "date",
+];
+
+/**
+ * A data da venda escrita no pedido: ISO, ou segundos/milissegundos desde 1970. Só conta se for
+ * plausível (até 10 minutos no futuro, por relógios desacertados, e até 90 dias para trás).
+ */
+export function saleDateOf(body: Body, now = Date.now()): string | undefined {
+  const value = pick(body, ...SALE_DATE_PATHS);
+  if (value === undefined) return undefined;
+  const n = typeof value === "number" ? value : /^\d{9,13}$/.test(text(value)) ? Number(text(value)) : null;
+  const at = n !== null ? (n < 1e12 ? n * 1000 : n) : Date.parse(text(value));
+  if (!Number.isFinite(at) || at > now + 10 * 60_000 || at < now - 90 * 86_400_000) return undefined;
+  return new Date(at).toISOString();
+}
+
+/** O pedido de uma plataforma lido como venda, com a data da venda quando ele a traz. */
 export function normalizeEvent(provider: ProviderId, body: Body): NormalizedEvent {
+  const event = normalizeEventFields(provider, body);
+  if (event.kind !== "purchase") return event;
+  const occurredAt = saleDateOf(body);
+  return occurredAt ? { ...event, occurredAt } : event;
+}
+
+function normalizeEventFields(provider: ProviderId, body: Body): NormalizedEvent {
   switch (provider) {
     case "kambafy": {
       const eventType = text(pick(body, "event"));

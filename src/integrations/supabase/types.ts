@@ -3754,6 +3754,8 @@ export type Database = {
           country?: string | null
           country_code?: string | null
           created_at: string | null
+          // 0090: só existe com a migração aplicada.
+          last_purchase_at?: string | null
           email: string | null
           events_attended: number | null
           events_registered: number | null
@@ -3998,6 +4000,20 @@ export type Database = {
           _units: number
         }
         Returns: number
+      }
+      contact_period_summary: {
+        Args: { _from: string; _list_id?: string; _organization_id: string; _to: string; _webinar_id?: string }
+        Returns: Json
+      }
+      contacts_in_period: {
+        Args: { _bought?: boolean; _from: string; _list_id?: string; _organization_id: string; _to: string }
+        Returns: Database["public"]["Views"]["contact_summaries"]["Row"][]
+        SetofOptions: {
+          from: "*"
+          to: "contact_summaries"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       contact_country_breakdown: {
         Args: { _list_id?: string; _organization_id: string; _webinar_id?: string }

@@ -972,6 +972,11 @@ export type ContactFilters = {
   webinarId: string | null;
   /** Código ISO do país (coluna country_code da 0089), ou null para todos. */
   country?: string | null | undefined;
+  /**
+   * Só quem teve actividade neste período (0090). Com período, a etapa "customer" é quem comprou
+   * nele e "past_customer" quem já era cliente de antes.
+   */
+  range?: { from: string; to: string } | undefined;
   search: string;
   page: number;
 };
@@ -982,14 +987,29 @@ const allContacts = () => supabase.from("contact_summaries").select("*", { count
 
 function contactsQuery(organizationId: string, f: Omit<ContactFilters, "page">) {
   // Uma lista (manual ou segmento) é lida pela base de dados: o segmento calcula-se agora.
-  const base = f.listId
-    ? (supabase.rpc("contacts_in_list", { _list_id: f.listId }, { count: "exact" }) as unknown as ReturnType<
-        typeof allContacts
-      >)
-    : allContacts();
+  // Com período, a base devolve só quem teve actividade nele (e já aplica a lista).
+  const bought = f.range && f.stage === "customer" ? true : f.range && f.stage === "past_customer" ? false : null;
+  const base = f.range
+    ? (supabase.rpc(
+        "contacts_in_period",
+        {
+          _organization_id: organizationId,
+          _from: f.range.from,
+          _to: f.range.to,
+          ...(f.listId ? { _list_id: f.listId } : {}),
+          ...(bought !== null ? { _bought: bought } : {}),
+        },
+        { count: "exact" },
+      ) as unknown as ReturnType<typeof allContacts>)
+    : f.listId
+      ? (supabase.rpc("contacts_in_list", { _list_id: f.listId }, { count: "exact" }) as unknown as ReturnType<
+          typeof allContacts
+        >)
+      : allContacts();
   let q = base.eq("organization_id", organizationId);
   if (f.stage === "returning") q = q.gte("events_attended", 2);
-  else if (f.stage) q = q.eq("stage", f.stage);
+  else if (f.stage === "past_customer") q = q.eq("stage", "customer");
+  else if (f.stage && !(f.range && f.stage === "customer")) q = q.eq("stage", f.stage);
   if (f.webinarId) q = q.contains("webinar_ids", [f.webinarId]);
   if (f.country) q = q.eq("country_code", f.country);
   // Vírgulas e parênteses partem o filtro `or` do PostgREST.
@@ -1068,7 +1088,35 @@ export function useContactCountryBreakdown(
 export type StageCounts = Record<
   "all" | "new" | "no_show" | "watched" | "reached_offer" | "clicked" | "checkout" | "customer" | "returning",
   number
->;
+> & {
+  /** Só num período (0090): clientes de antes, que não compraram nele. */
+  past_customer?: number;
+};
+
+/** Etapas, países e origens de quem teve actividade no período (0090); null se a base não responder. */
+export function useContactPeriodSummary(
+  organizationId: string | undefined,
+  range: { from: string; to: string } | undefined,
+  listId: string | null,
+  webinarId: string | null,
+) {
+  return useQuery({
+    queryKey: ["contacts", "period-summary", organizationId, range?.from, range?.to, listId, webinarId],
+    enabled: Boolean(organizationId && range),
+    placeholderData: keepPreviousData,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("contact_period_summary", {
+        _organization_id: organizationId!,
+        _from: range!.from,
+        _to: range!.to,
+        ...(listId ? { _list_id: listId } : {}),
+        ...(webinarId ? { _webinar_id: webinarId } : {}),
+      });
+      if (error) return null;
+      return data as unknown as { stages: StageCounts; countries: CountryRow[]; sources: SourceRow[] };
+    },
+  });
+}
 
 export function useContactStageCounts(
   organizationId: string | undefined,

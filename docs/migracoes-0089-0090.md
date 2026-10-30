@@ -40,3 +40,23 @@ Não apaga nada: só `CREATE OR REPLACE` e `IF NOT EXISTS`.
 
 A aplicação continua a funcionar como antes. O país de cada pessoa é lido pelo browser, e a
 facturação por país nas Análises também. Só o filtro e a secção «De que países» ficam escondidos.
+
+# Migração 0090: período de actividade nos Contactos
+
+Estado: **aplicada** em produção a 30/10/2026, com o mesmo comando. Testada antes em PGlite, por cima da 0089.
+
+- `contact_summaries` ganha `last_purchase_at` no fim: a compra aprovada mais recente.
+- `contacts_in_period(org, de, até, lista, comprou)`: quem teve actividade no período (inscreveu-se, esteve
+  na sala, pagou ou foi criado). Com `comprou = true` dá só quem comprou no período.
+- `contact_period_summary(org, de, até, lista, lançamento)`: as etapas, os países e as origens do período.
+  «Compraram» conta quem comprou no período, e «Já eram clientes» quem comprou antes.
+
+# Correcção das datas das vendas enviadas à mão (30/10/2026)
+
+O webhook foi ligado depois das vendas, e essas vendas foram enviadas à mão sem data. Ficaram com a hora
+de chegada (por exemplo, 7 vendas de 29/10 ficaram registadas a 30/10 às 09:21). Por decisão do
+utilizador, 27 vendas (`webhook` e `kambafy`) passaram a ter `approved_at` e `status_at` iguais à hora do
+último clique da pessoa na oferta antes da chegada. Só entraram vendas que chegaram mais de 20 minutos
+depois desse clique. As datas antigas estão em `docs/dados/correcao-datas-vendas-2026-10-30.json`.
+
+Para vendas enviadas à mão no futuro, junte `paid_at` com a data do pagamento: o webhook passa a usá-la.

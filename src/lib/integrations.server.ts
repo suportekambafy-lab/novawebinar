@@ -255,6 +255,8 @@ export async function applySaleEvent(ctx: SaleContext, raw: string, event: Norma
             ...(existing.amount_value == null && sale.amountValue != null ? { amount: String(sale.amountValue) } : {}),
             currency: existing.currency ?? sale.currency,
             product_name: existing.product_name || sale.product.slice(0, 120),
+            // A aprovação conta no dia em que aconteceu, se o pedido o diz (o gatilho só a preenche quando falta).
+            ...(sale.status === "approved" && sale.occurredAt ? { approved_at: sale.occurredAt } : {}),
           })
           .eq("id", existing.id)
           .eq("status", before)
@@ -339,6 +341,10 @@ export async function applySaleEvent(ctx: SaleContext, raw: string, event: Norma
           source: provider,
           external_id: externalId,
           product_id: sale.productId ?? null,
+          // Envio atrasado ou feito à mão: a venda conta no dia em que aconteceu, não no da chegada.
+          ...(sale.occurredAt
+            ? { status_at: sale.occurredAt, ...(sale.status === "approved" ? { approved_at: sale.occurredAt } : {}) }
+            : {}),
         })
         .select("id")
         .single(),
