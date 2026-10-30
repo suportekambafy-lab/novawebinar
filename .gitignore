@@ -48,3 +48,6 @@ dist-ssr
 skills-lock.json
 /src/routes/dev-*
 /public/__teste*
+
+# Supabase CLI (estado local)
+supabase/.temp/
