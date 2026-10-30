@@ -9,6 +9,7 @@ import { NOT_TEST_ROOM } from "@/lib/test-room";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
+import { fetchContactCountries, revenueByCountry, type ContactCountry } from "@/lib/contact-countries";
 import { rangeKey, type DateRange } from "@/lib/date-range";
 import { FACT_COLUMNS, funnelSummary, type FunnelFact } from "@/lib/participant-facts";
 import { sumByCurrency } from "@/lib/webinar-metrics";
@@ -41,6 +42,7 @@ export type AnalyticsFact = FunnelFact & {
 };
 
 export type AnalyticsPurchase = {
+  contact_id?: string | null;
   amount_value: number | null;
   currency: string | null;
   webinar_id: string | null;
@@ -211,7 +213,13 @@ export function perWebinar(facts: AnalyticsFact[], purchases: AnalyticsPurchase[
     .sort((a, b) => b.registered - a.registered);
 }
 
-export function analyticsSummary(facts: AnalyticsFact[], purchases: AnalyticsPurchase[], range: DateRange, now = new Date()) {
+export function analyticsSummary(
+  facts: AnalyticsFact[],
+  purchases: AnalyticsPurchase[],
+  range: DateRange,
+  now = new Date(),
+  countries: Map<string, ContactCountry> = new Map(),
+) {
   const summary = funnelSummary(facts);
   const people = peopleOf(facts);
   return {
@@ -224,6 +232,10 @@ export function analyticsSummary(facts: AnalyticsFact[], purchases: AnalyticsPur
     revenue: sumByCurrency(purchases),
     payments: purchases.length,
     webinars: perWebinar(facts, purchases),
+    revenueByCountry: revenueByCountry(
+      purchases.map((p) => ({ ...p, contact_id: p.contact_id ?? null })),
+      countries,
+    ),
   };
 }
 
@@ -255,7 +267,7 @@ export function useAnalytics(
         fetchAll((from, to) => {
           let q = supabase
             .from("real_purchase_events")
-            .select("amount_value, currency, webinar_id", { count: "exact" })
+            .select("contact_id, amount_value, currency, webinar_id", { count: "exact" })
             .eq("organization_id", organizationId!)
             .eq("status", "approved");
           if (webinarId) q = q.eq("webinar_id", webinarId);
@@ -263,7 +275,12 @@ export function useAnalytics(
           return q.order("id").range(from, to);
         }),
       ]);
-      return analyticsSummary(facts as AnalyticsFact[], purchases, range);
+      // O país de quem pagou: o da inscrição mais recente da pessoa, mesmo fora do período.
+      const countries = await fetchContactCountries(
+        organizationId!,
+        purchases.flatMap((p) => p.contact_id ?? []),
+      ).catch(() => new Map<string, ContactCountry>());
+      return analyticsSummary(facts as AnalyticsFact[], purchases, range, new Date(), countries);
     },
   });
 }

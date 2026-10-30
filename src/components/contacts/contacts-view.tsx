@@ -58,6 +58,7 @@ import {
   type ContactSummary,
   type Temperature,
 } from "@/lib/contacts";
+import type { ContactCountry } from "@/lib/contact-countries";
 import { STAGE_ADVICE, type ContactFile, type PathStep, type Tone } from "@/lib/contacts-journey";
 import { formatDateTime, watchLabel, type SourceRow, type StageCounts } from "@/lib/data";
 import { cn } from "@/lib/utils";
@@ -287,7 +288,13 @@ export function ScopePicker({
 
 /* ---------- Pessoas ---------- */
 
-export type ContactRow = { contact: ContactSummary; launch: string | null; example?: boolean | undefined };
+export type ContactRow = {
+  contact: ContactSummary;
+  launch: string | null;
+  /** País da inscrição mais recente (ou do indicativo); undefined enquanto carrega. */
+  country?: ContactCountry | null | undefined;
+  example?: boolean | undefined;
+};
 
 function FilterChip({
   active,
@@ -424,7 +431,7 @@ export function ContactList({
           <li className="px-4 py-10 text-center text-sm text-muted-foreground">{empty ?? "Ninguém neste grupo."}</li>
         )}
         {!loading &&
-          rows.map(({ contact: c, launch, example }) => {
+          rows.map(({ contact: c, launch, country, example }) => {
             const id = c.id ?? "";
             const insight = contactInsight(c);
             const name = c.name || c.email || c.phone || "Sem nome";
@@ -469,6 +476,15 @@ export function ContactList({
                         <Badge variant="outline" className="shrink-0">
                           {STAGE_ONE[insight.stage]}
                         </Badge>
+                      )}
+                      {country && (
+                        <span
+                          className="flex min-w-0 shrink-0 items-center gap-1 px-1 text-xs text-muted-foreground"
+                          title={country.from === "phone" ? "País pelo indicativo do telefone" : "País detectado na inscrição"}
+                        >
+                          {country.flag && <span aria-hidden>{country.flag}</span>}
+                          <span className="max-w-[9rem] truncate">{country.label}</span>
+                        </span>
                       )}
                       {launch && (
                         <span className="min-w-0 truncate px-1 text-xs text-muted-foreground">{launch}</span>

@@ -3,6 +3,7 @@
  * ver como fica. Tudo vive neste ecrã: nada é lido nem gravado na base de dados,
  * e cada nome leva a etiqueta «Exemplo».
  */
+import { contactCountryOf } from "@/lib/contact-countries";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ExampleBanner } from "@/components/support/inbox";
@@ -431,7 +432,12 @@ export function ExampleContacts({
           counts={counts}
           stage={stage}
           onStage={setStage}
-          rows={rows.map((c) => ({ contact: c, launch: launchLabel(c.webinar_ids, TITLE), example: true }))}
+          rows={rows.map((c) => ({
+            contact: c,
+            launch: launchLabel(c.webinar_ids, TITLE),
+            country: contactCountryOf([], c.phone),
+            example: true,
+          }))}
           activeId={openId}
           onSelect={(id) => {
             setOpenId(id);

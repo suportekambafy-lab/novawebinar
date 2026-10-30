@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchContactCountries } from "@/lib/contact-countries";
 import { contactInsight, sourceLabel, stageLabel, TEMPERATURE_LABEL, type ContactSummary, contactPresent } from "@/lib/contacts";
 import {
   contactFile,
@@ -44,6 +45,7 @@ import {
   fetchAllContacts,
   switchWorkspace,
   useContactDetail,
+  useContactCountries,
   useContactLists,
   useContacts,
   useContactSources,
@@ -144,6 +146,7 @@ function ContactsPage() {
   const counts = theme ? stageCountsOf(themeRows) : serverCounts;
   const sources = theme ? sourceRowsOf(themeRows) : serverSources;
   const pages = theme ? 1 : Math.max(1, Math.ceil((page$?.total ?? 0) / CONTACTS_PAGE_SIZE));
+  const { data: countries } = useContactCountries(exemplo ? undefined : orgId, rows.flatMap((r) => r.id ?? []));
   const open = openId ? (rows.find((r) => r.id === openId) ?? linked ?? null) : null;
 
   const groups: ScopeGroup[] = [
@@ -260,14 +263,16 @@ function ContactsPage() {
     setExporting(true);
     try {
       const all = theme ? rows : await fetchAllContacts(orgId, { stage, listId, webinarId, search });
+      const places = await fetchContactCountries(orgId, all.flatMap((c) => c.id ?? []));
       const content = toCsv(
-        ["Nome", "Email", "Telefone", "Etapa", "Temperatura", "Motivo", "Próxima acção", "Lançamentos", "Presença", "Esteve presente", "Tempo a ver", "Compras", "Última actividade", "Origem", "Campanha"],
+        ["Nome", "Email", "Telefone", "País", "Etapa", "Temperatura", "Motivo", "Próxima acção", "Lançamentos", "Presença", "Esteve presente", "Tempo a ver", "Compras", "Última actividade", "Origem", "Campanha"],
         all.map((c) => {
           const i = contactInsight(c);
           return [
             c.name,
             c.email,
             c.phone,
+            places.get(c.id ?? "")?.label ?? "",
             stageLabel(i.stage),
             TEMPERATURE_LABEL[i.temperature],
             i.reason,
@@ -389,7 +394,11 @@ function ContactsPage() {
               counts={counts}
               stage={stage}
               onStage={setStage}
-              rows={rows.map((c) => ({ contact: c, launch: launchLabel(c.webinar_ids, titleOf) }))}
+              rows={rows.map((c) => ({
+                contact: c,
+                launch: launchLabel(c.webinar_ids, titleOf),
+                country: countries?.get(c.id ?? "") ?? null,
+              }))}
               activeId={openId}
               onSelect={openContact}
               loading={theme ? themeLoading : isLoading}

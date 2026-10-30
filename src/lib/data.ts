@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery, useQueryClient, useMutation } from "@tansta
 import { NOT_TEST_ROOM } from "@/lib/test-room";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
+import { fetchContactCountries } from "@/lib/contact-countries";
 import { LEDGER_LIMIT } from "@/lib/credits";
 import { isSegmentRules, type SegmentRules } from "@/lib/segments";
 import type { Database, Json } from "@/integrations/supabase/types";
@@ -1025,6 +1026,17 @@ export async function fetchAllContacts(
     rows.push(...((data ?? []) as ContactSummary[]));
     if (!data || data.length < 1000) return rows;
   }
+}
+
+/** O país de cada pessoa da página visível (inscrição mais recente; sem ela, o indicativo). */
+export function useContactCountries(organizationId: string | undefined, contactIds: string[]) {
+  return useQuery({
+    queryKey: ["contacts", "countries", organizationId, contactIds.join(",")],
+    enabled: Boolean(organizationId) && contactIds.length > 0,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+    queryFn: () => fetchContactCountries(organizationId!, contactIds),
+  });
 }
 
 export type StageCounts = Record<

@@ -57,6 +57,7 @@ import type { LiveNow, LiveSession, MinuteBucket, Spot } from "@/lib/analytics-l
 import type { LiveViewer } from "@/lib/live-presence";
 import { watchLabel } from "@/lib/data";
 import { moneyLabel } from "@/lib/webinar-metrics";
+import type { CountryRevenue } from "@/lib/contact-countries";
 import { cn } from "@/lib/utils";
 
 const nf = new Intl.NumberFormat("pt-PT");
@@ -1458,6 +1459,16 @@ export function AnalyticsBoard({ data, loading, webinarId }: AnalyticsBoardProps
         </Card>
       </div>
 
+      {data.payments > 0 && (
+        <Card
+          title="Facturação por país"
+          icon={Banknote}
+          sub="País de quem pagou: o detectado na inscrição (como na Vista ao vivo); sem inscrição, o do indicativo do telefone."
+        >
+          <CountryRevenueList rows={data.revenueByCountry} />
+        </Card>
+      )}
+
       {webinarId ? (
         <Link
           to="/webinars/$webinarId/metrics"
@@ -1699,5 +1710,52 @@ export function AudienceInsights({
         </Panel>
       </div>
     </div>
+  );
+}
+
+/**
+ * Pagamentos aprovados por país. A barra mostra a parte da facturação quando tudo está numa
+ * só moeda; com várias moedas (que não se somam), a parte dos pagamentos.
+ */
+function CountryRevenueList({ rows }: { rows: CountryRevenue[] }) {
+  const currencies = new Set(rows.flatMap((r) => r.revenue.map((v) => v.currency)));
+  const byAmount = currencies.size === 1;
+  const weight = (r: CountryRevenue) => (byAmount ? (r.revenue[0]?.amount ?? 0) : r.payments);
+  const shares = wholeShares(rows.map(weight));
+  return (
+    <ul className="divide-y">
+      {rows.map((r, i) => (
+        <li key={r.code ?? r.label} className="py-2.5 first:pt-0 last:pb-0">
+          <div className="flex items-baseline gap-3 text-sm">
+            <span className="flex min-w-0 flex-1 items-center gap-2">
+              {r.flag && <span aria-hidden>{r.flag}</span>}
+              <span
+                className={cn(
+                  "truncate font-medium",
+                  !r.code && !r.flag && "text-muted-foreground",
+                )}
+              >
+                {r.label}
+              </span>
+            </span>
+            <span className="shrink-0 font-medium tabular-nums">
+              {r.revenue.length ? r.revenue.map(moneyLabel).join(" + ") : "—"}
+            </span>
+          </div>
+          <div className="mt-1 flex items-center gap-3">
+            <span className="block h-1.5 flex-1 rounded-full bg-chart-track" aria-hidden>
+              <span
+                className="block h-1.5 rounded-full bg-success"
+                style={{ width: `${shares[i]}%` }}
+              />
+            </span>
+            <span className="w-[13rem] shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+              {nf.format(r.buyers)} {r.buyers === 1 ? "comprador" : "compradores"} · {shares[i]}%{" "}
+              {byAmount ? "da facturação" : "dos pagamentos"}
+            </span>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
