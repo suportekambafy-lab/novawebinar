@@ -3,7 +3,7 @@
  * ver como fica. Tudo vive neste ecrã: nada é lido nem gravado na base de dados,
  * e cada nome leva a etiqueta «Exemplo».
  */
-import { contactCountryOf } from "@/lib/contact-countries";
+import { summaryCountry } from "@/lib/contact-countries";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { ExampleBanner } from "@/components/support/inbox";
@@ -124,6 +124,7 @@ const PEOPLE: Person[] = [
     "ex-ana",
     {
       name: "Ana Martins",
+      country_code: "AO",
       email: "ana.martins@exemplo.ao",
       phone: "+244923000101",
       stage: "customer",
@@ -146,6 +147,7 @@ const PEOPLE: Person[] = [
     "ex-joao",
     {
       name: "João Baptista",
+      country_code: "AO",
       email: "joao.baptista@exemplo.ao",
       phone: "+244912000202",
       stage: "checkout",
@@ -169,6 +171,7 @@ const PEOPLE: Person[] = [
     "ex-marta",
     {
       name: "Marta Sousa",
+      country_code: "FR",
       email: "marta.sousa@exemplo.pt",
       phone: "+351912000303",
       stage: "reached_offer",
@@ -191,6 +194,7 @@ const PEOPLE: Person[] = [
     "ex-carlos",
     {
       name: "Carlos Neto",
+      country_code: "AO",
       phone: "+244934000404",
       stage: "no_show",
       first_source: "whatsapp",
@@ -208,6 +212,7 @@ const PEOPLE: Person[] = [
     "ex-beatriz",
     {
       name: "Beatriz Fonseca",
+      country_code: null,
       email: "beatriz.fonseca@exemplo.ao",
       stage: "watched",
       first_source: "google",
@@ -435,7 +440,7 @@ export function ExampleContacts({
           rows={rows.map((c) => ({
             contact: c,
             launch: launchLabel(c.webinar_ids, TITLE),
-            country: contactCountryOf([], c.phone),
+            country: summaryCountry(c) ?? null,
             example: true,
           }))}
           activeId={openId}

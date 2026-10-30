@@ -3753,7 +3753,6 @@ export type Database = {
           // 0089: só existem com a migração aplicada.
           country?: string | null
           country_code?: string | null
-          country_from?: string | null
           created_at: string | null
           email: string | null
           events_attended: number | null

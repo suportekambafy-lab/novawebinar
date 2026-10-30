@@ -292,7 +292,7 @@ export function ScopePicker({
 export type ContactRow = {
   contact: ContactSummary;
   launch: string | null;
-  /** País da inscrição mais recente (ou do indicativo); undefined enquanto carrega. */
+  /** País pelo IP da inscrição mais recente; undefined enquanto carrega. */
   country?: ContactCountry | null | undefined;
   example?: boolean | undefined;
 };
@@ -499,7 +499,7 @@ export function ContactList({
                       {country && (
                         <span
                           className="flex min-w-0 shrink-0 items-center gap-1 px-1 text-xs text-muted-foreground"
-                          title={country.from === "phone" ? "País pelo indicativo do telefone" : "País detectado na inscrição"}
+                          title="País detectado pelo IP na inscrição"
                         >
                           {country.flag && <span aria-hidden>{country.flag}</span>}
                           <span className="max-w-[9rem] truncate">{country.label}</span>
@@ -1139,8 +1139,8 @@ export function GroupSummary({
 }
 
 /**
- * As pessoas do grupo por país: o da inscrição mais recente (como na Vista ao vivo) ou, sem
- * ela, o do indicativo. Tocar num país filtra a lista; quem não tem país não se filtra.
+ * As pessoas do grupo por país, pelo IP da inscrição mais recente (como na Vista ao vivo).
+ * Tocar num país filtra a lista; quem não tem país não se filtra.
  */
 function CountrySection({
   countries,
@@ -1195,8 +1195,8 @@ function CountrySection({
       )}
       {unknown > 0 && (
         <p className="mt-2 text-[12px] text-muted-foreground">
-          {unknown} {unknown === 1 ? "pessoa sem país" : "pessoas sem país"}: não entraram por uma inscrição e o
-          telefone não tem indicativo.
+          {unknown} {unknown === 1 ? "pessoa sem país" : "pessoas sem país"}: nunca se inscreveram (importados,
+          compras de fora), por isso não há IP de onde o tirar.
         </p>
       )}
     </Section>

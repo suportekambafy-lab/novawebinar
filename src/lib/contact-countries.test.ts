@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   contactCountryOf,
-  countryFromPhone,
   countryRowsOf,
   revenueByCountry,
   summaryCountry,
@@ -10,47 +9,29 @@ import {
 } from "./contact-countries";
 import type { ContactSummary } from "./contacts";
 import { filterContacts } from "./contacts-journey";
-import { PHONE_COUNTRIES } from "./phone-countries";
-
-describe("countryFromPhone", () => {
-  it("lê o indicativo de números internacionais", () => {
-    expect(countryFromPhone("+244 923 000 101")).toBe("AO");
-    expect(countryFromPhone("00351912000303")).toBe("PT");
-    expect(countryFromPhone("+55 11 91234 5678")).toBe("BR");
-  });
-
-  it("não adivinha sem indicativo nem com números curtos", () => {
-    expect(countryFromPhone("923000101")).toBeNull();
-    expect(countryFromPhone("+2449")).toBeNull();
-    expect(countryFromPhone(null)).toBeNull();
-  });
-});
 
 describe("contactCountryOf", () => {
-  it("a inscrição mais recente com país manda, mesmo com telefone de outro país", () => {
-    const c = contactCountryOf(
-      [
-        { country: null, country_code: null },
-        { country: "Portugal", country_code: "PT" },
-      ],
-      "+244923000101",
-    );
-    expect(c).toMatchObject({ code: "PT", label: "Portugal", from: "ip" });
+  it("a inscrição mais recente com país manda", () => {
+    const c = contactCountryOf([
+      { country: null, country_code: null },
+      { country: "França", country_code: "FR" },
+      { country: "Portugal", country_code: "PT" },
+    ]);
+    expect(c).toMatchObject({ code: "FR", label: "França" });
   });
 
   it("ignora o código «XX» (país desconhecido) como a vista", () => {
-    expect(contactCountryOf([{ country: "Brasil", country_code: "XX" }], null)).toBeNull();
+    expect(contactCountryOf([{ country: "Brasil", country_code: "XX" }])).toBeNull();
   });
 
-  it("sem inscrição com país, usa o telefone", () => {
-    expect(contactCountryOf([], "+244923000101")).toMatchObject({ code: "AO", from: "phone" });
-    expect(contactCountryOf([], null)).toBeNull();
+  it("sem inscrição com país, fica sem país (o telefone não conta)", () => {
+    expect(contactCountryOf([])).toBeNull();
   });
 });
 
 describe("revenueByCountry", () => {
-  const ao: ContactCountry = { code: "AO", label: "Angola", flag: "🇦🇴", from: "ip" };
-  const pt: ContactCountry = { code: "PT", label: "Portugal", flag: "🇵🇹", from: "ip" };
+  const ao: ContactCountry = { code: "AO", label: "Angola", flag: "🇦🇴" };
+  const pt: ContactCountry = { code: "PT", label: "Portugal", flag: "🇵🇹" };
   const countries = new Map([
     ["a", ao],
     ["b", ao],
@@ -75,12 +56,9 @@ describe("revenueByCountry", () => {
 });
 
 describe("migração 0089", () => {
-  it("tem os mesmos indicativos que o campo de telefone (o primeiro país de cada indicativo)", () => {
+  it("não deduz o país pelo telefone: há quem viva noutro país com número de Portugal", () => {
     const sql = readFileSync("drizzle/migrations/0089_contact_country.sql", "utf8");
-    const inSql = [...sql.matchAll(/\('(\d+)', '([A-Z]{2})'\)/g)].map((m) => `${m[1]}:${m[2]}`).sort();
-    const first = new Map<string, string>();
-    for (const c of PHONE_COUNTRIES) if (!first.has(c.dial)) first.set(c.dial, c.code);
-    expect(inSql).toEqual([...first].map(([dial, code]) => `${dial.slice(1)}:${code}`).sort());
+    expect(sql).not.toMatch(/country_from_phone|dial/);
   });
 });
 
@@ -91,7 +69,7 @@ describe("país vindo da vista", () => {
   it("sem a migração não há país na vista (undefined), com ela null é «sem país»", () => {
     expect(summaryCountry({})).toBeUndefined();
     expect(summaryCountry({ country_code: null })).toBeNull();
-    expect(summaryCountry({ country_code: "AO", country_from: "phone" })).toMatchObject({ label: "Angola", from: "phone" });
+    expect(summaryCountry({ country_code: "AO" })).toMatchObject({ label: "Angola", flag: "🇦🇴" });
   });
 
   it("conta por país como contact_country_breakdown e filtra a lista local", () => {

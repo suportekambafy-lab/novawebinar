@@ -1463,7 +1463,7 @@ export function AnalyticsBoard({ data, loading, webinarId }: AnalyticsBoardProps
         <Card
           title="Facturação por país"
           icon={Banknote}
-          sub="País de quem pagou: o detectado na inscrição (como na Vista ao vivo); sem inscrição, o do indicativo do telefone."
+          sub="País de quem pagou, pelo IP da inscrição (como na Vista ao vivo). O telefone não conta: o número pode ser de outro país."
         >
           <CountryRevenueList rows={data.revenueByCountry} />
         </Card>

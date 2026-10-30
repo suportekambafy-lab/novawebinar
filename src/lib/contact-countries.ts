@@ -1,11 +1,10 @@
 /**
- * O país de cada contacto e a facturação por país. O país é o da inscrição mais recente
- * (localização pelo endereço de rede, a mesma da Vista ao vivo); quem nunca se inscreveu
- * (importado, compra de fora) fica com o país do indicativo do telefone, quando o tem.
+ * O país de cada contacto e a facturação por país. O país é só o da localização pelo endereço de
+ * rede (IP) na inscrição mais recente, o mesmo da Vista ao vivo. O indicativo do telefone não
+ * serve: há quem viva noutro país e mantenha o número de Portugal. Sem inscrição, sem país.
  */
 import { supabase } from "@/integrations/supabase/client";
 import { countryCodeOf, countryLabel, flagOf } from "@/lib/analytics-geo";
-import { PHONE_COUNTRIES } from "@/lib/phone-countries";
 import { sumByCurrency } from "@/lib/webinar-metrics";
 import type { ContactSummary } from "@/lib/contacts";
 import { stageCountsOf } from "@/lib/contacts-journey";
@@ -15,21 +14,7 @@ export type ContactCountry = {
   code: string | null;
   label: string;
   flag: string;
-  /** «ip»: detectado na inscrição; «phone»: deduzido do indicativo. */
-  from: "ip" | "phone";
 };
-
-// Indicativos mais longos primeiro: +351 antes de +35; no +1 fica o primeiro da lista (EUA).
-const BY_DIAL = [...PHONE_COUNTRIES].sort((a, b) => b.dial.length - a.dial.length);
-
-/** «+244 923…» → «AO». Só números escritos com indicativo (+ ou 00). */
-export function countryFromPhone(phone: string | null | undefined): string | null {
-  const raw = (phone ?? "").trim();
-  if (!/^(\+|00)/.test(raw)) return null;
-  const digits = `+${raw.replace(/^00/, "").replace(/\D/g, "")}`;
-  if (digits.length < 9) return null;
-  return BY_DIAL.find((c) => digits.startsWith(c.dial))?.code ?? null;
-}
 
 /**
  * As inscrições vêm da mais recente para a mais antiga; a primeira com código de país decide.
@@ -37,30 +22,22 @@ export function countryFromPhone(phone: string | null | undefined): string | nul
  */
 export function contactCountryOf(
   registrations: { country: string | null; country_code: string | null }[],
-  phone: string | null | undefined,
 ): ContactCountry | null {
   for (const r of registrations) {
     const code = countryCodeOf(r.country_code);
-    if (code && code !== "XX") return { code, label: countryLabel(code, r.country), flag: flagOf(code), from: "ip" };
+    if (code && code !== "XX") return { code, label: countryLabel(code, r.country), flag: flagOf(code) };
   }
-  const code = countryFromPhone(phone);
-  return code ? { code, label: countryLabel(code), flag: flagOf(code), from: "phone" } : null;
+  return null;
 }
 
 /** O país que a vista já traz (0089); undefined se a migração ainda não estiver aplicada. */
 export function summaryCountry(c: {
   country_code?: string | null;
   country?: string | null;
-  country_from?: string | null;
 }): ContactCountry | null | undefined {
   if (c.country_code === undefined) return undefined;
   if (!c.country_code) return null;
-  return {
-    code: c.country_code,
-    label: countryLabel(c.country_code, c.country),
-    flag: flagOf(c.country_code),
-    from: c.country_from === "phone" ? "phone" : "ip",
-  };
+  return { code: c.country_code, label: countryLabel(c.country_code, c.country), flag: flagOf(c.country_code) };
 }
 
 /** Uma linha de contact_country_breakdown: as pessoas de um país e em que etapa estão. */
@@ -98,36 +75,26 @@ export async function fetchContactCountries(
 ): Promise<Map<string, ContactCountry>> {
   const ids = [...new Set(contactIds)];
   const regs = new Map<string, { country: string | null; country_code: string | null }[]>();
-  const phones = new Map<string, string | null>();
-  // ponytail: duas leituras por bloco de 150 contactos; passa a uma coluna na base se as Análises ficarem lentas.
+  // ponytail: uma leitura por bloco de 150 contactos; com a 0089 aplicada, a lista lê o país da vista.
   for (let i = 0; i < ids.length; i += CHUNK) {
-    const some = ids.slice(i, i + CHUNK);
-    const [participants, contacts] = await Promise.all([
-      supabase
-        .from("participants")
-        .select("contact_id, country, country_code, joined_at")
-        .eq("organization_id", organizationId)
-        .in("contact_id", some)
-        .order("joined_at", { ascending: false }),
-      supabase
-        .from("contacts")
-        .select("id, phone")
-        .eq("organization_id", organizationId)
-        .in("id", some),
-    ]);
-    if (participants.error) throw participants.error;
-    if (contacts.error) throw contacts.error;
-    for (const p of participants.data ?? []) {
+    const { data, error } = await supabase
+      .from("participants")
+      .select("contact_id, country, country_code, joined_at")
+      .eq("organization_id", organizationId)
+      .in("contact_id", ids.slice(i, i + CHUNK))
+      .not("country_code", "is", null)
+      .order("joined_at", { ascending: false });
+    if (error) throw error;
+    for (const p of data ?? []) {
       if (!p.contact_id) continue;
       const list = regs.get(p.contact_id) ?? [];
       list.push(p);
       regs.set(p.contact_id, list);
     }
-    for (const c of contacts.data ?? []) phones.set(c.id, c.phone);
   }
   const out = new Map<string, ContactCountry>();
-  for (const id of ids) {
-    const country = contactCountryOf(regs.get(id) ?? [], phones.get(id));
+  for (const [id, list] of regs) {
+    const country = contactCountryOf(list);
     if (country) out.set(id, country);
   }
   return out;

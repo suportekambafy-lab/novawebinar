@@ -6,10 +6,9 @@ pode ser aplicada duas vezes sem erro.
 
 ## O que faz
 
-- `country_from_phone(telefone)`: o país pelo indicativo (+244 → AO). Os indicativos são os de
-  `src/lib/phone-countries.ts`, e um teste confirma que as duas listas são iguais.
-- `contact_summaries` ganha três colunas no fim: `country_code`, `country` e `country_from` (`ip` ou
-  `phone`). O país é o da inscrição mais recente com país detectado. Sem inscrição, é o do indicativo.
+- `contact_summaries` ganha duas colunas no fim: `country_code` e `country`. O país é o detectado pelo
+  IP na inscrição mais recente, o mesmo da Vista ao vivo. O indicativo do telefone não conta, porque há
+  quem viva noutro país e mantenha o número de Portugal. Quem nunca se inscreveu fica sem país.
   As colunas que já existiam não mudam.
 - `contact_country_breakdown(org, lista, lançamento)`: quantas pessoas há por país e em que etapa estão.
 - Um índice parcial em `participants (contact_id, joined_at DESC)` para as linhas que têm país.
@@ -24,14 +23,14 @@ Não apaga nada: só `CREATE OR REPLACE` e `IF NOT EXISTS`.
 4. Para confirmar, cole e corra esta consulta:
 
    ```sql
-   SELECT country_code, country_from, count(*)
+   SELECT country_code, count(*)
      FROM contact_summaries
-    GROUP BY 1, 2
-    ORDER BY 3 DESC
+    GROUP BY 1
+    ORDER BY 2 DESC
     LIMIT 10;
    ```
 
-   Deve aparecer uma linha por país, por exemplo `AO | ip | 120`. A linha com `country_code` vazio
+   Deve aparecer uma linha por país, por exemplo `AO | 120`. A linha com `country_code` vazio
    conta as pessoas sem país.
 
 5. Recarregue a página Contactos. No resumo do grupo aparece a secção «De que países», e basta tocar
