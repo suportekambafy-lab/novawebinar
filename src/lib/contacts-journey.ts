@@ -212,9 +212,13 @@ const fold = (s: string | null | undefined) =>
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "");
 
-export function filterContacts(rows: ContactSummary[], f: { stage: string | null; search: string }) {
+export function filterContacts(
+  rows: ContactSummary[],
+  f: { stage: string | null; search: string; country?: string | null | undefined },
+) {
   const term = fold(f.search.trim());
   return rows.filter((c) => {
+    if (f.country && c.country_code !== f.country) return false;
     if (f.stage === "returning" && (c.events_attended ?? 0) < 2) return false;
     if (f.stage && f.stage !== "returning" && contactInsight(c).stage !== f.stage) return false;
     if (!term) return true;

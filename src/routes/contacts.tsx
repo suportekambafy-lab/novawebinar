@@ -30,7 +30,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { supabase } from "@/integrations/supabase/client";
-import { fetchContactCountries } from "@/lib/contact-countries";
+import {
+  countryRowsOf,
+  fetchContactCountries,
+  summaryCountry,
+  type ContactCountry,
+} from "@/lib/contact-countries";
 import { contactInsight, sourceLabel, stageLabel, TEMPERATURE_LABEL, type ContactSummary, contactPresent } from "@/lib/contacts";
 import {
   contactFile,
@@ -46,6 +51,7 @@ import {
   switchWorkspace,
   useContactDetail,
   useContactCountries,
+  useContactCountryBreakdown,
   useContactLists,
   useContacts,
   useContactSources,
@@ -89,6 +95,7 @@ function ContactsPage() {
 
   const [scope, setScope] = useState(ALL);
   const [stage, setStage] = useState<string | null>(null);
+  const [country, setCountry] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -107,7 +114,7 @@ function ContactsPage() {
   useEffect(() => {
     setPage(0);
     setSelected((s) => (s ? new Set() : s));
-  }, [scope, stage, search]);
+  }, [scope, stage, country, search]);
   useEffect(() => {
     if (linkedId) {
       setOpenId(linkedId);
@@ -136,17 +143,34 @@ function ContactsPage() {
   const serverScope = exemplo || theme ? undefined : orgId;
   const { data: serverCounts } = useContactStageCounts(serverScope, listId, webinarId);
   const { data: serverSources } = useContactSources(serverScope, listId, webinarId);
-  const { data: page$, isLoading, error: pageError } = useContacts(serverScope, { stage, listId, webinarId, search, page });
+  const { data: page$, isLoading, error: pageError } = useContacts(serverScope, {
+    stage,
+    listId,
+    webinarId,
+    country,
+    search,
+    page,
+  });
   const { data: themeRows = [], isLoading: themeLoading } = useThemeContacts(theme ? orgId : undefined, themeIds);
-  const rows = theme ? filterContacts(themeRows, { stage, search }) : (page$?.rows ?? []);
+  const rows = theme ? filterContacts(themeRows, { stage, search, country }) : (page$?.rows ?? []);
   const inRows = rows.some((r) => r.id === openId);
   const { data: linked, isFetched: linkedFetched } = useLinkedContact(exemplo || inRows ? undefined : openId, orgId);
 
   const total = theme ? (themeLoading ? null : rows.length) : page$ ? page$.total : null;
-  const counts = theme ? stageCountsOf(themeRows) : serverCounts;
+  const { data: serverCountries } = useContactCountryBreakdown(serverScope, listId, webinarId);
+  // Sem a migração 0089 não há países por pessoa na base: o filtro e o resumo por país ficam escondidos.
+  const countryRows = theme ? countryRowsOf(themeRows) : serverCountries;
+  const countryRow = country ? countryRows?.find((r) => r.country_code === country) : undefined;
+  // Com um país escolhido, as etapas contam só as pessoas desse país.
+  const counts = countryRow ? countryRow.stages : theme ? stageCountsOf(themeRows) : serverCounts;
   const sources = theme ? sourceRowsOf(themeRows) : serverSources;
   const pages = theme ? 1 : Math.max(1, Math.ceil((page$?.total ?? 0) / CONTACTS_PAGE_SIZE));
-  const { data: countries } = useContactCountries(exemplo ? undefined : orgId, rows.flatMap((r) => r.id ?? []));
+  // A vista já traz o país (0089); sem ela, lê-se das inscrições da página visível.
+  const viewHasCountry = rows.length > 0 && summaryCountry(rows[0]!) !== undefined;
+  const { data: countries } = useContactCountries(
+    exemplo || viewHasCountry ? undefined : orgId,
+    rows.flatMap((r) => r.id ?? []),
+  );
   const open = openId ? (rows.find((r) => r.id === openId) ?? linked ?? null) : null;
 
   const groups: ScopeGroup[] = [
@@ -189,6 +213,7 @@ function ContactsPage() {
   const pickScope = (key: string) => {
     setScope(key);
     setStage(null);
+    setCountry(null);
   };
   const openContact = (id: string | null) => {
     setOpenId(id);
@@ -262,8 +287,11 @@ function ContactsPage() {
     if (!orgId) return;
     setExporting(true);
     try {
-      const all = theme ? rows : await fetchAllContacts(orgId, { stage, listId, webinarId, search });
-      const places = await fetchContactCountries(orgId, all.flatMap((c) => c.id ?? []));
+      const all = theme ? rows : await fetchAllContacts(orgId, { stage, listId, webinarId, country, search });
+      const places =
+        all.length && summaryCountry(all[0]!) === undefined
+          ? await fetchContactCountries(orgId, all.flatMap((c) => c.id ?? []))
+          : new Map<string, ContactCountry>();
       const content = toCsv(
         ["Nome", "Email", "Telefone", "País", "Etapa", "Temperatura", "Motivo", "Próxima acção", "Lançamentos", "Presença", "Esteve presente", "Tempo a ver", "Compras", "Última actividade", "Origem", "Campanha"],
         all.map((c) => {
@@ -272,7 +300,7 @@ function ContactsPage() {
             c.name,
             c.email,
             c.phone,
-            places.get(c.id ?? "")?.label ?? "",
+            (summaryCountry(c) ?? places.get(c.id ?? ""))?.label ?? "",
             stageLabel(i.stage),
             TEMPERATURE_LABEL[i.temperature],
             i.reason,
@@ -394,16 +422,17 @@ function ContactsPage() {
               counts={counts}
               stage={stage}
               onStage={setStage}
+              countryFilter={country ? { code: country, onClear: () => setCountry(null) } : null}
               rows={rows.map((c) => ({
                 contact: c,
                 launch: launchLabel(c.webinar_ids, titleOf),
-                country: countries?.get(c.id ?? "") ?? null,
+                country: summaryCountry(c) ?? countries?.get(c.id ?? "") ?? null,
               }))}
               activeId={openId}
               onSelect={openContact}
               loading={theme ? themeLoading : isLoading}
               // Uma consulta falhada não pode parecer uma lista vazia: diz-se que não carregou.
-              empty={pageError ? "Não foi possível carregar os contactos. Tente novamente." : search || stage ? "Ninguém com este filtro." : "Ninguém neste grupo ainda."}
+              empty={pageError ? "Não foi possível carregar os contactos. Tente novamente." : search || stage || country ? "Ninguém com este filtro." : "Ninguém neste grupo ainda."}
               selection={
                 selected
                   ? {
@@ -501,6 +530,9 @@ function ContactsPage() {
                 sources={sources}
                 stage={stage}
                 onStage={setStage}
+                countries={countryRows}
+                country={country}
+                onCountry={setCountry}
                 onBack={() => setStep("list")}
               />
             )

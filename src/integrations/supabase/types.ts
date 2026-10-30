@@ -3750,6 +3750,10 @@ export type Database = {
           checkout_abandoned: boolean | null
           checkout_started: boolean | null
           clicked_offer: boolean | null
+          // 0089: só existem com a migração aplicada.
+          country?: string | null
+          country_code?: string | null
+          country_from?: string | null
           created_at: string | null
           email: string | null
           events_attended: number | null
@@ -3995,6 +3999,10 @@ export type Database = {
           _units: number
         }
         Returns: number
+      }
+      contact_country_breakdown: {
+        Args: { _list_id?: string; _organization_id: string; _webinar_id?: string }
+        Returns: Json
       }
       contact_source_breakdown: {
         Args: { _list_id?: string; _organization_id: string; _webinar_id?: string }

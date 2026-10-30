@@ -58,7 +58,8 @@ import {
   type ContactSummary,
   type Temperature,
 } from "@/lib/contacts";
-import type { ContactCountry } from "@/lib/contact-countries";
+import { countryLabel, flagOf } from "@/lib/analytics-geo";
+import type { ContactCountry, CountryRow } from "@/lib/contact-countries";
 import { STAGE_ADVICE, type ContactFile, type PathStep, type Tone } from "@/lib/contacts-journey";
 import { formatDateTime, watchLabel, type SourceRow, type StageCounts } from "@/lib/data";
 import { cn } from "@/lib/utils";
@@ -331,6 +332,7 @@ export function ContactList({
   counts,
   stage,
   onStage,
+  countryFilter,
   rows,
   activeId,
   onSelect,
@@ -351,6 +353,8 @@ export function ContactList({
   counts: StageCounts | null | undefined;
   stage: string | null;
   onStage: (stage: string | null) => void;
+  /** O país escolhido no resumo do grupo, à vista para se poder tirar. */
+  countryFilter?: { code: string; onClear: () => void } | null | undefined;
   rows: ContactRow[];
   activeId: string | null;
   onSelect: (id: string) => void;
@@ -396,6 +400,21 @@ export function ContactList({
             className="h-10 pl-9"
           />
         </div>
+        {countryFilter && (
+          <div className="flex items-center gap-2 text-[12px]">
+            <span className="text-muted-foreground">País:</span>
+            <button
+              type="button"
+              onClick={countryFilter.onClear}
+              className="flex h-8 items-center gap-1.5 rounded-pill bg-foreground px-3 font-medium text-background"
+              aria-label={`Tirar o filtro de país: ${countryLabel(countryFilter.code)}`}
+            >
+              <span aria-hidden>{flagOf(countryFilter.code)}</span>
+              {countryLabel(countryFilter.code)}
+              <X className="size-3.5" aria-hidden />
+            </button>
+          </div>
+        )}
         {chips.length > 0 && (
           <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 [scrollbar-width:none]" aria-label="Onde cada pessoa parou">
             <FilterChip active={stage === null} onClick={() => onStage(null)}>
@@ -996,6 +1015,9 @@ export function GroupSummary({
   sources,
   stage,
   onStage,
+  countries,
+  country,
+  onCountry,
   onBack,
 }: {
   title: string;
@@ -1003,6 +1025,10 @@ export function GroupSummary({
   sources: SourceRow[] | null | undefined;
   stage: string | null;
   onStage: (stage: string | null) => void;
+  /** Pessoas por país (0089); sem a migração, null e a secção não aparece. */
+  countries?: CountryRow[] | null | undefined;
+  country?: string | null | undefined;
+  onCountry?: ((code: string | null) => void) | undefined;
   onBack: () => void;
 }) {
   const all = counts?.all ?? 0;
@@ -1099,11 +1125,80 @@ export function GroupSummary({
           </Section>
         )}
 
+        {countries && countries.length > 0 && onCountry && (
+          <CountrySection countries={countries} active={country ?? null} onSelect={onCountry} />
+        )}
+
         <p className="flex items-center gap-2 text-[12px] text-muted-foreground">
           <ListChecks className="size-4 shrink-0" aria-hidden />
           Abra uma pessoa para ver os lançamentos, o que viu, o que comprou e as conversas.
         </p>
       </div>
     </div>
+  );
+}
+
+/**
+ * As pessoas do grupo por país: o da inscrição mais recente (como na Vista ao vivo) ou, sem
+ * ela, o do indicativo. Tocar num país filtra a lista; quem não tem país não se filtra.
+ */
+function CountrySection({
+  countries,
+  active,
+  onSelect,
+}: {
+  countries: CountryRow[];
+  active: string | null;
+  onSelect: (code: string | null) => void;
+}) {
+  const [all, setAll] = useState(false);
+  const known = countries.filter((r) => r.country_code);
+  const unknown = countries.find((r) => !r.country_code)?.contacts ?? 0;
+  const total = countries.reduce((n, r) => n + r.contacts, 0);
+  const shown = all ? known : known.slice(0, 8);
+  return (
+    <Section title="De que países">
+      <ul className="divide-y rounded-xl border">
+        {shown.map((r) => {
+          const code = r.country_code!;
+          const on = active === code;
+          return (
+            <li key={code}>
+              <button
+                type="button"
+                onClick={() => onSelect(on ? null : code)}
+                aria-pressed={on}
+                className={cn(
+                  "flex w-full items-center gap-3 px-3 py-2 text-left text-[13px] transition-colors",
+                  on ? "bg-gray-150" : "hover:bg-gray-100",
+                )}
+              >
+                <span className="flex min-w-0 flex-1 items-center gap-2">
+                  <span aria-hidden>{flagOf(code)}</span>
+                  <span className="truncate font-medium">{countryLabel(code)}</span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">
+                    {r.contacts} · {pct(r.contacts, total)}%
+                  </span>
+                </span>
+                <span className="shrink-0 whitespace-nowrap tabular-nums">
+                  {r.customers > 0 ? `${r.customers} ${r.customers === 1 ? "cliente" : "clientes"}` : "—"}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {known.length > 8 && (
+        <Button variant="ghost" size="sm" className="mt-1" onClick={() => setAll(!all)}>
+          {all ? "Mostrar menos" : `Ver os ${known.length} países`}
+        </Button>
+      )}
+      {unknown > 0 && (
+        <p className="mt-2 text-[12px] text-muted-foreground">
+          {unknown} {unknown === 1 ? "pessoa sem país" : "pessoas sem país"}: não entraram por uma inscrição e o
+          telefone não tem indicativo.
+        </p>
+      )}
+    </Section>
   );
 }

@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery, useQueryClient, useMutation } from "@tansta
 import { NOT_TEST_ROOM } from "@/lib/test-room";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
-import { fetchContactCountries } from "@/lib/contact-countries";
+import { fetchContactCountries, type CountryRow } from "@/lib/contact-countries";
 import { LEDGER_LIMIT } from "@/lib/credits";
 import { isSegmentRules, type SegmentRules } from "@/lib/segments";
 import type { Database, Json } from "@/integrations/supabase/types";
@@ -970,6 +970,8 @@ export type ContactFilters = {
   stage: string | null;
   listId: string | null;
   webinarId: string | null;
+  /** Código ISO do país (coluna country_code da 0089), ou null para todos. */
+  country?: string | null | undefined;
   search: string;
   page: number;
 };
@@ -989,6 +991,7 @@ function contactsQuery(organizationId: string, f: Omit<ContactFilters, "page">) 
   if (f.stage === "returning") q = q.gte("events_attended", 2);
   else if (f.stage) q = q.eq("stage", f.stage);
   if (f.webinarId) q = q.contains("webinar_ids", [f.webinarId]);
+  if (f.country) q = q.eq("country_code", f.country);
   // Vírgulas e parênteses partem o filtro `or` do PostgREST.
   const term = f.search.replace(/[,()*%"\\]/g, " ").trim();
   if (term) q = q.or(`name.ilike.%${term}%,email.ilike.%${term}%,phone.ilike.%${term}%`);
@@ -1036,6 +1039,29 @@ export function useContactCountries(organizationId: string | undefined, contactI
     staleTime: 60_000,
     placeholderData: keepPreviousData,
     queryFn: () => fetchContactCountries(organizationId!, contactIds),
+  });
+}
+
+/** Pessoas por país no âmbito actual; null sem a migração 0089 (o filtro por país fica escondido). */
+export function useContactCountryBreakdown(
+  organizationId: string | undefined,
+  listId: string | null,
+  webinarId: string | null,
+) {
+  return useQuery({
+    queryKey: ["contacts", "country-breakdown", organizationId, listId, webinarId],
+    enabled: Boolean(organizationId),
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("contact_country_breakdown", {
+        _organization_id: organizationId!,
+        ...(listId ? { _list_id: listId } : {}),
+        ...(webinarId ? { _webinar_id: webinarId } : {}),
+      });
+      if (error) return null;
+      return (data ?? []) as CountryRow[];
+    },
   });
 }
 

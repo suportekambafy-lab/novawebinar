@@ -7,6 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { countryCodeOf, countryLabel, flagOf } from "@/lib/analytics-geo";
 import { PHONE_COUNTRIES } from "@/lib/phone-countries";
 import { sumByCurrency } from "@/lib/webinar-metrics";
+import type { ContactSummary } from "@/lib/contacts";
+import { stageCountsOf } from "@/lib/contacts-journey";
+import type { StageCounts } from "@/lib/data";
 
 export type ContactCountry = {
   code: string | null;
@@ -28,18 +31,62 @@ export function countryFromPhone(phone: string | null | undefined): string | nul
   return BY_DIAL.find((c) => digits.startsWith(c.dial))?.code ?? null;
 }
 
-/** As inscrições vêm da mais recente para a mais antiga; a primeira com país decide. */
+/**
+ * As inscrições vêm da mais recente para a mais antiga; a primeira com código de país decide.
+ * A mesma regra da vista contact_summaries (0089).
+ */
 export function contactCountryOf(
   registrations: { country: string | null; country_code: string | null }[],
   phone: string | null | undefined,
 ): ContactCountry | null {
   for (const r of registrations) {
-    const code = countryCodeOf(r.country_code, r.country);
-    if (code || r.country?.trim())
-      return { code, label: countryLabel(code, r.country), flag: flagOf(code), from: "ip" };
+    const code = countryCodeOf(r.country_code);
+    if (code && code !== "XX") return { code, label: countryLabel(code, r.country), flag: flagOf(code), from: "ip" };
   }
   const code = countryFromPhone(phone);
   return code ? { code, label: countryLabel(code), flag: flagOf(code), from: "phone" } : null;
+}
+
+/** O país que a vista já traz (0089); undefined se a migração ainda não estiver aplicada. */
+export function summaryCountry(c: {
+  country_code?: string | null;
+  country?: string | null;
+  country_from?: string | null;
+}): ContactCountry | null | undefined {
+  if (c.country_code === undefined) return undefined;
+  if (!c.country_code) return null;
+  return {
+    code: c.country_code,
+    label: countryLabel(c.country_code, c.country),
+    flag: flagOf(c.country_code),
+    from: c.country_from === "phone" ? "phone" : "ip",
+  };
+}
+
+/** Uma linha de contact_country_breakdown: as pessoas de um país e em que etapa estão. */
+export type CountryRow = {
+  country_code: string | null;
+  contacts: number;
+  customers: number;
+  stages: StageCounts;
+};
+
+/** As mesmas contas de contact_country_breakdown, para quando a lista é local (temas). */
+export function countryRowsOf(rows: ContactSummary[]): CountryRow[] | null {
+  if (rows.some((c) => c.country_code === undefined)) return null;
+  const byCountry = new Map<string, ContactSummary[]>();
+  for (const c of rows) {
+    const key = c.country_code ?? "";
+    byCountry.set(key, [...(byCountry.get(key) ?? []), c]);
+  }
+  return [...byCountry.entries()]
+    .map(([key, list]) => ({
+      country_code: key || null,
+      contacts: list.length,
+      customers: list.filter((c) => (c.purchases ?? 0) > 0).length,
+      stages: stageCountsOf(list),
+    }))
+    .sort((a, b) => Number(!a.country_code) - Number(!b.country_code) || b.contacts - a.contacts);
 }
 
 const CHUNK = 150;
