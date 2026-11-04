@@ -11,6 +11,7 @@ import type {
   TranscriptionProvider,
 } from "../provider";
 import type { NormalizedWord } from "../types";
+import { publicAppUrl } from "@/lib/app-url.server";
 
 const API = "https://api.assemblyai.com/v2";
 const MODEL = "universal-2";
@@ -56,6 +57,42 @@ async function request(path: string, init?: RequestInit): Promise<AssemblyTransc
   return body;
 }
 
+/**
+ * O ficheiro que a AssemblyAI vai buscar. Uma biblioteca do Bunny com referrers permitidos responde
+ * 403 a quem não diz de onde vem, e a AssemblyAI não envia Referer: aí o servidor descarrega com o
+ * endereço do site e entrega o ficheiro à AssemblyAI. Usa-se o MP4 mais leve: o áudio e os tempos
+ * são os mesmos em todas as resoluções.
+ */
+export async function audioUrlFor(mediaUrl: string, referer: string, upload: (body: ReadableStream<Uint8Array>) => Promise<string>): Promise<string> {
+  const probe = await fetch(mediaUrl, { headers: { Range: "bytes=0-0" }, signal: AbortSignal.timeout(20_000) }).catch(() => null);
+  await probe?.body?.cancel().catch(() => {});
+  if (!probe || probe.status !== 403 || !referer) return mediaUrl;
+
+  const lighter = mediaUrl.replace(/\/play_\d+p\.mp4$/, "/play_240p.mp4");
+  for (const url of lighter === mediaUrl ? [mediaUrl] : [lighter, mediaUrl]) {
+    const response = await fetch(url, { headers: { Referer: `${referer}/` }, signal: AbortSignal.timeout(240_000) });
+    if (response.ok && response.body) return upload(response.body);
+    await response.body?.cancel().catch(() => {});
+  }
+  throw new Error("O servidor do vídeo recusou o acesso (403). Confirme na biblioteca do Bunny que o site está nos referrers permitidos.");
+}
+
+async function uploadToAssembly(body: ReadableStream<Uint8Array>): Promise<string> {
+  const response = await fetch(`${API}/upload`, {
+    method: "POST",
+    headers: { Authorization: key() ?? "", "Content-Type": "application/octet-stream" },
+    body,
+    // O Node exige isto para enviar um corpo em fluxo.
+    duplex: "half",
+    signal: AbortSignal.timeout(240_000),
+  } as RequestInit);
+  const result = (await response.json().catch(() => ({}))) as { upload_url?: string; error?: string };
+  if (!response.ok || !result.upload_url) {
+    throw new Error(result.error || `O envio do vídeo para a transcrição falhou (${response.status}).`);
+  }
+  return result.upload_url;
+}
+
 /** Resposta nativa → formato interno normalizado. */
 function normalizeWords(words: AssemblyWord[]): NormalizedWord[] {
   return words
@@ -80,10 +117,12 @@ export const assemblyAiProvider: TranscriptionProvider = {
   },
 
   async start(input: TranscriptionInput): Promise<TranscriptionHandle> {
+    if (!key()) throw new Error("A transcrição com tempos por palavra não está configurada.");
+    const audioUrl = await audioUrlFor(input.mediaUrl, publicAppUrl(), uploadToAssembly);
     const created = await request("/transcript", {
       method: "POST",
       body: JSON.stringify({
-        audio_url: input.mediaUrl,
+        audio_url: audioUrl,
         speech_models: [MODEL],
         language_code: input.language,
         speaker_labels: true,
