@@ -1,3 +1,4 @@
+import { TutorialButton } from "@/components/tutorial/tutorial-button";
 import { friendlyError } from "@/lib/friendly-error";
 import { useActiveAbTestsOfWebinar } from "@/lib/ab-tests/hooks";
 import { IMAGE_PRESETS, imageExtension, shrinkImage } from "@/lib/shrink-image";
@@ -1898,6 +1899,7 @@ function EditWebinar() {
                 <Eye />
               </a>
             </Button>
+            <TutorialButton id="criar-webinar" compact />
             {/* Publicar passa pela Revisão; na Revisão, publica. */}
             <Button
               variant="dark"

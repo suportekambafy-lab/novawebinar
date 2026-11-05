@@ -1,3 +1,5 @@
+import { TutorialButton } from "@/components/tutorial/tutorial-button";
+import { tutorialFor } from "@/components/tutorial/tutorial-routes";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Check, ChevronRight, Ellipsis, LogOut, LucideProvider, Plus, Search, X } from "lucide-react";
 import { createContext, lazy, Suspense, useContext, useEffect, useState, type CSSProperties, type ElementType, type ReactNode } from "react";
@@ -57,6 +59,7 @@ export function AppShell({
 }) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (r) => r.location.pathname });
+  const tutorial = tutorialFor(pathname);
   useAdminHostRedirect();
   // «Mais» no menu de baixo do telemóvel: o resto da navegação numa folha que sobe.
   const [moreOpen, setMoreOpen] = useState(false);
@@ -226,17 +229,20 @@ export function AppShell({
                 back={back}
                 compact={compact}
                 toolbar={
-                  typeof action === "boolean"
-                    ? action &&
-                      !supportOnly && (
-                        <Button asChild>
-                          <Link to="/webinars/new">
-                            <Plus />
-                            Novo webinar
-                          </Link>
-                        </Button>
-                      )
-                    : action
+                  <>
+                    {tutorial && <TutorialButton id={tutorial} />}
+                    {typeof action === "boolean"
+                      ? action &&
+                        !supportOnly && (
+                          <Button asChild>
+                            <Link to="/webinars/new">
+                              <Plus />
+                              Novo webinar
+                            </Link>
+                          </Button>
+                        )
+                      : action}
+                  </>
                 }
               />
             )}
