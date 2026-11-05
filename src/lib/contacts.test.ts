@@ -305,3 +305,19 @@ describe("linha do tempo", () => {
     expect(items.map((i) => i.name)).toEqual(["automation_entered", "purchase_approved", "checkout_started"]);
   });
 });
+
+describe("mensagens sugeridas falam do evento, não de «webinar»", () => {
+  it("usa o tema do evento e nunca a palavra webinar", async () => {
+    const { contactInsight: insight, eventTopic } = await import("./contacts");
+    expect(eventTopic("Workshop Marca Milionária Legacy")).toBe("Marca Milionária Legacy");
+    expect(eventTopic("Faturando com Leilões")).toBe("Faturando com Leilões");
+    const c = { name: "Nelson Silva", stage: "clicked", events_registered: 1, events_attended: 1, clicked_offer: true } as never;
+    const i = insight(c, Date.now(), "Workshop Marca Milionária Legacy");
+    expect(i.nextAction.message).toBe(
+      "Olá Nelson, vi que se interessou pela oferta da aula sobre Marca Milionária Legacy. Ficou alguma dúvida que eu possa esclarecer?",
+    );
+    for (const stage of ["clicked", "reached_offer", "watched", "no_show", "new", "checkout", "customer"]) {
+      expect(insight({ ...(c as object), stage } as never).nextAction.message).not.toMatch(/webinar/i);
+    }
+  });
+});

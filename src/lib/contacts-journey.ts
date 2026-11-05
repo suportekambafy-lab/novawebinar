@@ -300,8 +300,10 @@ export type FileInput = {
 
 export function contactFile(input: FileInput): ContactFile {
   const c = input.contact;
-  const insight = contactInsight(c);
   const ctx = input.context;
+  // As mensagens sugeridas falam do evento mais recente pelo nome, não de «webinar».
+  const latest = [...(ctx?.webinars ?? [])].sort((a, b) => b.at.localeCompare(a.at))[0];
+  const insight = contactInsight(c, Date.now(), latest?.title);
   const theme = latestTheme(ctx?.cases ?? []);
   return {
     id: c.id ?? "",

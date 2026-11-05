@@ -65,7 +65,19 @@ export function contactPresent(c: Pick<ContactSummary, "events_attended" | "clic
   return (c.events_attended ?? 0) > 0 || Boolean(c.clicked_offer) || Boolean(c.reached_offer);
 }
 
-export function contactInsight(c: ContactSummary, now = Date.now()): ContactInsight {
+/**
+ * O tema do evento, para as mensagens: o lead não conhece a palavra «webinar», conhece o assunto.
+ * «Workshop Marca Milionária Legacy» → «Marca Milionária Legacy».
+ */
+export function eventTopic(title: string | null | undefined) {
+  const clean = (title ?? "").trim().replace(/^(workshop|webinar|masterclass|aula|live|evento|imers[aã]o|treinamento|mentoria)\s+(sobre\s+|de\s+)?/i, "");
+  return clean || null;
+}
+
+/**
+ * `event`: o título do evento mais recente da pessoa; sem ele, as mensagens falam da «aula».
+ */
+export function contactInsight(c: ContactSummary, now = Date.now(), event?: string | null): ContactInsight {
   const stage = (STAGES.some((s) => s.id === c.stage) ? c.stage : "new") as Stage;
   const registered = c.events_registered ?? 0;
   const attended = c.events_attended ?? 0;
@@ -73,6 +85,8 @@ export function contactInsight(c: ContactSummary, now = Date.now()): ContactInsi
   const purchases = c.purchases ?? 0;
   const idleDays = c.last_seen_at ? Math.floor((now - Date.parse(c.last_seen_at)) / DAY) : 0;
   const hi = firstName(c.name) ? `Olá ${firstName(c.name)}` : "Olá";
+  const topic = eventTopic(event);
+  const about = topic ? ` sobre ${topic}` : "";
 
   const parts: string[] = [];
   if (registered === 0) parts.push(c.source === "import" ? "Importado, ainda sem eventos" : "Ainda sem eventos");
@@ -125,14 +139,14 @@ export function contactInsight(c: ContactSummary, now = Date.now()): ContactInsi
       temperature = idleDays > 21 ? "warm" : "hot";
       action = {
         label: "Falar hoje: clicou e não comprou",
-        message: `${hi}, vi que se interessou pela oferta do webinar. Ficou alguma dúvida que eu possa esclarecer?`,
+        message: `${hi}, vi que se interessou pela oferta da aula${about}. Ficou alguma dúvida que eu possa esclarecer?`,
       };
       break;
     case "reached_offer":
       temperature = "warm";
       action = {
         label: "Enviar a oferta com um motivo para decidir",
-        message: `${hi}, obrigado por ter ficado até ao fim do webinar. Quer que lhe envie os detalhes da oferta?`,
+        message: `${hi}, obrigado por ter ficado até ao fim da aula${about}. Quer que lhe envie os detalhes da oferta?`,
       };
       break;
     case "watched":
@@ -141,25 +155,25 @@ export function contactInsight(c: ContactSummary, now = Date.now()): ContactInsi
         attended >= 2
           ? {
               label: `Convidar para o próximo: já voltou ${attended} vezes`,
-              message: `${hi}, obrigado por acompanhar os nossos webinars! Tenho um novo em breve e gostava de o ver lá.`,
+              message: `${hi}, obrigado por acompanhar as nossas aulas! Tenho outra em breve e gostava de o ver lá.`,
             }
           : {
               label: "Enviar o replay da parte que perdeu",
-              message: `${hi}, a melhor parte do webinar foi depois de sair. Quer que lhe envie o replay?`,
+              message: `${hi}, a melhor parte da aula${about} foi depois de sair. Quer que lhe envie a gravação?`,
             };
       break;
     case "no_show":
       temperature = "cold";
       action = {
         label: "Enviar o replay: inscreveu-se e não apareceu",
-        message: `${hi}, vi que não conseguiu assistir ao webinar. Quer que lhe envie o replay?`,
+        message: `${hi}, vi que não conseguiu assistir à aula${about}. Quer que lhe envie a gravação?`,
       };
       break;
     default:
       temperature = "cold";
       action = {
-        label: "Convidar para o próximo webinar",
-        message: `${hi}, vou fazer um webinar gratuito em breve e acho que lhe vai interessar. Posso enviar-lhe o convite?`,
+        label: "Convidar para a próxima aula",
+        message: `${hi}, vou dar uma aula gratuita em breve e acho que lhe vai interessar. Posso enviar-lhe o convite?`,
       };
   }
 
