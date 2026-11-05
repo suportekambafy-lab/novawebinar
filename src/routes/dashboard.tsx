@@ -41,6 +41,7 @@ import { HEARTS_EVENT } from "@/lib/room-reactions.functions";
 import { useLiveViewers } from "@/lib/live-presence";
 import { useAbTests } from "@/lib/ab-tests/hooks";
 import { nowCount, useRoomNow } from "@/lib/room-now";
+import { buyersOf } from "@/lib/analytics";
 import { FACT_COLUMNS, funnelSummary } from "@/lib/participant-facts";
 import { lifecycleLabel, type WebinarLifecycle } from "@/lib/schedule";
 import { sumByCurrency } from "@/lib/webinar-metrics";
@@ -283,7 +284,7 @@ function Dashboard() {
           since(
             supabase
               .from("real_purchase_events")
-              .select("amount_value, currency", { count: "exact" })
+              .select("contact_id, amount_value, currency", { count: "exact" })
               .eq("organization_id", orgId!)
               .eq("status", "approved"),
             "approved_at",
@@ -325,7 +326,8 @@ function Dashboard() {
   const view = useMemo(() => {
     if (!results.data) return null;
     const { facts, purchases, messages, reactions, start } = results.data;
-    const s = funnelSummary(facts);
+    // «Compraram» são os mesmos pagamentos da facturação (como nas Análises).
+    const s = { ...funnelSummary(facts), buyers: buyersOf(purchases) };
     const summary: Results = {
       registered: s.registered,
       attended: s.attended,

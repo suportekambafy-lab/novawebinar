@@ -12,7 +12,9 @@ import { fetchAll } from "@/lib/fetch-all";
 import { fetchContactCountries, revenueByCountry, type ContactCountry } from "@/lib/contact-countries";
 import { rangeKey, type DateRange } from "@/lib/date-range";
 import { FACT_COLUMNS, funnelSummary, type FunnelFact } from "@/lib/participant-facts";
-import { sumByCurrency } from "@/lib/webinar-metrics";
+import { buyersOf, sumByCurrency } from "@/lib/webinar-metrics";
+
+export { buyersOf };
 
 /** As mesmas palavras no Painel, nas Análises e na Vista ao vivo. */
 export const METRIC = {
@@ -49,15 +51,6 @@ export type AnalyticsPurchase = {
 };
 
 type Summary = ReturnType<typeof funnelSummary>;
-
-/**
- * Quem pagou no período: pessoas diferentes com pagamento aprovado (sem contacto, cada pagamento
- * conta). É o mesmo conjunto da facturação, por isso «Compraram» e «Facturação» nunca se contradizem,
- * mesmo quando a pessoa assistiu e clicou noutro dia (inscreveu-se antes do período).
- */
-export function buyersOf(purchases: Pick<AnalyticsPurchase, "contact_id">[]) {
-  return new Set(purchases.map((p, i) => p.contact_id ?? `sem-contacto-${i}`)).size;
-}
 
 /** O funil com «Compraram» e a conversão pelos pagamentos do período. */
 function withPaidBuyers(summary: Summary, purchases: AnalyticsPurchase[]): Summary {

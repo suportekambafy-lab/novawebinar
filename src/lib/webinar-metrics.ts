@@ -204,12 +204,15 @@ export async function fetchWebinarMetrics(
         .range(from, to),
     ),
     fetchAll((from, to) =>
-      supabase
-        .from("real_purchase_events")
-        .select("id, contact_id, amount_value, currency", { count: "exact" })
-        .eq("organization_id", organizationId)
-        .eq("webinar_id", webinarId)
-        .eq("status", "approved")
+      period(
+        supabase
+          .from("real_purchase_events")
+          .select("id, contact_id, amount_value, currency", { count: "exact" })
+          .eq("organization_id", organizationId)
+          .eq("webinar_id", webinarId)
+          .eq("status", "approved"),
+        "approved_at",
+      )
         .order("id")
         .range(from, to),
     ),
@@ -218,10 +221,15 @@ export async function fetchWebinarMetrics(
   const participants = participantRows as MetricsParticipant[];
   const ids = new Set(participants.map((p) => p.participant_id));
   const messages = messageRows.filter((m) => m.participant_id && ids.has(m.participant_id));
-  const summary = funnelSummary(participants);
-  // A mesma regra dos factos: só conta a compra de um contacto que participou (no período).
-  const contacts = new Set(participants.map((p) => p.contact_id).filter(Boolean));
-  const approved = purchaseRows.filter((r) => r.contact_id && contacts.has(r.contact_id));
+  // A regra das Análises: facturação e «Compraram» são os pagamentos aprovados no período.
+  const approved = purchaseRows;
+  const funnel = funnelSummary(participants);
+  const buyers = buyersOf(approved);
+  const summary = {
+    ...funnel,
+    buyers,
+    conversion: funnel.attended ? Math.min(100, (buyers / funnel.attended) * 100) : 0,
+  };
   // A duração configurada pode faltar ou estar desactualizada: usa também a posição mais avançada.
   const span = Math.max(
     factsDuration(participants) || durationSeconds,
@@ -263,6 +271,15 @@ export async function fetchWebinarMetrics(
       new Set(messages.filter((m) => m.sender_kind === "team").map((m) => m.participant_id!)),
     ),
   };
+}
+
+/**
+ * Quem pagou no período: pessoas diferentes com pagamento aprovado (sem contacto, cada pagamento
+ * conta). É o mesmo conjunto da facturação, por isso «Compraram» e «Facturação» nunca se contradizem,
+ * mesmo quando a pessoa assistiu e clicou noutro dia (inscreveu-se antes do período).
+ */
+export function buyersOf(purchases: { contact_id?: string | null }[]) {
+  return new Set(purchases.map((p, i) => p.contact_id ?? `sem-contacto-${i}`)).size;
 }
 
 export function sumByCurrency(rows: { amount_value: number | null; currency: string | null }[]) {

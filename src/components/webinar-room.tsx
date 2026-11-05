@@ -459,15 +459,6 @@ export function WebinarRoom({
 
   // A transição suave de fim de contagem é ativada depois de `prelive` ser calculada.
 
-  useLivePresence({
-    organizationId: organizationId ?? null,
-    webinarId: webinar.id,
-    webinarTitle: webinar.public_title,
-    name: viewerName,
-    mode,
-    checkout,
-  });
-
   const scheduledStartMs = useMemo(() => {
     if (!startsAt) return null;
     const value = new Date(startsAt).getTime();
@@ -886,6 +877,17 @@ export function WebinarRoom({
     deadlinePassed,
   );
   const offerClosed = timer.closed;
+
+  // A presença diz também se a oferta está no ecrã, para a Vista ao vivo contar «Na oferta».
+  useLivePresence({
+    organizationId: organizationId ?? null,
+    webinarId: webinar.id,
+    webinarTitle: webinar.public_title,
+    name: viewerName,
+    mode,
+    checkout,
+    offerOpen: ctaVisible && !offerClosed,
+  });
 
   // Notificação de compra visível neste segundo, dentro da janela configurada.
   // Cada notificação tem o seu momento definido à mão, por isso não há janela
