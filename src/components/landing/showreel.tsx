@@ -13,6 +13,8 @@ import { Link } from "@tanstack/react-router";
 import {
   Check,
   Pause,
+  Volume2,
+  VolumeX,
   Play,
   Radio,
   ShoppingBag,
@@ -775,6 +777,14 @@ function SceneFinale({ t, interactive }: { t: MotionValue<number>; interactive: 
 
 /* ---------- O palco e os controlos ---------- */
 
+/**
+ * O som (narração e música), gerado por scripts/narracao-apresentacao.mjs. Sem o ficheiro, a
+ * apresentação fica muda e o botão do som não aparece. Só se descarrega quando a pessoa liga o som.
+ */
+const SOUND = Object.values(
+  import.meta.glob<string>("/src/assets/landing/apresentacao/*.mp3", { eager: true, query: "?url", import: "default" }),
+)[0];
+
 const PRELOAD = [logo, painel, editorAgenda, editorOferta, salaAoVivo, salaAoVivoTelemovel, salaOferta, salaVendasTelemovel, fluxo, metricas];
 
 function Segment({ t, i, onSeek }: { t: MotionValue<number>; i: number; onSeek: (v: number) => void }) {
@@ -804,7 +814,27 @@ export default function Showreel() {
   const boxRef = useRef<HTMLDivElement>(null);
   const playingRef = useRef(playing);
   const visibleRef = useRef(false);
+  const [sound, setSound] = useState(false);
+  const soundRef = useRef(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   playingRef.current = playing;
+  soundRef.current = sound;
+
+  /** Liga o som dentro do clique (os browsers só deixam tocar depois de um gesto da pessoa). */
+  const enableSound = (on: boolean) => {
+    if (!SOUND) return;
+    if (on && !audioRef.current) audioRef.current = new Audio(SOUND);
+    const audio = audioRef.current;
+    if (audio) {
+      if (on) {
+        audio.currentTime = t.get();
+        void audio.play().catch(() => setSound(false));
+      } else audio.pause();
+    }
+    setSound(on);
+  };
+
+  useEffect(() => () => audioRef.current?.pause(), []);
 
   useLayoutEffect(() => {
     const box = boxRef.current;
@@ -839,16 +869,29 @@ export default function Showreel() {
   }, []);
 
   useEffect(() => {
+    // «Ver apresentação» é um clique: recomeça do início, já com som.
     const play = () => {
       t.set(0);
       setPlaying(true);
+      enableSound(true);
     };
     window.addEventListener(SHOWREEL_PLAY_EVENT, play);
     return () => window.removeEventListener(SHOWREEL_PLAY_EVENT, play);
   }, [t]);
 
   useAnimationFrame((_, delta) => {
-    if (!ready || !playingRef.current || !visibleRef.current || document.hidden) return;
+    const running = ready && playingRef.current && visibleRef.current && !document.hidden;
+    const audio = audioRef.current;
+    if (audio && soundRef.current) {
+      // O som segue o relógio da apresentação: pára com ela e volta ao sítio depois de um salto.
+      if (!running) {
+        if (!audio.paused) audio.pause();
+      } else if (audio.paused) {
+        audio.currentTime = t.get();
+        void audio.play().catch(() => undefined);
+      } else if (Math.abs(audio.currentTime - t.get()) > 0.3) audio.currentTime = t.get();
+    }
+    if (!running) return;
     t.set((t.get() + Math.min(delta, 100) / 1000) % SHOWREEL_DURATION);
   });
 
@@ -906,6 +949,17 @@ export default function Showreel() {
           >
             {playing ? <Pause className="size-4" aria-hidden="true" /> : <Play className="size-4 translate-x-px" aria-hidden="true" />}
           </button>
+          {SOUND && (
+            <button
+              type="button"
+              onClick={() => enableSound(!sound)}
+              className="grid size-10 flex-none place-items-center rounded-full bg-white/90 text-[#111] shadow-[0_6px_20px_-8px_rgba(0,0,0,.35)] ring-1 ring-black/5 backdrop-blur transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-600)]"
+              aria-label={sound ? "Desligar o som" : "Ligar o som"}
+              aria-pressed={sound}
+            >
+              {sound ? <Volume2 className="size-4" aria-hidden="true" /> : <VolumeX className="size-4" aria-hidden="true" />}
+            </button>
+          )}
           <div className="flex flex-1 gap-1.5" role="group" aria-label="Cenas da apresentação">
             {SCENES.map((s, i) => (
               <Segment key={s.label} t={t} i={i} onSeek={seek} />
