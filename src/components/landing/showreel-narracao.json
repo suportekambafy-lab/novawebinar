@@ -1,30 +1,30 @@
 {
   "_nota": "A narração da apresentação do hero (landing/showreel.tsx). «at» é o segundo em que a fala começa; cada fala tem de acabar antes da seguinte. Depois de mudar, gerar outra vez: node scripts/narracao-apresentacao.mjs",
   "duracao": 56,
-  "musica": "Cinematic, minimal and modern tech product launch underscore, soft warm synth pads, gentle pulsing piano, subtle percussion building slowly, optimistic and premium, no vocals, clean ending",
+  "musica": "Energetic, upbeat modern tech product launch track, 120 BPM, punchy kick, bright plucky arpeggios, driving bass, confident and inspiring, build-up and big finish, no vocals",
   "falas": [
     {
-      "at": 0.6,
+      "at": 0.9,
       "texto": "Transforma apresentações em resultados."
     },
     {
-      "at": 3.6,
+      "at": 3.5,
       "texto": "Cria. Automatiza. Apresenta. Escala."
     },
     {
-      "at": 8.0,
+      "at": 7.2,
       "texto": "O teu próximo webinar fica pronto em minutos."
     },
     {
-      "at": 15.8,
+      "at": 15.6,
       "texto": "Uma sala feita para envolver quem assiste."
     },
     {
-      "at": 25.8,
+      "at": 25.6,
       "texto": "Da inscrição à oferta, tudo automatizado."
     },
     {
-      "at": 47.6,
+      "at": 50.2,
       "texto": "O palco do teu crescimento."
     }
   ]

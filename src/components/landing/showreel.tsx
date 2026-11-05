@@ -34,7 +34,7 @@ import {
   type MotionStyle,
   type MotionValue,
 } from "motion/react";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, Fragment, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { SHOWREEL_PLAY_EVENT, ShowreelPoster } from "@/components/landing/showreel-poster";
 import logo from "@/assets/brand/novawebinar-logo.png";
 import painel from "@/assets/landing/painel.webp";
@@ -171,12 +171,12 @@ function Caption({ t, from, to, title, sub, top = 58 }: { t: MotionValue<number>
   return (
     <Layer
       t={t}
-      tr={{ at: [from, from + 0.7, to - 0.5, to], o: [0, 1, 1, 0], y: [18, 0, 0, -12], b: [6, 0, 0, 4] }}
+      tr={{ at: [from, from + 0.1, to - 0.5, to], o: [0, 1, 1, 0], y: [0, 0, 0, -14], b: [0, 0, 0, 4] }}
       className="showreel-caption left-0 right-0 z-30 text-center"
       style={{ top }}
     >
       <p className="mx-auto max-w-[1300px] font-semibold text-[#0d0d0f]" style={{ fontSize: 50, lineHeight: 1.1 }}>
-        {title}
+        <Kinetic text={title} at={from + 0.12} />
       </p>
       {sub && (
         <p className="mt-3 text-[#5c5c63]" style={{ fontSize: 22 }}>
@@ -193,6 +193,86 @@ function Word({ t, at, out, children, className }: { t: MotionValue<number>; at:
     <motion.span className={`inline-block ${className ?? ""}`} style={style}>
       {children}
     </motion.span>
+  );
+}
+
+/**
+ * O relógio das letras animadas: muda a cada cena e a cada salto, para os atrasos voltarem a ser
+ * calculados a partir de `t`.
+ */
+const Epoch = createContext<{ t: MotionValue<number> | null; epoch: string }>({ t: null, epoch: "" });
+
+/**
+ * Letras animadas, em CSS (styles.css, «kt-»): cada letra entra no segundo `at` da apresentação, com
+ * `step` segundos entre letras. Entre asteriscos, a palavra-chave na cor da marca, com sublinhado.
+ * Fora do ecrã ou em pausa as animações param com a apresentação (data-paused no palco).
+ */
+function Kinetic({ text, at, step = 0.022 }: { text: string; at: number; step?: number }) {
+  const { t, epoch } = useContext(Epoch);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- recalcula só quando o relógio salta
+  const base = useMemo(() => at - (t?.get() ?? 0), [epoch, at]);
+  let n = 0;
+  const word = (w: string, key: string) => (
+    <span key={key} className="inline-block whitespace-nowrap">
+      {[...w].map((ch) => (
+        <span key={n} className="kt-char" style={{ animationDelay: `${(base + n++ * step).toFixed(3)}s` }}>
+          {ch}
+        </span>
+      ))}
+    </span>
+  );
+  return (
+    <span key={epoch}>
+      {text.split(/(\*[^*]+\*)/).filter(Boolean).map((part, p) => {
+        const marked = part.startsWith("*");
+        const words = (marked ? part.slice(1, -1) : part).split(/(\s+)/);
+        const body = words.map((w, i) => (/^\s+$/.test(w) ? " " : w ? word(w, `${p}-${i}`) : null));
+        return marked ? (
+          <span key={p} className="kt-hl" style={{ animationDelay: `${(base + n * step + 0.15).toFixed(3)}s` }}>
+            {body}
+          </span>
+        ) : (
+          <Fragment key={p}>{body}</Fragment>
+        );
+      })}
+    </span>
+  );
+}
+
+/** O feixe de luz que atravessa o palco em cada mudança de cena, com o whoosh do som. */
+function Sweep({ t, at }: { t: MotionValue<number>; at: number }) {
+  const x = useTransform(t, [at - 0.45, at + 0.35], [-760, W + 240], { clamp: true });
+  const opacity = useTransform(t, [at - 0.45, at - 0.3, at + 0.2, at + 0.35], [0, 1, 1, 0], { clamp: true });
+  const flash = useTransform(t, [at - 0.25, at, at + 0.3], [0, 0.32, 0], { clamp: true });
+  const visibility = useTransform(opacity, (o) => (o < 0.005 ? "hidden" : "visible"));
+  return (
+    <>
+      <motion.div
+        className="pointer-events-none absolute -top-40 z-[45] h-[1200px] w-[560px]"
+        style={{
+          x,
+          opacity,
+          visibility,
+          rotate: 14,
+          background: "linear-gradient(90deg, transparent, rgba(255,255,255,.75) 38%, color-mix(in oklab, var(--accent-600) 35%, white) 52%, rgba(255,255,255,.6) 64%, transparent)",
+        }}
+      />
+      <motion.div className="pointer-events-none absolute inset-0 z-[44] bg-white" style={{ opacity: flash, visibility }} />
+    </>
+  );
+}
+
+/** A luz quente em baixo pulsa com o bombo (120 BPM) enquanto a batida toca. */
+function BeatGlow({ t }: { t: MotionValue<number> }) {
+  const opacity = useTransform(t, (v) => {
+    const beat = (v >= 6.6 && v < 45) || (v >= 49.7 && v < 54);
+    return beat ? 0.3 + 0.7 * Math.exp(-7 * (v % 0.5)) : 0.3;
+  });
+  return (
+    <motion.div
+      className="pointer-events-none absolute inset-x-0 -bottom-[320px] z-0 h-[720px]"
+      style={{ opacity, background: "radial-gradient(50% 50% at 50% 50%, color-mix(in oklab, var(--accent-600) 24%, transparent), transparent 70%)" }}
+    />
   );
 }
 
@@ -267,7 +347,6 @@ function Typing({ t, box, text, at, dur, show }: { t: MotionValue<number>; box: 
 /* ---------- Cena 1: o impacto inicial ---------- */
 
 function SceneIntro({ t }: { t: MotionValue<number> }) {
-  const headline = ["Transforma", "apresentações", "em", "resultados."];
   const verbs = ["Cria.", "Automatiza.", "Apresenta.", "Escala."];
   return (
     <>
@@ -279,13 +358,14 @@ function SceneIntro({ t }: { t: MotionValue<number> }) {
       >
         <img src={logo} alt="" width={900} height={450} draggable={false} className="block w-full" />
       </Layer>
-      <div className="showreel-caption absolute inset-x-0 z-20 text-center font-semibold text-[#0d0d0f]" style={{ top: 268, fontSize: 64, lineHeight: 1.08 }}>
-        {headline.map((w, i) => (
-          <Word key={w} t={t} at={2.3 + i * 0.13} out={6.2} className="mx-[0.14em]">
-            {w}
-          </Word>
-        ))}
-      </div>
+      <Layer
+        t={t}
+        tr={{ at: [2.2, 2.3, 5.9, 6.3], o: [0, 1, 1, 0], y: [0, 0, 0, -16] }}
+        className="showreel-caption inset-x-0 z-20 text-center font-semibold text-[#0d0d0f]"
+        style={{ top: 268, fontSize: 64, lineHeight: 1.08 }}
+      >
+        <Kinetic text="Transforma apresentações em *resultados.*" at={2.3} step={0.026} />
+      </Layer>
       <div className="showreel-caption absolute inset-x-0 z-20 text-center text-[#4a4a50]" style={{ top: 362, fontSize: 26 }}>
         {verbs.map((w, i) => (
           <Word key={w} t={t} at={3.2 + i * 0.2} out={6.1} className="mx-[0.3em]">
@@ -340,7 +420,7 @@ function SceneCreate({ t }: { t: MotionValue<number> }) {
   const zoom = useTrack(t, { at: [8.6, 9.5, 11.7, 12.4], s: [1, 1.3, 1.3, 1] });
   return (
     <>
-      <Caption t={t} from={6.7} to={15} title="O teu próximo webinar começa aqui." />
+      <Caption t={t} from={6.7} to={15} title="O teu próximo webinar *começa aqui.*" />
       <Layer
         t={t}
         tr={{ at: [6.5, 6.6, 14.1, 15.0], o: [0, 1, 1, 0], ry: [0, 0, 0, -30], x: [0, 0, 0, -320], s: [1, 1, 1, 0.82] }}
@@ -439,7 +519,7 @@ function SceneRoom({ t }: { t: MotionValue<number> }) {
   const push = useTrack(t, { at: [15.5, 24.5], s: [1, 1.05] });
   return (
     <>
-      <Caption t={t} from={15.1} to={25} title="Uma experiência pensada para envolver." />
+      <Caption t={t} from={15.1} to={25} title="Uma experiência pensada para *envolver.*" />
       <Layer
         t={t}
         tr={{ at: [15.4, 16.0, 24.4, 25], o: [0, 1, 1, 0] }}
@@ -553,7 +633,7 @@ function SceneFlow({ t }: { t: MotionValue<number> }) {
   const x2 = nodeCenter(1);
   return (
     <>
-      <Caption t={t} from={25.1} to={35} title="Automatiza o processo. Concentra-te no crescimento." />
+      <Caption t={t} from={25.1} to={35} title="Automatiza o processo. Concentra-te no *crescimento.*" />
       <Layer
         t={t}
         tr={{ at: [24.8, 25.8, 34.2, 35], o: [0, 0.22, 0.22, 0], s: [1.06, 1, 1, 0.97] }}
@@ -635,7 +715,7 @@ function SceneConvert({ t }: { t: MotionValue<number> }) {
   const zoom = useTrack(t, { at: [36.4, 37.9, 39.3, 40.0], s: [1, 1.75, 1.75, 1] });
   return (
     <>
-      <Caption t={t} from={35.1} to={45} title="Da atenção à ação." />
+      <Caption t={t} from={35.1} to={45} title="Da atenção *à ação.*" />
       <Layer
         t={t}
         tr={{ at: [34.6, 35.6, 39.7, 40.3], o: [0, 1, 1, 0], y: [60, 0, 0, 0], s: [0.94, 1, 1, 1] }}
@@ -746,12 +826,12 @@ function SceneFinale({ t, interactive }: { t: MotionValue<number>; interactive: 
       </Layer>
       <Layer
         t={t}
-        tr={{ at: [50.2, 51.0, 55.3, 56], o: [0, 1, 1, 0], y: [20, 0, 0, -8] }}
+        tr={{ at: [50.1, 50.2, 55.3, 56], o: [0, 1, 1, 0], y: [0, 0, 0, -8] }}
         className="showreel-caption inset-x-0 z-50 text-center"
         style={{ top: 330 }}
       >
         <p className="font-semibold text-[#0d0d0f]" style={{ fontSize: 58, lineHeight: 1.08 }}>
-          NovaWebinar. <span className="font-normal text-[#4a4a50]">O palco do teu crescimento.</span>
+          <Kinetic text="NovaWebinar. O palco do teu *crescimento.*" at={50.2} step={0.024} />
         </p>
       </Layer>
       <Layer
@@ -835,6 +915,8 @@ export default function Showreel() {
   };
 
   useEffect(() => () => audioRef.current?.pause(), []);
+  const [seeks, setSeeks] = useState(0);
+  const runningRef = useRef<boolean | null>(null);
 
   useLayoutEffect(() => {
     const box = boxRef.current;
@@ -872,6 +954,7 @@ export default function Showreel() {
     // «Ver apresentação» é um clique: recomeça do início, já com som.
     const play = () => {
       t.set(0);
+      setSeeks((n) => n + 1);
       setPlaying(true);
       enableSound(true);
     };
@@ -881,6 +964,11 @@ export default function Showreel() {
 
   useAnimationFrame((_, delta) => {
     const running = ready && playingRef.current && visibleRef.current && !document.hidden;
+    // As letras animadas (CSS) param e continuam com a apresentação.
+    if (runningRef.current !== running) {
+      runningRef.current = running;
+      boxRef.current?.toggleAttribute("data-paused", !running);
+    }
     const audio = audioRef.current;
     if (audio && soundRef.current) {
       // O som segue o relógio da apresentação: pára com ela e volta ao sítio depois de um salto.
@@ -903,7 +991,9 @@ export default function Showreel() {
   const seek = (v: number) => {
     t.set(v);
     setScene(sceneAt(v));
+    setSeeks((n) => n + 1);
   };
+  const epoch = useMemo(() => ({ t, epoch: `${scene}:${seeks}` }), [t, scene, seeks]);
   const scale = width / W;
   const narrow = width > 0 && width < 640;
   const current = SCENES[scene]!;
@@ -921,14 +1011,18 @@ export default function Showreel() {
           style={{ width: W, height: H, transform: `scale(${scale})`, perspective: 2400 }}
         >
           {width > 0 && (
-            <>
+            <Epoch.Provider value={epoch}>
+              <BeatGlow t={t} />
+              {SCENES.slice(1).map((s) => (
+                <Sweep key={s.start} t={t} at={s.start} />
+              ))}
               <SceneIntro t={t} />
               <SceneCreate t={t} />
               <SceneRoom t={t} />
               <SceneFlow t={t} />
               <SceneConvert t={t} />
               <SceneFinale t={t} interactive={!narrow} />
-            </>
+            </Epoch.Provider>
           )}
         </div>
         <motion.div
