@@ -1319,7 +1319,7 @@ export function AnalyticsBoard({ data, loading, webinarId }: AnalyticsBoardProps
       <Card
         title="Funil de conversão"
         icon={Filter}
-        sub="Cada pessoa conta uma vez por webinar; depois de «Assistiram», só conta quem assistiu."
+        sub="Cada pessoa conta uma vez por webinar; depois de «Assistiram», só conta quem assistiu. «Compraram» é quem pagou no período, como a facturação."
       >
         <Funnel steps={data.funnel.map((s) => ({ label: s.label, value: s.value }))} />
       </Card>

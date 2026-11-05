@@ -271,3 +271,21 @@ describe("análises por webinar", () => {
     ]);
   });
 });
+
+describe("Compraram e Facturação contam os mesmos pagamentos", () => {
+  it("quem assistiu noutro dia e pagou hoje conta em Compraram, como na facturação", async () => {
+    const { analyticsSummary } = await import("./analytics");
+    const fact = {
+      participant_id: "p-hoje",
+      person_id: "c1",
+      webinar_id: "w1",
+      joined_at: "2026-11-05T11:23:00Z",
+      purchased: true,
+    } as unknown as Parameters<typeof analyticsSummary>[0][number];
+    const purchases = [{ contact_id: "c1", amount_value: 197, currency: "EUR", webinar_id: "w1" }];
+    const a = analyticsSummary([fact], purchases, undefined);
+    expect(a.summary.buyers).toBe(1);
+    expect(a.payments).toBe(1);
+    expect(a.webinars[0]!.buyers).toBe(1);
+  });
+});

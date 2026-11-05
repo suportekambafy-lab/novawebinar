@@ -50,6 +50,25 @@ export type AnalyticsPurchase = {
 
 type Summary = ReturnType<typeof funnelSummary>;
 
+/**
+ * Quem pagou no período: pessoas diferentes com pagamento aprovado (sem contacto, cada pagamento
+ * conta). É o mesmo conjunto da facturação, por isso «Compraram» e «Facturação» nunca se contradizem,
+ * mesmo quando a pessoa assistiu e clicou noutro dia (inscreveu-se antes do período).
+ */
+export function buyersOf(purchases: Pick<AnalyticsPurchase, "contact_id">[]) {
+  return new Set(purchases.map((p, i) => p.contact_id ?? `sem-contacto-${i}`)).size;
+}
+
+/** O funil com «Compraram» e a conversão pelos pagamentos do período. */
+function withPaidBuyers(summary: Summary, purchases: AnalyticsPurchase[]): Summary {
+  const buyers = buyersOf(purchases);
+  return {
+    ...summary,
+    buyers,
+    conversion: summary.attended ? Math.min(100, (buyers / summary.attended) * 100) : 0,
+  };
+}
+
 export type FunnelStepRow = {
   key: keyof typeof METRIC;
   label: string;
@@ -198,7 +217,7 @@ export function perWebinar(facts: AnalyticsFact[], purchases: AnalyticsPurchase[
   }
   return [...byWebinar.entries()]
     .map(([webinarId, rows]) => {
-      const s = funnelSummary(rows);
+      const s = withPaidBuyers(funnelSummary(rows), purchases.filter((p) => p.webinar_id === webinarId));
       return {
         webinarId,
         title: rows.find((r) => r.webinar_title)?.webinar_title ?? "Webinar",
@@ -220,7 +239,7 @@ export function analyticsSummary(
   now = new Date(),
   countries: Map<string, ContactCountry> = new Map(),
 ) {
-  const summary = funnelSummary(facts);
+  const summary = withPaidBuyers(funnelSummary(facts), purchases);
   const people = peopleOf(facts);
   return {
     summary,
