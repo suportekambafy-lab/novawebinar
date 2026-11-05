@@ -1,12 +1,16 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState, type ReactNode } from "react";
-import { ArrowRight, Bell, ChevronDown, CircleCheck, RotateCcw, ShoppingBag } from "lucide-react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { ArrowRight, Bell, ChevronDown, CircleCheck, Play, RotateCcw, ShoppingBag } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { EASE, Item, Parallax, Reveal, Stagger, Words } from "@/components/landing/motion";
 import { DesktopShot } from "@/components/landing/shots";
 import { Vitrine } from "@/components/landing/vitrine";
+import { SHOWREEL_PLAY_EVENT, ShowreelPoster } from "@/components/landing/showreel-poster";
+
+/** A apresentação animada só chega depois da página: não pesa no primeiro carregamento. */
+const Showreel = lazy(() => import("@/components/landing/showreel"));
 import {
   CheckoutsSection,
   FinalCta,
@@ -315,7 +319,30 @@ const questions = [
   ],
 ] as const;
 
-/** O hero: o título ao centro, palavra a palavra, com o ponto final na cor da marca; depois a vitrine. */
+/**
+ * A apresentação do hero: a capa aparece logo; o código e as capturas pedem-se quando o browser fica
+ * livre. Sem JavaScript fica a capa.
+ */
+function ShowreelSlot() {
+  const [load, setLoad] = useState(false);
+  useEffect(() => {
+    const start = () => setLoad(true);
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(start, { timeout: 1500 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = setTimeout(start, 600);
+    return () => clearTimeout(id);
+  }, []);
+  const poster = (
+    <div className="relative aspect-video w-full overflow-hidden rounded-[18px] sm:rounded-[28px]">
+      <ShowreelPoster onPlay={() => setLoad(true)} />
+    </div>
+  );
+  return load ? <Suspense fallback={poster}>{<Showreel />}</Suspense> : poster;
+}
+
+/** O hero: o título ao centro, palavra a palavra, com o ponto final na cor da marca; depois a apresentação. */
 function Hero() {
   const reduced = useReducedMotion();
   const enter = (delay: number) => ({
@@ -323,6 +350,10 @@ function Hero() {
     animate: { opacity: 1, y: 0 },
     transition: { duration: 0.7, ease: EASE, delay },
   });
+  const watch = () => {
+    document.getElementById("apresentacao")?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "center" });
+    window.dispatchEvent(new Event(SHOWREEL_PLAY_EVENT));
+  };
   return (
     <section data-surface="base" className="relative overflow-hidden pt-[var(--section-y-tight)]">
       <div className="site-wrap flex flex-col items-center text-center">
@@ -330,15 +361,14 @@ function Hero() {
           <Kicker>Webinars automatizados com IA</Kicker>
         </motion.div>
         <h1 className="max-w-[18ch] text-site-display font-normal">
-          <Words text="Venda todos os dias com webinars que correm sozinhos" />
+          <Words text="Cria webinars que trabalham por ti" />
           <span className="text-[var(--accent-600)]" aria-hidden="true">
             .
           </span>
         </h1>
         <motion.p className="mt-6 max-w-[60ch] text-site-lead text-s-text-2" {...enter(0.55)}>
-          Grave uma vez e apresente à hora marcada, todos os dias ou no instante do clique. Agente
-          IA no chat, vendas em tempo real, automações por WhatsApp e e-mail e as métricas de cada
-          sessão.
+          Uma plataforma para criar, apresentar e automatizar webinars, com uma experiência
+          profissional do primeiro clique à última interação.
         </motion.p>
         <motion.div
           className="mt-8 flex flex-wrap items-center justify-center gap-3"
@@ -348,11 +378,11 @@ function Hero() {
             to="/auth/register"
             className="site-btn site-btn-primary bg-[var(--accent-600)] text-white hover:bg-[var(--accent-700)]"
           >
-            Criar conta grátis
+            Começar agora
           </Link>
-          <a href="#como-funciona" className="site-btn site-btn-outline">
-            Ver como funciona
-          </a>
+          <button type="button" onClick={watch} className="site-btn site-btn-outline">
+            <Play aria-hidden="true" /> Ver apresentação
+          </button>
         </motion.div>
         <motion.p className="mt-4 text-site-small text-s-text-2" {...enter(0.8)}>
           <b className="font-semibold text-s-text">Sem instalar nada</b> · a primeira sala fica
@@ -360,10 +390,22 @@ function Hero() {
         </motion.p>
       </div>
       <motion.div
-        className="mt-12 -mx-[var(--gutter)] sm:mx-0"
+        id="apresentacao"
+        className="site-wrap mt-12 scroll-mt-24 sm:mt-16"
+        initial={{ opacity: 0, y: reduced ? 0 : 48, scale: reduced ? 1 : 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 1, ease: EASE, delay: 0.45 }}
+      >
+        <div className="mx-auto max-w-[1240px]">
+          <ShowreelSlot />
+        </div>
+      </motion.div>
+      <motion.div
+        className="mt-16 -mx-[var(--gutter)] sm:mx-0 sm:mt-24"
         initial={{ opacity: 0, y: reduced ? 0 : 40 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.9, ease: EASE, delay: 0.5 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, amount: 0.2 }}
+        transition={{ duration: 0.9, ease: EASE }}
       >
         <Vitrine />
       </motion.div>

@@ -330,6 +330,10 @@
   /* O cartão do visual: vidro leve, com uma sombra quente que se levanta ao passar o rato. */
   .site-visual { position: relative; transition: transform var(--duration-base) ease-out, box-shadow var(--duration-base) ease-out; }
   /* As capturas do produto (landing/shots.tsx): moldura de browser, com a barra em cima, e de telemóvel. */
+  /* A apresentação do hero (landing/showreel.tsx): um palco claro, com luz suave e o calor da marca em baixo. */
+  .showreel-stage { background: radial-gradient(120% 80% at 50% -10%, #ffffff 0%, #f7f5f2 55%, #efebe6 100%); box-shadow: 0 50px 120px -50px rgba(37,17,10,.45), 0 0 0 1px rgba(0,0,0,.04); }
+  .showreel-stage::before { content: ""; position: absolute; inset: auto -10% -35% -10%; height: 70%; background: radial-gradient(50% 50% at 50% 50%, color-mix(in oklab, var(--accent-600) 14%, transparent), transparent 70%); pointer-events: none; }
+  .showreel-stage[data-narrow] .showreel-caption { display: none; }
   .site-browser { margin: 0; overflow: hidden; border-radius: 14px; background: #0f0f0f; box-shadow: 0 30px 70px -30px rgba(37,17,10,.45), 0 0 0 1px rgba(0,0,0,.08); }
   .site-browser-bar { display: flex; align-items: center; gap: 6px; height: 32px; padding-inline: 12px; background: #1c1c1e; }
   .site-browser-bar span { width: 9px; height: 9px; border-radius: 50%; background: #3a3a3c; }
