@@ -5,31 +5,27 @@
   "falas": [
     {
       "at": 0.6,
-      "texto": "Transforma as tuas apresentações em resultados."
+      "texto": "Transforma apresentações em resultados."
     },
     {
-      "at": 4.0,
+      "at": 3.6,
       "texto": "Cria. Automatiza. Apresenta. Escala."
     },
     {
-      "at": 7.9,
-      "texto": "O teu próximo webinar começa aqui. Escolhe a data, prepara a oferta, e a sala fica pronta."
+      "at": 8.0,
+      "texto": "O teu próximo webinar fica pronto em minutos."
     },
     {
       "at": 15.8,
-      "texto": "Na sala, o vídeo, o chat e as reações envolvem quem assiste, no computador e no telemóvel."
+      "texto": "Uma sala feita para envolver quem assiste."
     },
     {
       "at": 25.8,
-      "texto": "Da inscrição à oferta, os lembretes seguem sozinhos por e-mail e WhatsApp. Tu concentras-te no crescimento."
+      "texto": "Da inscrição à oferta, tudo automatizado."
     },
     {
-      "at": 35.8,
-      "texto": "A oferta entra no minuto certo. E as métricas mostram quem assistiu, quem clicou e quem comprou."
-    },
-    {
-      "at": 47.2,
-      "texto": "NovaWebinar. O palco do teu crescimento. Começa agora."
+      "at": 47.6,
+      "texto": "O palco do teu crescimento."
     }
   ]
 }
