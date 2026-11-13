@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Download, Search, ShoppingBag } from "lucide-react";
 import { useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
 import { EmptyState } from "@/components/ds/data";
 import { Metric } from "@/components/page-primitives";
@@ -14,7 +15,7 @@ import { shortMoney } from "@/lib/dashboard";
 import { useWebinars, useWorkspace } from "@/lib/data";
 import { RANGE_OPTIONS, resolveRange, type RangePreset } from "@/lib/date-range";
 import { countryLabel, flagOf } from "@/lib/analytics-geo";
-import { inCountry, matchesSale, salesCountries, salesSummary, STATUS_LABEL, UNKNOWN_COUNTRY, useSales, type Sale, type StatusFilter } from "@/lib/sales";
+import { countryResults, inCountry, matchesSale, salesCountries, useCountryFacts, type CountryResult, salesSummary, STATUS_LABEL, UNKNOWN_COUNTRY, useSales, type Sale, type StatusFilter } from "@/lib/sales";
 import { formatMoney } from "@/lib/support/context";
 import { downloadCsv, toCsv } from "@/lib/webinar-metrics";
 
@@ -102,6 +103,95 @@ function Country({ sale }: { sale: Sale }) {
   );
 }
 
+const pct = (v: number | null) =>
+  v === null ? "—" : `${new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 1 }).format(v)}%`;
+
+/** De cada país: inscritos e quem assistiu no período, quem comprou, a conversão e a facturação. */
+function CountryTable({ rows, selected, onPick, loading }: { rows: CountryResult[]; selected: string | undefined; onPick: (code: string | undefined) => void; loading: boolean }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? rows : rows.slice(0, 8);
+  return (
+    <section className="mb-4 rounded-card bg-card p-4 sm:p-5">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <div>
+          <h2 className="text-base font-semibold">Conversão por país</h2>
+          <p className="text-sm text-muted-foreground">
+            Quantas pessoas de cada país se inscreveram e assistiram no período, quantas compraram e quanto facturou. Toque num país para ver as vendas dele.
+          </p>
+        </div>
+      </div>
+      {loading ? (
+        <div className="grid gap-2">
+          {Array.from({ length: 4 }, (_, i) => (
+            <Skeleton key={i} className="h-9 w-full" />
+          ))}
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="py-4 text-sm text-muted-foreground">Sem inscrições nem vendas neste período.</p>
+      ) : (
+        <>
+          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            <table className="w-full min-w-[560px] text-sm">
+              <thead>
+                <tr className="border-b text-left text-xs text-muted-foreground">
+                  <th className="py-2 pr-3 font-medium">País</th>
+                  <th className="px-3 py-2 text-right font-medium">Inscritos</th>
+                  <th className="px-3 py-2 text-right font-medium">Assistiram</th>
+                  <th className="px-3 py-2 text-right font-medium">Compraram</th>
+                  <th className="px-3 py-2 text-right font-medium" title="Compraram ÷ assistiram">Conversão</th>
+                  <th className="py-2 pl-3 text-right font-medium">Facturação</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((r) => {
+                  const active = selected === r.code;
+                  return (
+                    <tr key={r.code} className={cn("border-b last:border-0", active && "bg-muted/50")}>
+                      <td className="py-2 pr-3">
+                        <button
+                          type="button"
+                          onClick={() => onPick(active ? undefined : r.code)}
+                          aria-pressed={active}
+                          className="text-left font-medium hover:underline focus-visible:outline-2"
+                        >
+                          {r.flag ? `${r.flag} ` : ""}
+                          {r.label}
+                        </button>
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{r.registered}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{r.attended}</td>
+                      <td className="px-3 py-2 text-right font-semibold tabular-nums">{r.buyers}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        <span className="inline-flex items-center justify-end gap-2">
+                          <span className="hidden h-1.5 w-14 overflow-hidden rounded-full bg-black/10 sm:block" aria-hidden="true">
+                            <span className="block h-full rounded-full bg-[var(--accent-600)]" style={{ width: `${Math.min(100, (r.conversion ?? 0) * 4)}%` }} />
+                          </span>
+                          {pct(r.conversion)}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap py-2 pl-3 text-right tabular-nums">
+                        {r.revenue.length ? r.revenue.map((v) => formatMoney(v.amount, v.currency)).join(" + ") : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {rows.length > 8 && (
+            <Button variant="ghost" size="sm" className="mt-2" onClick={() => setAll((v) => !v)}>
+              {all ? "Ver menos" : `Ver os ${rows.length} países`}
+            </Button>
+          )}
+          <p className="mt-2 text-xs text-muted-foreground">
+            Inscritos e assistiram contam pelo país da inscrição (IP); compraram e facturação pelo país do contacto.
+          </p>
+        </>
+      )}
+    </section>
+  );
+}
+
 function SalesPage() {
   const { data: workspace } = useWorkspace();
   const organizationId = workspace?.organizationId;
@@ -115,6 +205,8 @@ function SalesPage() {
   const range = useMemo(() => resolveRange(periodo, customFrom, customTo), [periodo, customFrom, customTo]);
   const { data: sales = [], isLoading, error } = useSales(organizationId, range, estado, webinar, titles);
   const countries = useMemo(() => salesCountries(sales), [sales]);
+  const { data: facts = [], isLoading: factsLoading } = useCountryFacts(organizationId, range, webinar);
+  const byCountry = useMemo(() => countryResults(facts, sales), [facts, sales]);
   const shown = useMemo(() => sales.filter((s) => inCountry(s, pais) && matchesSale(s, search)), [sales, pais, search]);
   const summary = useMemo(() => salesSummary(shown), [shown]);
   const loading = isLoading || !organizationId;
@@ -253,6 +345,10 @@ function SalesPage() {
           change="De quem comprou e assistiu"
         />
       </div>
+
+      {(estado === "approved" || estado === "todos") && (
+        <CountryTable rows={byCountry} selected={pais} onPick={(code) => setFilters({ pais: code })} loading={loading || factsLoading} />
+      )}
 
       {error ? (
         <EmptyState icon={ShoppingBag} title="Não foi possível carregar as vendas" description="Tente outra vez daqui a pouco." />

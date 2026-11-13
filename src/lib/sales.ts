@@ -8,7 +8,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAll } from "@/lib/fetch-all";
-import { countryLabel, flagOf } from "@/lib/analytics-geo";
+import { countryCodeOf, countryLabel, flagOf } from "@/lib/analytics-geo";
 import { rangeKey, type DateRange } from "@/lib/date-range";
 import { NOT_TEST_ROOM } from "@/lib/test-room";
 
@@ -199,6 +199,86 @@ export function matchesSale(s: Sale, search: string) {
   const q = search.trim().toLowerCase();
   if (!q) return true;
   return [s.name, s.email, s.phone, s.product, s.webinarTitle, s.country?.label].some((v) => v?.toLowerCase().includes(q));
+}
+
+/** Uma participação, para contar por país quem se inscreveu e quem assistiu. */
+export type CountryFact = { person_id: string | null; country: string | null; attended: boolean | null };
+
+export type CountryResult = {
+  code: string;
+  label: string;
+  flag: string;
+  /** Pessoas que se inscreveram no período (cada uma uma vez). */
+  registered: number;
+  attended: number;
+  /** Pessoas diferentes com pagamento aprovado no período. */
+  buyers: number;
+  revenue: { currency: string; amount: number }[];
+  /** Compraram ÷ assistiram, em percentagem; null sem ninguém a assistir. */
+  conversion: number | null;
+};
+
+/**
+ * Por país: quantas pessoas se inscreveram e assistiram no período (o país da inscrição, pelo IP) e
+ * quantas compraram e quanto facturou (as vendas aprovadas do período, pelo país do contacto).
+ * Do país que mais facturou para o que menos; sem país no fim.
+ */
+export function countryResults(facts: CountryFact[], sales: Sale[]): CountryResult[] {
+  const rows = new Map<string, { registered: Set<string>; attended: Set<string>; buyers: Set<string>; revenue: Map<string, number>; label: string; flag: string }>();
+  const row = (code: string, name?: string | null) => {
+    let r = rows.get(code);
+    if (!r) {
+      const known = code !== UNKNOWN_COUNTRY;
+      r = { registered: new Set(), attended: new Set(), buyers: new Set(), revenue: new Map(), label: known ? countryLabel(code, name ?? null) : "País desconhecido", flag: known ? flagOf(code) : "" };
+      rows.set(code, r);
+    }
+    return r;
+  };
+  facts.forEach((f, i) => {
+    const code = countryCodeOf(null, f.country);
+    const r = row(code && code !== "XX" ? code : UNKNOWN_COUNTRY, f.country);
+    const person = f.person_id ?? `sem-pessoa-${i}`;
+    r.registered.add(person);
+    if (f.attended) r.attended.add(person);
+  });
+  for (const s of sales) {
+    if (s.status !== "approved") continue;
+    const r = row(s.country?.code ?? UNKNOWN_COUNTRY);
+    r.buyers.add(s.contactId ?? s.id);
+    r.revenue.set(s.currency, (r.revenue.get(s.currency) ?? 0) + s.amount);
+  }
+  const total = (r: { revenue: Map<string, number> }) => [...r.revenue.values()].reduce((a, b) => a + b, 0);
+  return [...rows.entries()]
+    .sort(([a, ra], [b, rb]) => Number(a === UNKNOWN_COUNTRY) - Number(b === UNKNOWN_COUNTRY) || total(rb) - total(ra) || rb.attended.size - ra.attended.size)
+    .map(([code, r]) => ({
+      code,
+      label: r.label,
+      flag: r.flag,
+      registered: r.registered.size,
+      attended: r.attended.size,
+      buyers: r.buyers.size,
+      revenue: [...r.revenue.entries()].map(([currency, amount]) => ({ currency, amount })).sort((a, b) => b.amount - a.amount),
+      conversion: r.attended.size ? Math.min(100, (r.buyers.size / r.attended.size) * 100) : null,
+    }));
+}
+
+/** As participações do período (inscrições), para a conversão por país. */
+export function useCountryFacts(organizationId: string | undefined, range: DateRange, webinarId: string | undefined) {
+  return useQuery({
+    queryKey: ["sales-country-facts", organizationId, rangeKey(range), webinarId ?? "todos"],
+    enabled: Boolean(organizationId),
+    queryFn: () =>
+      fetchAll((from, to) => {
+        let q = supabase
+          .from("participant_facts")
+          .select("person_id, country, attended, participant_id", { count: "exact" })
+          .eq("organization_id", organizationId!)
+          .or(NOT_TEST_ROOM);
+        if (webinarId) q = q.eq("webinar_id", webinarId);
+        if (range) q = q.gte("joined_at", range.from).lt("joined_at", range.to);
+        return q.order("participant_id").range(from, to);
+      }) as Promise<CountryFact[]>,
+  });
 }
 
 const CHUNK = 150;

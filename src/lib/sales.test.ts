@@ -87,3 +87,30 @@ describe("filtro por país", () => {
     expect(sales.filter((s) => inCountry(s, "desconhecido")).map((s) => s.id)).toEqual(["d"]);
   });
 });
+
+describe("conversão por país", () => {
+  it("conta inscritos, quem assistiu e quem comprou em cada país, com a conversão", async () => {
+    const { countryResults } = await import("./sales");
+    const sales = buildSales(
+      [purchase({ id: "a", contact_id: "c2" }), purchase({ id: "b", contact_id: "c2" }), purchase({ id: "x", status: "failed", approved_at: null })],
+      [],
+      [contact, { ...contact, id: "c2", country_code: "PT", country: "Portugal" }],
+      titles,
+    );
+    const facts = [
+      { person_id: "c2", country: "Portugal", attended: true },
+      { person_id: "c2", country: "Portugal", attended: true },
+      { person_id: "c4", country: "Portugal", attended: true },
+      { person_id: "c5", country: "Portugal", attended: false },
+      { person_id: "c6", country: "France", attended: true },
+      { person_id: "c7", country: null, attended: false },
+    ];
+    const rows = countryResults(facts, sales);
+    expect(rows.map((r) => [r.code, r.registered, r.attended, r.buyers])).toEqual([
+      ["PT", 3, 2, 1],
+      ["FR", 1, 1, 0],
+      ["desconhecido", 1, 0, 0],
+    ]);
+    expect(rows[0]).toMatchObject({ conversion: 50, revenue: [{ currency: "EUR", amount: 394 }] });
+  });
+});
