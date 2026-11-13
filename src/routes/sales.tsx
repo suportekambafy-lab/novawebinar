@@ -13,7 +13,8 @@ import { sourceLabel } from "@/lib/contacts";
 import { shortMoney } from "@/lib/dashboard";
 import { useWebinars, useWorkspace } from "@/lib/data";
 import { RANGE_OPTIONS, resolveRange, type RangePreset } from "@/lib/date-range";
-import { matchesSale, salesSummary, STATUS_LABEL, useSales, type Sale, type StatusFilter } from "@/lib/sales";
+import { countryLabel, flagOf } from "@/lib/analytics-geo";
+import { inCountry, matchesSale, salesCountries, salesSummary, STATUS_LABEL, UNKNOWN_COUNTRY, useSales, type Sale, type StatusFilter } from "@/lib/sales";
 import { formatMoney } from "@/lib/support/context";
 import { downloadCsv, toCsv } from "@/lib/webinar-metrics";
 
@@ -27,13 +28,14 @@ const STATUSES: { value: StatusFilter; label: string }[] = [
   { value: "refunded", label: "Reembolsadas" },
 ];
 
-type Search = { webinar?: string | undefined; periodo?: RangePreset | undefined; estado?: StatusFilter | undefined };
+type Search = { webinar?: string | undefined; periodo?: RangePreset | undefined; estado?: StatusFilter | undefined; pais?: string | undefined };
 
 export const Route = createFileRoute("/sales")({
   validateSearch: (search: Record<string, unknown>): Search => ({
     ...(typeof search["webinar"] === "string" ? { webinar: search["webinar"] } : {}),
     ...(PRESETS.has(search["periodo"] as RangePreset) ? { periodo: search["periodo"] as RangePreset } : {}),
     ...(STATUSES.some((s) => s.value === search["estado"]) ? { estado: search["estado"] as StatusFilter } : {}),
+    ...(typeof search["pais"] === "string" && /^([A-Z]{2}|desconhecido)$/.test(search["pais"]) ? { pais: search["pais"] } : {}),
   }),
   head: () => ({
     meta: [
@@ -103,7 +105,7 @@ function Country({ sale }: { sale: Sale }) {
 function SalesPage() {
   const { data: workspace } = useWorkspace();
   const organizationId = workspace?.organizationId;
-  const { webinar, periodo = "30dias" as RangePreset, estado = "approved" } = Route.useSearch();
+  const { webinar, periodo = "30dias" as RangePreset, estado = "approved", pais } = Route.useSearch();
   const navigate = useNavigate();
   const { data: webinars = [] } = useWebinars(organizationId);
   const titles = useMemo(() => new Map(webinars.map((w) => [w.id, w.public_title || w.internal_name])), [webinars]);
@@ -112,18 +114,20 @@ function SalesPage() {
   const [search, setSearchText] = useState("");
   const range = useMemo(() => resolveRange(periodo, customFrom, customTo), [periodo, customFrom, customTo]);
   const { data: sales = [], isLoading, error } = useSales(organizationId, range, estado, webinar, titles);
-  const shown = useMemo(() => sales.filter((s) => matchesSale(s, search)), [sales, search]);
+  const countries = useMemo(() => salesCountries(sales), [sales]);
+  const shown = useMemo(() => sales.filter((s) => inCountry(s, pais) && matchesSale(s, search)), [sales, pais, search]);
   const summary = useMemo(() => salesSummary(shown), [shown]);
   const loading = isLoading || !organizationId;
 
   const setFilters = (next: Search) => {
-    const merged = { webinar, periodo, estado, ...next };
+    const merged = { webinar, periodo, estado, pais, ...next };
     void navigate({
       to: "/sales",
       search: {
         ...(merged.webinar ? { webinar: merged.webinar } : {}),
         ...(merged.periodo && merged.periodo !== "30dias" ? { periodo: merged.periodo } : {}),
         ...(merged.estado && merged.estado !== "approved" ? { estado: merged.estado } : {}),
+        ...(merged.pais ? { pais: merged.pais } : {}),
       },
     });
   };
@@ -204,6 +208,24 @@ function SalesPage() {
             {STATUSES.map((s) => (
               <SelectItem key={s.value} value={s.value}>
                 {s.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={pais ?? "todos"} onValueChange={(value) => setFilters({ pais: value === "todos" ? undefined : value })}>
+          <SelectTrigger className="w-[190px]" aria-label="País">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos os países</SelectItem>
+            {/* O país escolhido continua na lista mesmo sem vendas no período, para se poder trocar. */}
+            {pais && !countries.some((c) => c.code === pais) && (
+              <SelectItem value={pais}>{pais === UNKNOWN_COUNTRY ? "País desconhecido" : `${flagOf(pais)} ${countryLabel(pais)}`} (0)</SelectItem>
+            )}
+            {countries.map((c) => (
+              <SelectItem key={c.code} value={c.code}>
+                {c.flag ? `${c.flag} ` : ""}
+                {c.label} ({c.count})
               </SelectItem>
             ))}
           </SelectContent>

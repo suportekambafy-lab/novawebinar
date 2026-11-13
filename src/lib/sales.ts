@@ -173,6 +173,28 @@ export function salesSummary(sales: Sale[]) {
   };
 }
 
+/** «desconhecido» no filtro de país: quem não tem país (sem inscrição com IP). */
+export const UNKNOWN_COUNTRY = "desconhecido";
+
+/** Os países das vendas, para o filtro: do que tem mais vendas para o que tem menos; sem país no fim. */
+export function salesCountries(sales: Sale[]) {
+  const byCode = new Map<string, { code: string; label: string; flag: string; count: number }>();
+  for (const s of sales) {
+    const key = s.country?.code ?? UNKNOWN_COUNTRY;
+    const row = byCode.get(key) ?? { code: key, label: s.country?.label ?? "País desconhecido", flag: s.country?.flag ?? "", count: 0 };
+    row.count += 1;
+    byCode.set(key, row);
+  }
+  return [...byCode.values()].sort(
+    (a, b) => Number(a.code === UNKNOWN_COUNTRY) - Number(b.code === UNKNOWN_COUNTRY) || b.count - a.count || a.label.localeCompare(b.label),
+  );
+}
+
+export function inCountry(s: Sale, country: string | undefined) {
+  if (!country) return true;
+  return (s.country?.code ?? UNKNOWN_COUNTRY) === country;
+}
+
 export function matchesSale(s: Sale, search: string) {
   const q = search.trim().toLowerCase();
   if (!q) return true;

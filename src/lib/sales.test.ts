@@ -72,3 +72,18 @@ describe("buildSales", () => {
     expect(matchesSale(sales[0]!, "leilões")).toBe(false);
   });
 });
+
+describe("filtro por país", () => {
+  it("lista os países das vendas, com quantas, e filtra; sem país fica no fim", async () => {
+    const { inCountry, salesCountries } = await import("./sales");
+    const sales = buildSales(
+      [purchase({ id: "a" }), purchase({ id: "b", contact_id: "c2" }), purchase({ id: "c", contact_id: "c3" }), purchase({ id: "d", contact_id: null })],
+      [],
+      [contact, { ...contact, id: "c2", country_code: "PT", country: "Portugal" }, { ...contact, id: "c3", country_code: "PT", country: "Portugal" }],
+      titles,
+    );
+    expect(salesCountries(sales).map((c) => [c.code, c.count])).toEqual([["PT", 2], ["FR", 1], ["desconhecido", 1]]);
+    expect(sales.filter((s) => inCountry(s, "PT")).map((s) => s.id).sort()).toEqual(["b", "c"]);
+    expect(sales.filter((s) => inCountry(s, "desconhecido")).map((s) => s.id)).toEqual(["d"]);
+  });
+});
