@@ -22,6 +22,7 @@ import { Route as IntelligenceRouteImport } from './routes/intelligence'
 import { Route as LibraryRouteImport } from './routes/library'
 import { Route as LiveViewRouteImport } from './routes/live-view'
 import { Route as ParticipantsRouteImport } from './routes/participants'
+import { Route as SalesRouteImport } from './routes/sales'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as TeamRouteImport } from './routes/team'
@@ -118,6 +119,11 @@ const LiveViewRoute = LiveViewRouteImport.update({
 const ParticipantsRoute = ParticipantsRouteImport.update({
   id: '/participants',
   path: '/participants',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SalesRoute = SalesRouteImport.update({
+  id: '/sales',
+  path: '/sales',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsRoute = SettingsRouteImport.update({
@@ -299,6 +305,7 @@ export interface FileRoutesByFullPath {
   '/library': typeof LibraryRoute
   '/live-view': typeof LiveViewRoute
   '/participants': typeof ParticipantsRoute
+  '/sales': typeof SalesRoute
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
   '/team': typeof TeamRoute
@@ -346,6 +353,7 @@ export interface FileRoutesByTo {
   '/library': typeof LibraryRoute
   '/live-view': typeof LiveViewRoute
   '/participants': typeof ParticipantsRoute
+  '/sales': typeof SalesRoute
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
   '/team': typeof TeamRoute
@@ -394,6 +402,7 @@ export interface FileRoutesById {
   '/library': typeof LibraryRoute
   '/live-view': typeof LiveViewRoute
   '/participants': typeof ParticipantsRoute
+  '/sales': typeof SalesRoute
   '/settings': typeof SettingsRoute
   '/support': typeof SupportRoute
   '/team': typeof TeamRoute
@@ -443,6 +452,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/live-view'
     | '/participants'
+    | '/sales'
     | '/settings'
     | '/support'
     | '/team'
@@ -490,6 +500,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/live-view'
     | '/participants'
+    | '/sales'
     | '/settings'
     | '/support'
     | '/team'
@@ -537,6 +548,7 @@ export interface FileRouteTypes {
     | '/library'
     | '/live-view'
     | '/participants'
+    | '/sales'
     | '/settings'
     | '/support'
     | '/team'
@@ -585,6 +597,7 @@ export interface RootRouteChildren {
   LibraryRoute: typeof LibraryRoute
   LiveViewRoute: typeof LiveViewRoute
   ParticipantsRoute: typeof ParticipantsRoute
+  SalesRoute: typeof SalesRoute
   SettingsRoute: typeof SettingsRoute
   SupportRoute: typeof SupportRoute
   TeamRoute: typeof TeamRoute
@@ -710,6 +723,13 @@ declare module '@tanstack/react-router' {
       path: '/participants'
       fullPath: '/participants'
       preLoaderRoute: typeof ParticipantsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sales': {
+      id: '/sales'
+      path: '/sales'
+      fullPath: '/sales'
+      preLoaderRoute: typeof SalesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings': {
@@ -953,6 +973,7 @@ const rootRouteChildren: RootRouteChildren = {
   LibraryRoute: LibraryRoute,
   LiveViewRoute: LiveViewRoute,
   ParticipantsRoute: ParticipantsRoute,
+  SalesRoute: SalesRoute,
   SettingsRoute: SettingsRoute,
   SupportRoute: SupportRoute,
   TeamRoute: TeamRoute,

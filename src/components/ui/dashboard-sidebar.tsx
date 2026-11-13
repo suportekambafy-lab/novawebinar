@@ -3,6 +3,7 @@ import {
   Blocks,
   BrainCircuit,
   Calendar,
+  ShoppingBag,
   SquareActivity,
   ChevronsUpDown,
   ContactRound,
@@ -72,6 +73,7 @@ export const NAV_ICON = {
   live: MonitorDot,
   cases: Inbox,
   analytics: SquareActivity,
+  sales: ShoppingBag,
   abTests: FlaskConical,
   intelligence: BrainCircuit,
   library: Library,
@@ -103,6 +105,7 @@ const SECTIONS: { heading: string; items: NavItem[] }[] = [
     items: [
       { to: "/live-view", title: "Ao vivo", icon: NAV_ICON.live },
       { to: "/analytics", title: "Análises", icon: NAV_ICON.analytics },
+      { to: "/sales", title: "Vendas", icon: NAV_ICON.sales },
       { to: "/ab-tests", title: "Testes A/B", icon: NAV_ICON.abTests },
       { to: "/intelligence", title: "Webinar Intelligence", icon: NAV_ICON.intelligence },
     ],
